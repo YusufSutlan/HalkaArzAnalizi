@@ -485,7 +485,7 @@ class DataExtractor:
 
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
-            InfoKey.TARIH: ["talep toplama tarihi"],
+            InfoKey.TARIH: ["halka arz tarihi","talep toplama tarihi"],
             InfoKey.FIYAT: ["halka arz fiyatı"],
             InfoKey.BUYUKLUK: ["halka arz büyüklüğü"],
             InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi"],
