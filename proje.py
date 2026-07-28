@@ -45,6 +45,7 @@ class ArzDurumu(str, Enum):
     TALEP_TOPLANIYOR = "Talep Toplanıyor"
     DAGITIM_BEKLENIYOR = "Dağıtım Bekleniyor"
     ISLEME_BEKLENIYOR = "İşleme Girmesi Bekleniyor"
+    ISLEM_GORMEYE_BASLADI = "Borsada İşlem Görüyor" # YENİ: İlk işlem günündekileri silmemek için eklendi
 
 
 class Gorunum(str, Enum):
@@ -72,6 +73,9 @@ class InfoKey(str, Enum):
     TAHSISAT = "Tahsisat"
     DAGITIM_TABLOSU = "DağıtımTablosu"
     DAGITIM_TIPI = "DagitimTipi"
+    DAGITIM_YONTEMI = "DagitimYontemi" # YENİ
+    ARACI_KURUM = "AraciKurum" # YENİ
+    PAZAR = "Pazar" # YENİ
 
 
 class FinKey(str, Enum):
@@ -167,6 +171,14 @@ class CompanyResponse(BaseModel):
     tahsisat: str
     dagitim_tablosu: str
     dagitim_tipi: str
+    # YENİ EKLENEN 13 MADDE ALANLARI
+    dagitim_yontemi: str
+    pay_miktari: str
+    araci_kurum: str
+    pazar: str
+    t1_t2_kullanilabilir: bool
+    katilim_endeksine_uygun: bool
+    islem_menusu: str
     debug_bilgisi: Optional[dict] = None
 
 
@@ -493,7 +505,10 @@ class DataExtractor:
             InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri"],
             InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi"],
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
-            InfoKey.PAY_SAYISI: ["çıkarılmış sermaye", "ödenmiş sermaye", "halka arz sonrası sermaye", "toplam pay sayısı"],
+            InfoKey.PAY_SAYISI: ["çıkarılmış sermaye", "ödenmiş sermaye", "halka arz sonrası sermaye", "toplam pay sayısı", "pay"],
+            InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi"],
+            InfoKey.ARACI_KURUM: ["aracı kurum", "konsorsiyum lideri"],
+            InfoKey.PAZAR: ["pazar"],
         }
         self.TUM_ETIKETLER = {e for etiketler in self.FIELD_LABELS.values() for e in etiketler}
 
@@ -608,11 +623,13 @@ class DataExtractor:
                 ]
                 if t_list:
                     veri[InfoKey.TAHSISAT] = "\n".join(t_list)
+            
+            # Finansal tabloyu daha detaylı (10 satır) çekmesi için güncellendi
             elif "finansal tablo" in nl and veri[InfoKey.FINANSAL_TABLO] == self.DEFAULTS[InfoKey.FINANSAL_TABLO]:
                 t_list = [
                     lines[i + j].strip()
-                    for j in range(1, 6)
-                    if i + j < len(lines) and "*" not in lines[i + j]
+                    for j in range(1, 10)
+                    if i + j < len(lines) and "*" not in lines[i + j] and lines[i + j].strip()
                 ]
                 if t_list:
                     veri[InfoKey.FINANSAL_TABLO] = "\n".join(t_list)
@@ -662,6 +679,11 @@ class DataExtractor:
 
     def _durum_belirle(self, tarih_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
         rt_lower = raw_text.lower()
+        
+        # 1. İlk işlem gününde de gözüksün (işlem görmeye başlamıştır ise silmiyoruz)
+        if "işlem görmeye başlamıştır" in rt_lower:
+            return ArzDurumu.ISLEM_GORMEYE_BASLADI
+            
         if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
             return ArzDurumu.ISLEME_BEKLENIYOR
 
@@ -713,8 +735,8 @@ class DataExtractor:
 
         detay_soup = BeautifulSoup(detay_res.text, "html.parser")
         detay_metin = detay_soup.get_text(separator=" ", strip=True).lower()
-        if "işlem görmeye başlamıştır" in detay_metin:
-            return None
+        
+        # SİLİNDİ: İşlem görmeye başlamıştır olanları silme kodunu tamamen kaldırdık (Madde 1)
 
         veri = dict(self.DEFAULTS)
         self._tablodan_doldur(veri, detay_soup)
@@ -724,9 +746,15 @@ class DataExtractor:
         fin = self._finansal_tablo_cikar(detay_soup, raw_text)
 
         # -----------------------------------------------------------------
+        # T1-T2, KATILIM ENDEKSİ VE MENÜ TÜRÜ (MADDE 10, 11, 12)
+        # -----------------------------------------------------------------
+        t1_t2 = "t1-t2 kullanılabilir" in raw_text.lower() or "t1 ve t2 kullanılabilir" in raw_text.lower()
+        katilim = "katılım endeksine uygun değildir" not in raw_text.lower() and "katılım endeksine uygun" in raw_text.lower()
+        islem_menusu = "Hisse Alış/Satış Menüsü" if "borsada satış" in veri.get(InfoKey.DAGITIM_YONTEMI, "").lower() else "Halka Arz Menüsü"
+
+        # -----------------------------------------------------------------
         # 🚑 ACİL MÜDAHALE (TARİH VE BÜYÜKLÜK TEMİZLİĞİ)
         # -----------------------------------------------------------------
-        # 1. Tarih detay sayfasında bulunamazsa (div/grid yapısı yüzünden), doğrudan ana sayfadaki karttan kopar!
         if veri.get(InfoKey.TARIH) == self.DEFAULTS.get(InfoKey.TARIH):
             tarih_match = re.search(
                 r"(\d{1,2}(?:-\d{1,2})*\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{4})", 
@@ -736,7 +764,6 @@ class DataExtractor:
             if tarih_match:
                 veri[InfoKey.TARIH] = tarih_match.group(1).title()
 
-        # 2. Arz Büyüklüğü içindeki gereksiz yıldızlı (**) metinleri temizle (Çirkin görüntüyü engeller)
         buyukluk_metni = str(veri.get(InfoKey.BUYUKLUK, ""))
         if "**" in buyukluk_metni:
             veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("**")[0].strip()
@@ -747,18 +774,22 @@ class DataExtractor:
         durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), raw_text, kart_metni)
         skor, guclu, risk, detaylar = self.analyzer.skoru_topla(veri, fin, durum, raw_text)
 
+        # -----------------------------------------------------------------
+        # DİNAMİK VE ZEKİ GENEL DEĞERLENDİRME (MADDE 2)
+        # -----------------------------------------------------------------
         if durum == ArzDurumu.HAZIRLANIYOR:
             gorunum = Gorunum.HAZIRLIK
             degerlendirme = "Bu şirket henüz hazırlık aşamasındadır. SPK onaylı nihai izahname ve kesin tarihler beklenmektedir."
-        elif skor >= 75:
-            gorunum = Gorunum.COK_GUCLU
-            degerlendirme = "Finansal göstergeler ve halka arz koşulları büyük ölçüde olumlu görünüyor."
-        elif skor >= 50:
-            gorunum = Gorunum.DENGELI
-            degerlendirme = "Dengeli bir profil — bazı kriterler olumlu, bazıları riskli veya belirsiz."
         else:
-            gorunum = Gorunum.RISKLI
-            degerlendirme = "Birden fazla kriterde zayıf sinyal var; dikkatli değerlendirilmeli."
+            gorunum = Gorunum.COK_GUCLU if skor >= 75 else Gorunum.DENGELI if skor >= 50 else Gorunum.RISKLI
+            deg_metin = f"Algoritmamız bu halka arzı {skor} puan ile '{gorunum.value}' olarak sınıflandırdı. "
+            isk_val = TextUtils.yuzde_bul(veri.get(InfoKey.ISKONTO, ""))
+            if isk_val is not None:
+                deg_metin += f"Şirket %{isk_val} iskonto ile halka arz ediliyor. "
+            deg_metin += "Katılım endeksine UYGUN. " if katilim else "Katılım endeksine UYGUN DEĞİL. "
+            if "fiyat istikrarı taahhüdü mevcut" in str(guclu).lower():
+                deg_metin += "Fiyat istikrarı planlanması olumlu bir sinyaldir."
+            degerlendirme = deg_metin
 
         yildiz_sayisi = 0 if skor == 0 else max(1, int(skor / 20))
         yildiz = "★" * yildiz_sayisi + "☆" * (5 - yildiz_sayisi)
@@ -804,6 +835,14 @@ class DataExtractor:
             tahsisat=veri[InfoKey.TAHSISAT],
             dagitim_tablosu=veri[InfoKey.DAGITIM_TABLOSU],
             dagitim_tipi=veri[InfoKey.DAGITIM_TIPI],
+            # 13 Madde için eklenen alanlar
+            dagitim_yontemi=veri.get(InfoKey.DAGITIM_YONTEMI, "Açıklanmadı"),
+            pay_miktari=veri.get(InfoKey.PAY_SAYISI, "Açıklanmadı"),
+            araci_kurum=veri.get(InfoKey.ARACI_KURUM, "Açıklanmadı"),
+            pazar=veri.get(InfoKey.PAZAR, "Açıklanmadı"),
+            t1_t2_kullanilabilir=t1_t2,
+            katilim_endeksine_uygun=katilim,
+            islem_menusu=islem_menusu,
             debug_bilgisi=debug_bilgisi,
         )
 
@@ -837,9 +876,8 @@ class DataExtractor:
                     satir.get_text(separator=" ", strip=True).lower() if satir else sirket_adi.lower()
                 )
 
-                if not any(b in kart_metni for b in ["yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan", "hazırlanıyor"]):
-                    continue
-                if any(e in kart_metni for e in ["işlem görüyor", "borsada işlem"]):
+                # İŞLEM GÖRENLERİ TUTMASI İÇİN GÜNCELLENDİ (Madde 1)
+                if not any(b in kart_metni for b in ["yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan", "hazırlanıyor", "işlem görüyor"]):
                     continue
 
                 gorulen_sirketler.add(sirket_adi)
