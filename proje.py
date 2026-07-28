@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, ClassVar
 from enum import Enum
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, date
 
 # ═══════════════════════════════════════════════════════════════════
 # ⚙️ 1. SİSTEM AYARLARI VE LOGLAMA
@@ -40,6 +40,8 @@ class Category(str, Enum):
 
 class ArzDurumu(str, Enum):
     HAZIRLANIYOR = "Hazırlanıyor"
+    SPK_ONAYLI = "SPK Onaylı (Tarih Bekleniyor)"
+    TALEP_YAKLASIYOR = "Talep Toplama Yaklaşıyor"
     TALEP_TOPLANIYOR = "Talep Toplanıyor"
     DAGITIM_BEKLENIYOR = "Dağıtım Bekleniyor"
     ISLEME_BEKLENIYOR = "İşleme Girmesi Bekleniyor"
@@ -66,7 +68,6 @@ class InfoKey(str, Enum):
     SATIS_YONTEMI = "SatisYontemi"
     FIYAT_ISTIKRARI = "FiyatIstikrari"
     PAY_SAYISI = "PaySayisi"
-    # Aşağıdaki dördü FIELD_LABELS ile değil, ayrı bespoke fonksiyonlarla dolduruluyor:
     FINANSAL_TABLO = "FinansalTablo"
     TAHSISAT = "Tahsisat"
     DAGITIM_TABLOSU = "DağıtımTablosu"
@@ -90,14 +91,11 @@ class AppSettings:
     CACHE_TTL: int = 300
     MAX_RETRY: int = 3
     MAX_SIRKET: int = 15
-    ISTEK_ARASI_BEKLEME: float = 0.3  # Cloudflare / rate-limit koruması
+    ISTEK_ARASI_BEKLEME: float = 0.3
 
 
 @dataclass(frozen=True)
 class ScoreWeights:
-    # Toplam 100. Sektör kategorisi kaldırıldı (gerçek piyasa verisine
-    # dayanmayan bir sezgiydi); puanı Finansal (+3) ve Değerleme'ye (+2)
-    # dağıtıldı.
     MAX: ClassVar[dict[Category, float]] = {
         Category.FINANSAL: 28.0,
         Category.DEGERLEME: 17.0,
@@ -169,7 +167,6 @@ class CompanyResponse(BaseModel):
     tahsisat: str
     dagitim_tablosu: str
     dagitim_tipi: str
-    # debug=true ile çağrıldığında dolu gelir; normal kullanımda None.
     debug_bilgisi: Optional[dict] = None
 
 
@@ -184,13 +181,6 @@ class APIResponse(BaseModel):
 class TextUtils:
     @staticmethod
     def normalize(s: Optional[str]) -> str:
-        """
-        Boşlukları sadeleştirir, sondaki ':' işaretini atar, küçük harfe çevirir.
-        Python'un .lower()'ı 'İ' (U+0130) karakterini 'i̇' (2 karakter) yapar —
-        bu yüzden Türkçe başlıklar etiket listeleriyle sessizce eşleşmiyordu.
-        Sadece 'İ' için düzeltme yapılıyor; ASCII 'I' dokunulmuyor (örn. "BIST"
-        kısaltmasını bozmamak için).
-        """
         s = (s or "").replace("İ", "i")
         return re.sub(r"\s+", " ", s).strip().rstrip(":").strip().lower()
 
@@ -209,7 +199,6 @@ class TextUtils:
 
     @staticmethod
     def sayi_bul(metin: Optional[str]) -> Optional[float]:
-        """Türkçe formatlı ilk sayıyı ('1.234.567,89') float olarak döner."""
         if not metin:
             return None
         desenler = re.findall(r"-?\d{1,3}(?:\.\d{3})+(?:,\d+)?|-?\d+,\d+|-?\d+", metin)
@@ -313,13 +302,6 @@ class ScoreAnalyzer:
         return ScoreResult(round(min(self.weights.MAX[Category.DEGERLEME], puan), 1), " ".join(aciklamalar), veri_var)
 
     def fon_kullanim_puanla(self, metin: str) -> ScoreResult:
-        """
-        ORANTILI puanlama: fon kullanım bloğundaki her satırdaki yüzdeyi
-        büyüme/borç anahtar kelimeleriyle eşleştirir. "%5 yatırım" ile
-        "%80 yatırım" artık aynı puanı almıyor. Yüzde hiç bulunamazsa
-        (sadece anahtar kelime varsa) daha düşük güvenle sabit bir
-        bonus/ceza uygulanır; hiç sinyal yoksa nötr.
-        """
         mx = self.weights.MAX[Category.FON_KULLANIM]
         taban = mx / 2
         norm = TextUtils.normalize(metin)
@@ -363,11 +345,20 @@ class ScoreAnalyzer:
             return ScoreResult(round(mx / 2, 1), "Arz şekli belirsiz.", False)
 
         m_lower = metin.lower()
-        if "sermaye artırımı" in m_lower and "ortak satış" not in m_lower and "mevcut pay satış" not in m_lower:
+        
+        # YENİ EKLENEN: "yok", "bulunmuyor", "bulunmamaktadır" içeren olumsuz cümleleri yakalayıp temizliyoruz
+        olumsuzlanmis = re.sub(
+            r"(ortak satış[ıi]?|mevcut pay satış[ıi]?)\s*[^.]{0,15}\b(yok|bulunmuyor|bulunmamaktadır)\b",
+            "", m_lower,
+        )
+        
+        ortak_satisi_var = "ortak satış" in olumsuzlanmis or "mevcut pay satış" in olumsuzlanmis
+
+        if "sermaye artırımı" in m_lower and not ortak_satisi_var:
             return ScoreResult(mx, "Tamamen sermaye artırımı (fon şirkette kalır).", True)
-        elif "sermaye artırımı" in m_lower and ("ortak satış" in m_lower or "mevcut pay satış" in m_lower):
+        elif "sermaye artırımı" in m_lower and ortak_satisi_var:
             return ScoreResult(round(mx * 0.5, 1), "Kısmi ortak satışı var.", True)
-        elif "ortak satış" in m_lower or "mevcut pay satış" in m_lower:
+        elif ortak_satisi_var:
             return ScoreResult(round(mx * 0.1, 1), "Tamamen ortak satışı (fon kasaya girmez).", True)
 
         return ScoreResult(round(mx / 2, 1), "Belirsiz arz yapısı.", True)
@@ -507,10 +498,6 @@ class DataExtractor:
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
             InfoKey.PAY_SAYISI: ["çıkarılmış sermaye", "ödenmiş sermaye", "halka arz sonrası sermaye", "toplam pay sayısı"],
         }
-        # Not: FINANSAL_TABLO / TAHSISAT / DAGITIM_TABLOSU / DAGITIM_TIPI
-        # bilinçli olarak burada YOK — bunlar tablo/satır etiket eşleşmesiyle
-        # değil, aşağıdaki bespoke fonksiyonlarla (farklı, çok satırlı yapıları
-        # olduğu için) dolduruluyor.
         self.TUM_ETIKETLER = {e for etiketler in self.FIELD_LABELS.values() for e in etiketler}
 
         self.FIN_LABELS: dict[FinKey, list[str]] = {
@@ -535,7 +522,6 @@ class DataExtractor:
             InfoKey.DAGITIM_TIPI: "Tahmini Lot Dağıtımı",
         })
 
-    # ---------- 1. aşama: <table> yapısından ----------
     def _tablodan_doldur(self, veri: dict, detay_soup: BeautifulSoup):
         for tr in detay_soup.find_all("tr"):
             tds = tr.find_all(["th", "td"])
@@ -552,7 +538,6 @@ class DataExtractor:
                     veri[alan] = deger
                     break
 
-    # ---------- 2. aşama: tabloda bulunamayanlar için satır taraması (fallback) ----------
     def _satirdan_deger_al(self, lines: list[str], normalized_lines: list[str], i: int) -> str:
         orijinal = lines[i]
         if ":" in orijinal:
@@ -588,7 +573,6 @@ class DataExtractor:
                     veri[alan] = deger
                 break
 
-    # ---------- Lot dağıtımı, tahsisat, finansal tablo metni — ayrı yapılar ----------
     def _dagitim_tahsisat_finansal_doldur(self, veri: dict, raw_text: str):
         lines = raw_text.split("\n")
 
@@ -636,14 +620,7 @@ class DataExtractor:
                 if t_list:
                     veri[InfoKey.FINANSAL_TABLO] = "\n".join(t_list)
 
-    # ---------- Finansal kalemler (Net Kâr, Özkaynak, vb.) — sayısal, puanlama için ----------
     def _finansal_tablo_cikar(self, detay_soup: BeautifulSoup, raw_text: str) -> dict:
-        """
-        BEST-EFFORT: halkarz.com'un finansal tablo HTML yapısı canlı ortamda
-        doğrulanmadı (ağ erişimi yok). Veri bulunamazsa ilgili puan kategorisi
-        nötr kalır, hiçbir şey çökmez. `?debug=true` ile gerçek şirketlerde
-        neyin yakalandığını kontrol edin.
-        """
         bulunan = {}
         for tr in detay_soup.find_all("tr"):
             tds = tr.find_all(["th", "td"])
@@ -686,15 +663,55 @@ class DataExtractor:
             time.sleep(1)
         return None
 
-    def _durum_belirle(self, kart_metni: str, raw_text: str) -> ArzDurumu:
-        if "hazırlanıyor" in kart_metni or "taslak" in kart_metni or "spk onay" in kart_metni:
-            return ArzDurumu.HAZIRLANIYOR
-        if "talep toplan" in kart_metni:
-            return ArzDurumu.TALEP_TOPLANIYOR
+    # YENİ EKLENEN: Tarih (zaman) bazlı durum tespiti
+    def _durum_belirle(self, tarih_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
+        # İşlem görmeye başlamış veya pay miktarı kesinleşmiş mi?
         rt_lower = raw_text.lower()
         if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
             return ArzDurumu.ISLEME_BEKLENIYOR
-        return ArzDurumu.DAGITIM_BEKLENIYOR
+
+        tarih_metni = str(tarih_metni).lower().strip()
+        
+        if not tarih_metni or tarih_metni in ("-", "açıklanmadı", "belli değil"):
+            if "taslak" in kart_metni or "hazırlanıyor" in kart_metni:
+                return ArzDurumu.HAZIRLANIYOR
+            return ArzDurumu.SPK_ONAYLI
+            
+        aylar = {
+            "ocak": 1, "şubat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "haziran": 6,
+            "temmuz": 7, "ağustos": 8, "eylül": 9, "ekim": 10, "kasım": 11, "aralık": 12
+        }
+        
+        ay_str = next((ay for ay in aylar if ay in tarih_metni), None)
+        sayilar = re.findall(r'\d+', tarih_metni)
+        
+        if ay_str and len(sayilar) >= 2:
+            try:
+                gun_baslangic = int(sayilar[0])
+                yil_listesi = [int(s) for s in sayilar if len(s) == 4]
+                yil = yil_listesi[0] if yil_listesi else datetime.now().year
+                ay = aylar[ay_str]
+                
+                bugun = datetime.now().date()
+                baslangic_tarihi = date(yil, ay, gun_baslangic)
+                
+                # Zaman analizi
+                if bugun < baslangic_tarihi:
+                    return ArzDurumu.TALEP_YAKLASIYOR
+                    
+                delta = (bugun - baslangic_tarihi).days
+                if 0 <= delta <= 3:
+                    return ArzDurumu.TALEP_TOPLANIYOR
+                elif delta > 3:
+                    return ArzDurumu.DAGITIM_BEKLENIYOR
+                    
+            except Exception:
+                pass # Parse edilemezse fallback'e düş
+                
+        # Fallback 
+        if "hazırlanıyor" in kart_metni or "taslak" in kart_metni:
+            return ArzDurumu.HAZIRLANIYOR
+        return ArzDurumu.SPK_ONAYLI
 
     def _sirket_isle(self, sirket_adi: str, detay_linki: str, kart_metni: str, debug: bool) -> Optional[CompanyResponse]:
         detay_res = self._fetch_url_with_retry(detay_linki)
@@ -713,7 +730,9 @@ class DataExtractor:
         self._dagitim_tahsisat_finansal_doldur(veri, raw_text)
         fin = self._finansal_tablo_cikar(detay_soup, raw_text)
 
-        durum = self._durum_belirle(kart_metni, raw_text)
+        # Durum tespiti artık tarihlere bakarak yapılıyor
+        durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), raw_text, kart_metni)
+        
         skor, guclu, risk, detaylar = self.analyzer.skoru_topla(veri, fin, durum, raw_text)
 
         if durum == ArzDurumu.HAZIRLANIYOR:
@@ -833,7 +852,7 @@ class DataExtractor:
             return sirket_listesi
         except Exception:
             logger.exception("Kritik scraper hatası!")
-            return sirket_listesi  # o ana kadar toplanan sonuçları kaybetme
+            return sirket_listesi
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -845,10 +864,9 @@ extractor = DataExtractor(score_analyzer)
 
 
 @app.get("/api/halkarzlar", response_model=APIResponse)
-def get_halka_arzlar(debug: bool = Query(False, description="True ise her şirket için hangi alanların gerçekten çekildiğini gösteren debug_bilgisi alanı eklenir.")):
+def get_halka_arzlar(debug: bool = Query(False, description="True ise debug_bilgisi alanı eklenir.")):
     su_an = time.time()
 
-    # Debug modunda cache'i atla — her zaman taze veri + tanı bilgisi istiyoruz.
     if not debug:
         with _CACHE_LOCK:
             if su_an - _CACHE["timestamp"] < SETTINGS.CACHE_TTL and _CACHE["data"]:
@@ -865,5 +883,8 @@ def get_halka_arzlar(debug: bool = Query(False, description="True ise her şirke
     return APIResponse(halka_arzlar=veriler)
 
 
+import os
+
 if __name__ == "__main__":
-    uvicorn.run("proje:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("proje:app", host="0.0.0.0", port=port)
