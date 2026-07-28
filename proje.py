@@ -229,8 +229,8 @@ class ScoreAnalyzer:
 
     def finansal_puanla(self, fin: dict) -> ScoreResult:
         puan, aciklamalar, veri_var = 0.0, [], False
-
         net_kar, hasilat = fin.get(FinKey.NET_KAR), fin.get(FinKey.HASILAT)
+        
         if net_kar is not None:
             veri_var = True
             if net_kar < 0:
@@ -345,8 +345,6 @@ class ScoreAnalyzer:
             return ScoreResult(round(mx / 2, 1), "Arz şekli belirsiz.", False)
 
         m_lower = metin.lower()
-        
-        # YENİ EKLENEN: "yok", "bulunmuyor", "bulunmamaktadır" içeren olumsuz cümleleri yakalayıp temizliyoruz
         olumsuzlanmis = re.sub(
             r"(ortak satış[ıi]?|mevcut pay satış[ıi]?)\s*[^.]{0,15}\b(yok|bulunmuyor|bulunmamaktadır)\b",
             "", m_lower,
@@ -442,7 +440,6 @@ class ScoreAnalyzer:
         return ScoreResult(round(mx * mult, 1), f"Şirket {min(yillar)} yılında kurulmuş (~{yas} yıllık).", True)
 
     def skoru_topla(self, veri: dict, fin: dict, durum: ArzDurumu, raw_text: str):
-        """Dönüş: (skor, guclu_yanlar, riskler, puan_detaylari)."""
         if durum == ArzDurumu.HAZIRLANIYOR:
             return 0.0, [], [], []
 
@@ -485,7 +482,7 @@ class DataExtractor:
 
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
-            InfoKey.TARIH: ["halka arz tarihi","talep toplama tarihi"],
+            InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi"],
             InfoKey.FIYAT: ["halka arz fiyatı"],
             InfoKey.BUYUKLUK: ["halka arz büyüklüğü"],
             InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi"],
@@ -663,9 +660,7 @@ class DataExtractor:
             time.sleep(1)
         return None
 
-    # YENİ EKLENEN: Tarih (zaman) bazlı durum tespiti
     def _durum_belirle(self, tarih_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
-        # İşlem görmeye başlamış veya pay miktarı kesinleşmiş mi?
         rt_lower = raw_text.lower()
         if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
             return ArzDurumu.ISLEME_BEKLENIYOR
@@ -695,7 +690,6 @@ class DataExtractor:
                 bugun = datetime.now().date()
                 baslangic_tarihi = date(yil, ay, gun_baslangic)
                 
-                # Zaman analizi
                 if bugun < baslangic_tarihi:
                     return ArzDurumu.TALEP_YAKLASIYOR
                     
@@ -706,9 +700,8 @@ class DataExtractor:
                     return ArzDurumu.DAGITIM_BEKLENIYOR
                     
             except Exception:
-                pass # Parse edilemezse fallback'e düş
+                pass 
                 
-        # Fallback 
         if "hazırlanıyor" in kart_metni or "taslak" in kart_metni:
             return ArzDurumu.HAZIRLANIYOR
         return ArzDurumu.SPK_ONAYLI
@@ -730,9 +723,28 @@ class DataExtractor:
         self._dagitim_tahsisat_finansal_doldur(veri, raw_text)
         fin = self._finansal_tablo_cikar(detay_soup, raw_text)
 
-        # Durum tespiti artık tarihlere bakarak yapılıyor
+        # -----------------------------------------------------------------
+        # 🚑 ACİL MÜDAHALE (TARİH VE BÜYÜKLÜK TEMİZLİĞİ)
+        # -----------------------------------------------------------------
+        # 1. Tarih detay sayfasında bulunamazsa (div/grid yapısı yüzünden), doğrudan ana sayfadaki karttan kopar!
+        if veri.get(InfoKey.TARIH) == self.DEFAULTS.get(InfoKey.TARIH):
+            tarih_match = re.search(
+                r"(\d{1,2}(?:-\d{1,2})*\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{4})", 
+                kart_metni, 
+                re.IGNORECASE
+            )
+            if tarih_match:
+                veri[InfoKey.TARIH] = tarih_match.group(1).title()
+
+        # 2. Arz Büyüklüğü içindeki gereksiz yıldızlı (**) metinleri temizle (Çirkin görüntüyü engeller)
+        buyukluk_metni = str(veri.get(InfoKey.BUYUKLUK, ""))
+        if "**" in buyukluk_metni:
+            veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("**")[0].strip()
+        elif "Grafiği" in buyukluk_metni:
+            veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("Grafiği")[0].strip()
+        # -----------------------------------------------------------------
+
         durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), raw_text, kart_metni)
-        
         skor, guclu, risk, detaylar = self.analyzer.skoru_topla(veri, fin, durum, raw_text)
 
         if durum == ArzDurumu.HAZIRLANIYOR:
