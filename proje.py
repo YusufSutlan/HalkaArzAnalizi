@@ -943,7 +943,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("proje:app", host="0.0.0.0", port=port)"""
 
-
 from fastapi import FastAPI, Query
 import uvicorn
 import re
@@ -1040,14 +1039,14 @@ class AppSettings:
 @dataclass(frozen=True)
 class ScoreWeights:
     MAX: ClassVar[dict[Category, float]] = {
-        Category.FINANSAL: 35.0,     # Kalite Skoru için Finansal ağırlığı artırıldı
+        Category.FINANSAL: 35.0,
         Category.DEGERLEME: 20.0,
         Category.FON_KULLANIM: 15.0,
-        Category.KURUMSALLIK: 10.0,  
         Category.ARZ_YAPISI: 10.0,
+        Category.KURUMSALLIK: 10.0,
         Category.ISKONTO: 5.0,
-        Category.SATMAMA: 3.0,       
-        Category.ACIKLIK: 2.0,       
+        Category.SATMAMA: 3.0,
+        Category.ACIKLIK: 2.0,
         Category.FIYAT_ISTIKRARI: 0.0,
     }
     FINANSAL_NET_KAR: float = 14.0
@@ -1080,10 +1079,10 @@ class CompanyResponse(BaseModel):
     bist_kodu: str
     durum: ArzDurumu
     islem_tarihi: str
-    skor: float  # Mobil UI kırılmasın diye Temel Kalite Skoru ile eşleşir
-    temel_kalite_skoru: float     # 💡 YENİ: 3'LÜ SKOR MİMARİSİ
-    tavan_potansiyeli_skoru: float # 💡 YENİ: 3'LÜ SKOR MİMARİSİ
-    risk_skoru: float             # 💡 YENİ: 3'LÜ SKOR MİMARİSİ
+    skor: float  
+    temel_kalite_skoru: float     
+    tavan_potansiyeli_skoru: float 
+    risk_skoru: float             
     yildiz: str
     genel_gorunum: Gorunum
     genel_degerlendirme: str
@@ -1184,7 +1183,7 @@ class ScoreAnalyzer:
                 puan += 0 
                 aciklamalar.append(f"Şirket Zararda ({net_kar:,.0f} TL).")
                 kirmizi_bayraklar.append("🚨 Son açıklanan net dönem zararı mevcut.")
-                ceza_sozlugu["zarar"] = 20 # Dinamik ceza
+                ceza_sozlugu["zarar"] = 20 
             else:
                 if ozk and ozk > 0:
                     roe = (net_kar / ozk) * 100
@@ -1213,7 +1212,7 @@ class ScoreAnalyzer:
             if ozk <= 0:
                 puan += 0
                 kirmizi_bayraklar.append("🚨 Özsermaye Negatif (Teknik İflas Durumu!).")
-                ceza_sozlugu["iflas"] = 30 # Ağır ceza
+                ceza_sozlugu["iflas"] = 30 
             else:
                 oran = borc / ozk
                 if oran <= 0.5: puan += self.weights.FINANSAL_BORC; aciklamalar.append(f"Düşük borçluluk (Borç/Özk: {oran:.2f}).")
@@ -1316,7 +1315,7 @@ class ScoreAnalyzer:
         if "sermaye artırımı" in m_lower and ortak: return ScoreResult(mx * 0.4, mx, "Kısmi ortak satışı var.", True)
         if ortak: 
             kirmizi_bayraklar.append("🚨 Tamamen ortak satışı! Halka arz geliri şirketin kasasına GİRMİYOR.")
-            ceza_sozlugu["ortak_satis"] = 15 # Dinamik ceza
+            ceza_sozlugu["ortak_satis"] = 15 
             return ScoreResult(0, mx, "Tamamen ortak satışı (Fon kasaya girmiyor!).", True)
         return ScoreResult(0, 0, "Belirsiz arz yapısı.", False)
 
@@ -1356,7 +1355,6 @@ class ScoreAnalyzer:
             if yas >= 20: puan += mx * 0.5; aciklamalar.append(f"Köklü şirket geçmişi (~{yas} yıl).")
             elif yas >= 10: puan += mx * 0.3; aciklamalar.append(f"Kurumsal yapı (~{yas} yıl).")
 
-        # 💡 Daha Geniş Kurumsallık Taraması (Big4, ISO, BIST, ESG)
         if any(k in m for k in ["bağımsız denetim", "pwc", "kpmg", "deloitte", "ey"]):
             puan += mx * 0.2; aciklamalar.append("Bağımsız denetim yapısı/Big4 izi mevcut.")
         if any(k in m for k in ["kurumsal yönetim", "iso ", "esg", "sürdürülebilirlik", "bist100", "bist 100"]):
@@ -1392,27 +1390,22 @@ class ScoreAnalyzer:
             toplam_max_possible += res.max_possible
             puan_detaylari.append(ScoreDetail(kategori=kategori, puan=res.score, max_puan=self.weights.MAX[kategori], aciklama=res.explanation, veri_bulundu=res.has_data))
 
-        # 1. VERİ GÜVENİLİRLİĞİ (SADECE ADET DEĞİL, AĞIRLIĞA GÖRE YÜZDE)
         veri_guvenilirligi = int(toplam_max_possible)
-        
-        # 2. TEMEL KALİTE SKORU (BASE SCORE)
         base_score = (toplam_kazanilan / toplam_max_possible * 100) if toplam_max_possible > 0 else 0
 
-        # --- BONUSLAR (Tırpanlanmış - Daha Profesyonel) ---
         bonuslar = 0
         rt_lower = raw_text.lower()
 
         if any(k in rt_lower for k in ["temettü ödemesi", "kâr payı dağıtıldı", "nakit temettü"]):
-            bonuslar += 2; guclu.append("[bonus] Geçmiş yıllara ait somut temettü ödeme kültürü. (+2 Puan)")
+            bonuslar += 2; guclu.append("[bonus] Geçmiş yıllara ait somut temettü ödeme kültürü. (+2.0 Puan)")
         
         ihracat_match = re.search(r'ihracat oranı %([2-9][0-9]|100)', rt_lower)
         if ihracat_match:
-            bonuslar += 2; guclu.append(f"[bonus] Güçlü döviz girdisi (İhracat oranı %{ihracat_match.group(1)}). (+2 Puan)")
+            bonuslar += 2; guclu.append(f"[bonus] Güçlü döviz girdisi (İhracat oranı %{ihracat_match.group(1)}). (+2.0 Puan)")
             
         if any(k in rt_lower for k in ["ar-ge merkezi", "patent", "tübitak destekli"]):
-            bonuslar += 1; guclu.append("[bonus] Tescilli Ar-Ge / Patent çalışmaları mevcut. (+1 Puan)")
+            bonuslar += 1; guclu.append("[bonus] Tescilli Ar-Ge / Patent çalışmaları mevcut. (+1.0 Puan)")
 
-        # --- DİNAMİK CEZALAR (Risk Skoru için toplanıyor) ---
         ist = veri.get(InfoKey.FIYAT_ISTIKRARI, "").lower()
         istikrar_yok = "planlanmamaktadır" in ist or ist == "yok"
         if istikrar_yok:
@@ -1421,52 +1414,47 @@ class ScoreAnalyzer:
 
         toplam_ceza = sum(ceza_sozlugu.values())
         
-        # NİHAİ TEMEL KALİTE SKORU (0-100)
         temel_kalite_skoru = base_score + bonuslar - toplam_ceza
         temel_kalite_skoru = round(max(0.0, min(100.0, temel_kalite_skoru)), 1)
 
-        # 3. RİSK SKORU (0-100)
-        # Kırmızı bayraklar, eksik veriler ve dalgalanma riskine göre
-        risk_skoru = 10.0 + toplam_ceza # Taban risk 10
-        if veri_guvenilirligi < 70: risk_skoru += (70 - veri_guvenilirligi) * 0.5 # Veri eksikliği = Risk
+        risk_skoru = 10.0 + toplam_ceza
+        if veri_guvenilirligi < 70: risk_skoru += (70 - veri_guvenilirligi) * 0.5 
         aciklik_val = TextUtils.yuzde_bul(veri.get(InfoKey.ACIKLIK, "")) or 25.0
-        if aciklik_val > 40: risk_skoru += 15 # Geniş tahta riski
+        if aciklik_val > 40: risk_skoru += 15 
         risk_skoru = round(max(0.0, min(100.0, risk_skoru)), 1)
 
-        # 4. TAVAN POTANSİYELİ SKORU (0-100)
-        tavan_potansiyeli = 50.0 # Nötr başlangıç
+        tavan_potansiyeli = 50.0 
         fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
         pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
         
-        # Arz hacmi (Float Market Cap) Tavan Serisini en çok etkileyen faktördür
         arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else (TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, "")) or 1_000_000_000)
         
-        if arz_buyuklugu < 500_000_000: tavan_potansiyeli += 30 # Tahta çok küçük, çabuk tavan olur
+        if arz_buyuklugu < 500_000_000: tavan_potansiyeli += 30 
         elif arz_buyuklugu < 1_000_000_000: tavan_potansiyeli += 15
-        elif arz_buyuklugu > 3_000_000_000: tavan_potansiyeli -= 15 # Çok ağır tahta
+        elif arz_buyuklugu > 3_000_000_000: tavan_potansiyeli -= 15 
         
         sektor = self._get_sektor(raw_text)
-        if sektor in ["TEKNOLOJİ", "ENERJİ"]: tavan_potansiyeli += 10 # Hype Sektörler
+        if sektor in ["TEKNOLOJİ", "ENERJİ"]: tavan_potansiyeli += 10 
         
         isk_val = TextUtils.yuzde_bul(veri.get(InfoKey.ISKONTO, "")) or 0.0
         if isk_val >= 25: tavan_potansiyeli += 10
         
         if istikrar_yok: tavan_potansiyeli -= 10
-        if ceza_sozlugu.get("ortak_satis"): tavan_potansiyeli -= 15 # Yatırımcı iştahını keser
+        if ceza_sozlugu.get("ortak_satis"): tavan_potansiyeli -= 15 
         
         tavan_potansiyeli = round(max(0.0, min(100.0, tavan_potansiyeli)), 1)
         
-        # Eski volatilite text string'i geriye uyumluluk için üretilir
         if tavan_potansiyeli > 75: volatilite = "Yüksek (Tavan Serisi / Agresif Hareket Potansiyeli)"
         elif risk_skoru > 60: volatilite = "Yüksek (Aşağı Yönlü Dalgalanma Riski)"
         elif tavan_potansiyeli < 40: volatilite = "Düşük (Ağır Tahta - Sınırlı Hareket)"
         else: volatilite = "Orta (Dengeli Piyasa Fiyatlaması)"
 
+        # 💡 Puan etiketlerini Geri Getirdik
         for kategori, res in hesaplamalar:
             if not res.has_data: continue
             oran = res.score / res.max_possible if res.max_possible else 0
-            if oran >= 0.8: guclu.append(f"[{kategori.value}] {res.explanation}")
-            elif oran <= 0.3: risk.append(f"[{kategori.value}] {res.explanation}")
+            if oran >= 0.8: guclu.append(f"[{kategori.value}] {res.explanation} (+{res.score:.1f} Puan)")
+            elif oran <= 0.3: risk.append(f"[{kategori.value}] {res.explanation} (-{abs(res.max_possible - res.score):.1f} Puan)")
         
         kirmizi_bayraklar = list(set(kirmizi_bayraklar))
         
@@ -1491,7 +1479,8 @@ class DataExtractor:
             InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri"],
             InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi"],
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
-            InfoKey.PAY_SAYISI: ["halka arz edilecek pay", "dağıtılacak pay miktarı", "dağıtılacak pay", "toplam pay miktarı", "toplam pay"],
+            # 💡 YENİ: Sadece "pay" kelimesi eklendi ki lot değerini kesin bulsun
+            InfoKey.PAY_SAYISI: ["pay", "halka arz edilecek pay", "dağıtılacak pay miktarı", "toplam pay miktarı", "toplam pay", "çıkarılmış sermaye", "ödenmiş sermaye"],
             InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi"],
             InfoKey.ARACI_KURUM: ["aracı kurum", "konsorsiyum lideri"],
             InfoKey.PAZAR: ["pazar"],
@@ -1529,7 +1518,7 @@ class DataExtractor:
             if not deger: continue
             for alan, etiketler in self.FIELD_LABELS.items():
                 if veri.get(alan) != self.DEFAULTS.get(alan): continue
-                if any(e in baslik_norm for e in etiketler):
+                if any(e in baslik_norm for e in etiketler) or baslik_norm in etiketler:
                     veri[alan] = deger
                     break
 
@@ -1552,7 +1541,7 @@ class DataExtractor:
         for alan, etiketler in self.FIELD_LABELS.items():
             if veri.get(alan) != self.DEFAULTS.get(alan): continue
             for i, nl in enumerate(normalized_lines):
-                if any(nl.startswith(e) and (len(nl) == len(e) or nl[len(e)] in (":", " ")) for e in etiketler):
+                if any(nl.startswith(e) and (len(nl) == len(e) or nl[len(e)] in (":", " ")) for e in etiketler) or nl in etiketler:
                     deger = self._satirdan_deger_al(lines, normalized_lines, i)
                     if deger: veri[alan] = deger
                     break
@@ -1564,7 +1553,8 @@ class DataExtractor:
             veri[InfoKey.DAGITIM_TIPI] = "Dağıtılan Pay Miktarı (Kesin Sonuç)" if "Dağıtılan" in lot_baslik else "Tahmini Lot Dağıtımı"
             try:
                 bolunmus = raw_text.split(lot_baslik)[1]
-                lot_lines = ["• " + s.replace("-", "").strip() for s in bolunmus.split("\n")[1:20] if ("katılım" in s.lower() or "lot" in s.lower() or "kişi" in s.lower()) and s.replace("-", "").strip()]
+                # 💡 DÜZELTME: Kısa (tek kelime "Kişi" "Lot") satırları engeller
+                lot_lines = ["• " + s.replace("-", "").strip() for s in bolunmus.split("\n")[1:20] if ("katılım" in s.lower() or "lot" in s.lower() or "kişi" in s.lower()) and len(s.replace("-", "").strip()) > 4]
                 if lot_lines: veri[InfoKey.DAGITIM_TABLOSU] = "\n".join(lot_lines)
             except Exception as e: logger.debug(f"Lot Parsing Error: {e}")
 
@@ -1676,15 +1666,14 @@ class DataExtractor:
 
         durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""), raw_text, kart_metni)
         
-        # 💡 YENİ: 3 Farklı Skor Çıktısı Alınıyor
         t_kalite, t_potansiyel, t_risk, guclu, risk, kirmizi, detaylar, guven_skoru, volatilite = self.analyzer.skoru_topla(veri, fin, durum, raw_text)
 
-        if t_kalite >= 85: rating = "A+ (★★★★★)"
-        elif t_kalite >= 75: rating = "A (★★★★☆)"
-        elif t_kalite >= 60: rating = "B (★★★☆☆)"
-        elif t_kalite >= 45: rating = "C (★★☆☆☆)"
-        elif t_kalite >= 25: rating = "D (★☆☆☆☆)"
-        else: rating = "E (☆☆☆☆☆)"
+        # 💡 DÜZELTME: A, B, C, D Harfleri kaldırıldı, sadece saf yıldızlar kullanıldı
+        if t_kalite >= 85: rating = "★★★★★"
+        elif t_kalite >= 70: rating = "★★★★☆"
+        elif t_kalite >= 50: rating = "★★★☆☆"
+        elif t_kalite >= 30: rating = "★★☆☆☆"
+        else: rating = "★☆☆☆☆"
 
         if durum == ArzDurumu.HAZIRLANIYOR:
             gorunum = Gorunum.HAZIRLIK
@@ -1692,8 +1681,11 @@ class DataExtractor:
             rating = "Hazırlanıyor"
         else:
             gorunum = Gorunum.COK_GUCLU if t_kalite >= 80 else Gorunum.DENGELI if t_kalite >= 45 else Gorunum.RISKLI
-            deg_metin = f"Bu halka arz Temel Kalitede {t_kalite} puan alarak '{rating}' seviyesine ulaştı. Kısa vadeli Tavan Potansiyeli Skoru: {t_potansiyel}. Risk Skoru: {t_risk}. "
-            if guven_skoru < 60: deg_metin += f"Analiz, izahnamedeki eksik veriler sebebiyle düşük veri güvenilirliği (%{guven_skoru}) ile oluşturulmuştur. "
+            # 💡 DÜZELTME: Yorum tamamen doğal bir dile ( conversational ) çevrildi
+            deg_metin = f"Algoritmamız bu halka arzın temel yatırım kalitesini {t_kalite} puan ile değerlendirdi. Kısa vadede tavan serisi potansiyeli {t_potansiyel}/100, risk seviyesi ise {t_risk}/100 olarak ölçüldü. "
+            if guven_skoru < 60: deg_metin += f"Ancak bu analiz, izahnamedeki eksik finansal veriler sebebiyle düşük veri güvenilirliği (%{guven_skoru}) ile oluşturulmuştur. "
+            if katilim: deg_metin += "Şirket katılım endeksine UYGUN."
+            else: deg_metin += "Şirket katılım endeksine UYGUN DEĞİL."
             degerlendirme = deg_metin
 
         if debug:
@@ -1705,7 +1697,7 @@ class DataExtractor:
 
         return CompanyResponse(
             sirket=sirket_adi, bist_kodu=veri[InfoKey.BIST_KODU], durum=durum, islem_tarihi=veri[InfoKey.ISLEM_TARIHI],
-            skor=t_kalite, # Mobil arayüz çemberi için Temel Kalite gönderiliyor
+            skor=t_kalite,
             temel_kalite_skoru=t_kalite, tavan_potansiyeli_skoru=t_potansiyel, risk_skoru=t_risk, 
             yildiz=rating, genel_gorunum=gorunum, genel_degerlendirme=degerlendirme,
             guclu_yanlar=guclu, riskler=risk, kirmizi_bayraklar=kirmizi, puan_detaylari=detaylar, tarih=veri[InfoKey.TARIH], fiyat=veri[InfoKey.FIYAT],
@@ -1763,5 +1755,3 @@ def get_halka_arzlar(debug: bool = Query(False)):
 
 import os
 if __name__ == "__main__": uvicorn.run("proje:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
-
