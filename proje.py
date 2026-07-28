@@ -25,6 +25,7 @@ YATIRIM_UYARISI = (
     "kendiniz doğrulayın."
 )
 
+
 class Category(str, Enum):
     FINANSAL = "finansal"
     DEGERLEME = "degerleme"
@@ -36,6 +37,7 @@ class Category(str, Enum):
     SATMAMA = "satmama"
     KURUMSALLIK = "kurumsallik"
 
+
 class ArzDurumu(str, Enum):
     HAZIRLANIYOR = "Hazırlanıyor"
     SPK_ONAYLI = "SPK Onaylı (Tarih Bekleniyor)"
@@ -45,11 +47,13 @@ class ArzDurumu(str, Enum):
     ISLEME_BEKLENIYOR = "İşleme Girmesi Bekleniyor"
     ISLEM_GORMEYE_BASLADI = "Borsada İşlem Görüyor"
 
+
 class Gorunum(str, Enum):
     HAZIRLIK = "Hazırlık Aşamasında"
     COK_GUCLU = "Çok Güçlü"
     DENGELI = "Dengeli"
     RISKLI = "Yüksek Riskli"
+
 
 class InfoKey(str, Enum):
     BIST_KODU = "BistKodu"
@@ -73,6 +77,7 @@ class InfoKey(str, Enum):
     ARACI_KURUM = "AraciKurum"
     PAZAR = "Pazar"
 
+
 class FinKey(str, Enum):
     NET_KAR = "NetKar"
     OZKAYNAK = "Ozkaynak"
@@ -80,6 +85,7 @@ class FinKey(str, Enum):
     KISA_VADELI_YUKUMLULUK = "KisaVadeliYukumluluk"
     TOPLAM_BORC = "ToplamBorc"
     HASILAT = "Hasilat"
+
 
 @dataclass(frozen=True)
 class AppSettings:
@@ -90,6 +96,7 @@ class AppSettings:
     MAX_RETRY: int = 3
     MAX_SIRKET: int = 15
     ISTEK_ARASI_BEKLEME: float = 0.3
+
 
 @dataclass(frozen=True)
 class ScoreWeights:
@@ -110,12 +117,14 @@ class ScoreWeights:
     DEGERLEME_FK: float = MAX[Category.DEGERLEME] * 0.55
     DEGERLEME_PDDD: float = MAX[Category.DEGERLEME] * 0.45
 
+
 SETTINGS = AppSettings()
 WEIGHTS = ScoreWeights()
 assert abs(sum(WEIGHTS.MAX.values()) - 100.0) < 1e-9, "Kategori ağırlıkları 100'e tamamlanmıyor!"
 
 _CACHE = {"timestamp": 0.0, "data": []}
 _CACHE_LOCK = threading.Lock()
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 🏗️ 2. VERİ MODELLERİ
@@ -126,12 +135,14 @@ class ScoreResult:
     explanation: str
     has_data: bool
 
+
 class ScoreDetail(BaseModel):
     kategori: Category
     puan: float
     max_puan: float
     aciklama: str
     veri_bulundu: bool
+
 
 class CompanyResponse(BaseModel):
     sirket: str
@@ -169,9 +180,11 @@ class CompanyResponse(BaseModel):
     islem_menusu: str
     debug_bilgisi: Optional[dict] = None
 
+
 class APIResponse(BaseModel):
     halka_arzlar: list[CompanyResponse]
     uyari: str = YATIRIM_UYARISI
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 🔤 3. ARAÇLAR
@@ -184,27 +197,36 @@ class TextUtils:
 
     @staticmethod
     def yuzde_bul(metin: Optional[str]) -> Optional[float]:
-        if not metin: return None
+        if not metin:
+            return None
         eslesme = re.search(r"%\s*(\d+[.,]?\d*)|(\d+[.,]?\d*)\s*%", metin)
-        if not eslesme: return None
+        if not eslesme:
+            return None
         deger = eslesme.group(1) or eslesme.group(2)
-        try: return float(deger.replace(",", "."))
-        except ValueError: return None
+        try:
+            return float(deger.replace(",", "."))
+        except ValueError:
+            return None
 
     @staticmethod
     def sayi_bul(metin: Optional[str]) -> Optional[float]:
-        if not metin: return None
+        if not metin:
+            return None
         desenler = re.findall(r"-?\d{1,3}(?:\.\d{3})+(?:,\d+)?|-?\d+,\d+|-?\d+", metin)
         for d in desenler:
-            try: return float(d.replace(".", "").replace(",", "."))
-            except ValueError: continue
+            try:
+                return float(d.replace(".", "").replace(",", "."))
+            except ValueError:
+                continue
         return None
 
     @staticmethod
     def multiplier_from_ranges(value: float, ranges: list[tuple[float, float]]) -> float:
         for threshold, multiplier in ranges:
-            if value < threshold: return multiplier
+            if value < threshold:
+                return multiplier
         return 0.0
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 💰 4. PUANLAMA MOTORU
@@ -482,7 +504,6 @@ class DataExtractor:
             InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri"],
             InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi"],
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
-            # 💡 YENİ: Toplam Pay Miktarı için detaylı aramalar eklendi
             InfoKey.PAY_SAYISI: ["dağıtılacak pay miktarı", "dağıtılacak pay", "toplam pay miktarı", "toplam pay", "çıkarılmış sermaye", "ödenmiş sermaye", "halka arz sonrası sermaye", "toplam pay sayısı", "pay"],
             InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi"],
             InfoKey.ARACI_KURUM: ["aracı kurum", "konsorsiyum lideri"],
@@ -654,50 +675,68 @@ class DataExtractor:
             time.sleep(1)
         return None
 
-    def _durum_belirle(self, tarih_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
+    # 💡 YEPYENİ VE AKILLI ZAMAN MOTORU
+    def _durum_belirle(self, tarih_metni: str, islem_tarihi_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
         rt_lower = raw_text.lower()
-        
-        # 💡 YENİ: METEN GİBİ ŞİRKETLER İÇİN "GONG" MANTIĞI EKLENDİ
-        if "işlem görmeye başlamıştır" in rt_lower or "gong" in kart_metni.lower():
-            return ArzDurumu.ISLEM_GORMEYE_BASLADI
-            
-        if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
-            return ArzDurumu.ISLEME_BEKLENIYOR
-
-        tarih_metni = str(tarih_metni).lower().strip()
-        
-        if not tarih_metni or tarih_metni in ("-", "açıklanmadı", "belli değil"):
-            if "taslak" in kart_metni or "hazırlanıyor" in kart_metni:
-                return ArzDurumu.HAZIRLANIYOR
-            return ArzDurumu.SPK_ONAYLI
-            
+        bugun = datetime.now().date()
         aylar = {
             "ocak": 1, "şubat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "haziran": 6,
             "temmuz": 7, "ağustos": 8, "eylül": 9, "ekim": 10, "kasım": 11, "aralık": 12
         }
-        
-        ay_str = next((ay for ay in aylar if ay in tarih_metni), None)
-        sayilar = re.findall(r'\d+', tarih_metni)
+
+        # 1. Gong! kelimesi veya izahnamedeki metin ile anlık durum
+        if "işlem görmeye başlamıştır" in rt_lower or "gong!" in kart_metni.lower():
+            return ArzDurumu.ISLEM_GORMEYE_BASLADI
+
+        # 2. İşlem Tarihi "O Gün Geldiğinde" Otomatik Borsada İşlem Görüyor Yap
+        is_trh = str(islem_tarihi_metni).lower().strip()
+        if is_trh and is_trh not in ("-", "açıklanmadı", "belli değil"):
+            ay_str = next((ay for ay in aylar if ay in is_trh), None)
+            sayilar = re.findall(r'\d+', is_trh)
+            if ay_str and sayilar:
+                try:
+                    gun = int(sayilar[0])
+                    yil_listesi = [int(s) for s in sayilar if len(s) == 4]
+                    yil = yil_listesi[0] if yil_listesi else bugun.year
+                    islem_dt = date(yil, aylar[ay_str], gun)
+                    
+                    # Eğer bugünün tarihi işlem tarihine eşit veya onu geçmişse doğrudan yeşil yap!
+                    if bugun >= islem_dt:
+                        return ArzDurumu.ISLEM_GORMEYE_BASLADI
+                except Exception:
+                    pass
+
+        # 3. Kesinleşen / Dağıtılan Pay Oranı açıklandıysa dağıtım bitmiş, işleme girmesi bekleniyor demektir
+        if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
+            return ArzDurumu.ISLEME_BEKLENIYOR
+
+        # 4. Talep Toplama Tarihi Analizi (Çok Daha Kesin)
+        t_metin = str(tarih_metni).lower().strip()
+        if not t_metin or t_metin in ("-", "açıklanmadı", "belli değil"):
+            if "taslak" in kart_metni or "hazırlanıyor" in kart_metni:
+                return ArzDurumu.HAZIRLANIYOR
+            return ArzDurumu.SPK_ONAYLI
+            
+        ay_str = next((ay for ay in aylar if ay in t_metin), None)
+        sayilar = re.findall(r'\d+', t_metin)
         
         if ay_str and len(sayilar) >= 2:
             try:
                 gun_baslangic = int(sayilar[0])
+                gunler = [int(s) for s in sayilar if len(s) < 4]
+                gun_bitis = max(gunler) if gunler else gun_baslangic
                 yil_listesi = [int(s) for s in sayilar if len(s) == 4]
-                yil = yil_listesi[0] if yil_listesi else datetime.now().year
-                ay = aylar[ay_str]
+                yil = yil_listesi[0] if yil_listesi else bugun.year
                 
-                bugun = datetime.now().date()
-                baslangic_tarihi = date(yil, ay, gun_baslangic)
+                bas_dt = date(yil, aylar[ay_str], gun_baslangic)
+                bit_dt = date(yil, aylar[ay_str], gun_bitis)
                 
-                if bugun < baslangic_tarihi:
+                if bugun < bas_dt:
                     return ArzDurumu.TALEP_YAKLASIYOR
-                    
-                delta = (bugun - baslangic_tarihi).days
-                if 0 <= delta <= 3:
+                elif bas_dt <= bugun <= bit_dt:
                     return ArzDurumu.TALEP_TOPLANIYOR
-                elif delta > 3:
+                elif bugun > bit_dt:
                     return ArzDurumu.DAGITIM_BEKLENIYOR
-                    
             except Exception:
                 pass 
                 
@@ -739,7 +778,9 @@ class DataExtractor:
         elif "Grafiği" in buyukluk_metni:
             veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("Grafiği")[0].strip()
 
-        durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), raw_text, kart_metni)
+        # 💡 YENİ: Hem TARIH hem de ISLEM_TARIHI parametrelerini karar motoruna gönderiyoruz
+        durum = self._durum_belirle(veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""), raw_text, kart_metni)
+        
         skor, guclu, risk, detaylar = self.analyzer.skoru_topla(veri, fin, durum, raw_text)
 
         if durum == ArzDurumu.HAZIRLANIYOR:
@@ -840,8 +881,7 @@ class DataExtractor:
                     satir.get_text(separator=" ", strip=True).lower() if satir else sirket_adi.lower()
                 )
 
-                # 💡 YENİ: "gong" KELİMESİ EKLENDİ (METEN İÇİN)
-                if not any(b in kart_metni for b in ["yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan", "hazırlanıyor", "işlem görüyor", "gong"]):
+                if not any(b in kart_metni for b in ["yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan", "hazırlanıyor", "işlem görüyor", "gong!"]):
                     continue
 
                 gorulen_sirketler.add(sirket_adi)
@@ -868,12 +908,14 @@ class DataExtractor:
             logger.exception("Kritik scraper hatası!")
             return sirket_listesi
 
+
 # ═══════════════════════════════════════════════════════════════════
 # 🚀 6. FASTAPI UYGULAMASI
 # ═══════════════════════════════════════════════════════════════════
 app = FastAPI(title="Halka Arz Asistanı Pro")
 score_analyzer = ScoreAnalyzer(WEIGHTS)
 extractor = DataExtractor(score_analyzer)
+
 
 @app.get("/api/halkarzlar", response_model=APIResponse)
 def get_halka_arzlar(debug: bool = Query(False, description="True ise debug_bilgisi alanı eklenir.")):
@@ -893,6 +935,7 @@ def get_halka_arzlar(debug: bool = Query(False, description="True ise debug_bilg
             _CACHE["timestamp"] = time.time()
 
     return APIResponse(halka_arzlar=veriler)
+
 
 import os
 
