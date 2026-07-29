@@ -1,3 +1,4 @@
+# main.py
 import os
 import re
 import time
@@ -12,7 +13,6 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
 
@@ -32,8 +32,6 @@ YATIRIM_UYARISI = (
 
 @dataclass(frozen=True)
 class AppSettings:
-    # NOT: Artık tüm ayarlar ortam değişkenlerinden (env var) okunabiliyor.
-    # Böylece kod değiştirmeden, deploy ortamında (Render/Docker/.env) ayarlanabilir.
     BASE_URL: str = os.environ.get("BASE_URL", "https://halkarz.com/")
     TIMEOUT: int = int(os.environ.get("TIMEOUT", "15"))
     CACHE_TTL: int = int(os.environ.get("CACHE_TTL", "300"))
@@ -41,11 +39,8 @@ class AppSettings:
     MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "15"))
     ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
     ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
-    # DÜZELTME: Daha önce DEBUG_API_KEY hiçbir zaman ortamdan okunmuyordu,
-    # bu yüzden debug modu asla kullanılamıyordu (her zaman None -> her zaman 403).
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
     MIN_SKOR: float = float(os.environ.get("MIN_SKOR", "0.0"))
-    # Flutter Web / tarayıcıdan erişim için CORS izinli originler (virgülle ayrılmış).
     ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
 
 
@@ -186,15 +181,6 @@ class TextUtils:
 
     @staticmethod
     def etiket_eslesir(baslik_norm: str, etiketler: list[str]) -> bool:
-        """
-        DÜZELTME: Önceki hâli `etiket in baslik_norm` şeklinde saf bir alt-dize
-        (substring) kontrolü yapıyordu. Bu yüzden örn. "pay" etiketi
-        "Pay Sahipleri Hakkında" gibi alakasız bir başlıkla de eşleşip yanlış
-        veri atanmasına (veri kirliliğine) yol açabiliyordu.
-        Bu fonksiyon artık kelime sınırlarına (word boundary) bakarak eşleştirme
-        yapıyor: etiket ya başlığın tamamı olmalı ya da başlık içinde ayrı bir
-        kelime/kelime grubu olarak geçmeli.
-        """
         if not baslik_norm:
             return False
         for e in etiketler:
@@ -633,36 +619,33 @@ class ScoreAnalyzer:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 🕸️ 5. VERİ ÇEKİCİ (ASYNC)
+# 🕸️ 5. VERİ ÇEKİCİ (GELİŞTİRİLMİŞ ESNEK SCRAPER)
 # ═══════════════════════════════════════════════════════════════════
 
 class DataExtractor:
     def __init__(self, analyzer: Optional[ScoreAnalyzer] = None):
         self.analyzer = analyzer or ScoreAnalyzer()
         self.session: Optional[AsyncSession] = None
-        # DÜZELTME: Aynı anda çok sayıda coroutine `_get_session()` çağırıp
-        # session'ı eşzamanlı oluşturmaya kalkışabilir (race condition).
-        # Bu kilit, session oluşturmayı tekilleştirir.
         self._session_lock = asyncio.Lock()
 
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
-            InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi"],
-            InfoKey.FIYAT: ["halka arz fiyatı"],
-            InfoKey.BUYUKLUK: ["halka arz büyüklüğü"],
-            InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi"],
-            InfoKey.ACIKLIK: ["halka açıklık", "halka açıklık oranı"],
-            InfoKey.ISKONTO: ["halka arz iskontosu", "iskonto oranı"],
-            InfoKey.TAAHHUT: ["satmama taahhüdü"],
-            InfoKey.HALKA_ARZ_SEKLI: ["halka arz şekli"],
-            InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri"],
-            InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi"],
+            InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi", "tarih"],
+            InfoKey.FIYAT: ["halka arz fiyatı", "fiyatı", "fiyat"],
+            InfoKey.BUYUKLUK: ["halka arz büyüklüğü", "büyüklüğü"],
+            InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi", "işlem tarihi"],
+            InfoKey.ACIKLIK: ["halka açıklık", "halka açıklık oranı", "açıklık oranı"],
+            InfoKey.ISKONTO: ["halka arz iskontosu", "iskonto oranı", "iskonto"],
+            InfoKey.TAAHHUT: ["satmama taahhüdü", "taahhüt"],
+            InfoKey.HALKA_ARZ_SEKLI: ["halka arz şekli", "arz şekli"],
+            InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri", "fonun kullanımı"],
+            InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi", "satış yöntemi"],
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
             InfoKey.PAY_SAYISI: [
                 "pay", "halka arz edilecek pay", "dağıtılacak pay miktarı",
-                "toplam pay miktarı", "toplam pay", "çıkarılmış sermaye", "ödenmiş sermaye"
+                "toplam pay miktarı", "toplam pay", "çıkarılmış sermaye", "ödenmiş sermaye", "lot"
             ],
-            InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi"],
+            InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi", "dağıtım şekli"],
             InfoKey.ARACI_KURUM: ["aracı kurum", "konsorsiyum lideri"],
             InfoKey.PAZAR: ["pazar"],
         }
@@ -707,8 +690,6 @@ class DataExtractor:
                 logger.warning(f"Bağlantı hatası ({url}), Durum Kodu: {res.status_code}")
             except Exception as e:
                 logger.warning(f"Timeout/Hata ({url}): {e}")
-            # DÜZELTME: Son denemeden sonra artık gereksiz yere 1 sn beklenmiyor,
-            # ayrıca deneme sayısı arttıkça bekleme süresi de artıyor (backoff).
             if i < SETTINGS.MAX_RETRY - 1:
                 await asyncio.sleep(1 * (i + 1))
         return None
@@ -725,10 +706,6 @@ class DataExtractor:
             for alan, etiketler in self.FIELD_LABELS.items():
                 if veri.get(alan) != self.DEFAULTS.get(alan):
                     continue
-                # DÜZELTME: Önceki hâli `any(e in baslik_norm for e in etiketler)`
-                # saf bir substring kontrolüydü; "pay" gibi kısa etiketler
-                # "Pay Sahipleri" gibi alakasız başlıklarla da eşleşiyordu.
-                # Artık kelime sınırına duyarlı eşleştirme kullanılıyor.
                 if TextUtils.etiket_eslesir(baslik_norm, etiketler):
                     veri[alan] = deger
                     break
@@ -816,8 +793,6 @@ class DataExtractor:
             for alan, etiketler in self.FIN_LABELS.items():
                 if alan in bulunan:
                     continue
-                # DÜZELTME: burada da aynı substring sorunu vardı, ortak
-                # yardımcı fonksiyona taşındı.
                 if TextUtils.etiket_eslesir(baslik_norm, etiketler):
                     for td in tds[1:]:
                         sayi = TextUtils.sayi_bul(td.get_text(strip=True))
@@ -1049,10 +1024,8 @@ class DataExtractor:
             else:
                 kart_metni = sirket_adi.lower()
 
-            if not any(b in kart_metni for b in [
-                "yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan",
-                "hazırlanıyor", "işlem görüyor", "gong!"
-            ]):
+            # YALNIZCA YENİ VE GONG ( İLK İŞLEM GÜNÜ ) OLANLARI FİLTRELE
+            if not any(b in kart_metni for b in ["yeni!", "gong!"]):
                 continue
 
             gorulen_sirketler.add(sirket_adi)
@@ -1061,16 +1034,6 @@ class DataExtractor:
             if len(meta_list) >= SETTINGS.MAX_SIRKET:
                 break
 
-        # DÜZELTME (önemli): Önceki kodda `tasks.append(self._sirket_isle(...))`
-        # ile coroutine nesneleri sadece bir listeye ekleniyor, aralarda
-        # `await asyncio.sleep(...)` çağrılıyordu. Ancak bir coroutine
-        # await/gather edilmeden ÇALIŞMAZ; yani bekleme, siteye giden
-        # istekleri hiç yavaşlatmıyordu, sadece toplam süreyi anlamsızca
-        # uzatıyordu. Tüm istekler `asyncio.gather` çağrıldığı anda aynı
-        # anda ateşleniyordu (site tarafında rate-limit/engellenme riski).
-        # Şimdi `asyncio.create_task` ile görevler hemen planlanıyor,
-        # aralarında gerçek bir bekleme uygulanıyor ve eşzamanlı istek
-        # sayısı bir semaphore ile sınırlanıyor.
         semaphore = asyncio.Semaphore(SETTINGS.ESZAMANLI_ISTEK_LIMITI)
 
         async def _sinirli_isle(sirket_adi: str, href: str, kart_metni: str) -> Optional[dict]:
@@ -1152,8 +1115,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# DÜZELTME: Flutter Web veya tarayıcı tabanlı istemciler için CORS eklendi.
-# Mobil (Android/iOS) istemciler için gerekli değil ama web build'i için şart.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if SETTINGS.ALLOWED_ORIGINS == "*" else SETTINGS.ALLOWED_ORIGINS.split(","),
@@ -1178,10 +1139,6 @@ async def get_halka_arzlar(
 
     extractor: DataExtractor = app.state.extractor
 
-    # DÜZELTME: Önceki hâlde analiz sırasında (örn. kaynak site markup'ı
-    # beklenmedik şekilde değiştiyse) fırlatılan bir istisna yakalanmıyor,
-    # kullanıcıya çıplak bir 500 hatası dönüyordu. Artık anlamlı bir
-    # 502 (Bad Gateway) mesajı ile dönülüyor ve loglanıyor.
     try:
         veriler = await extractor.analiz_et(debug=debug)
     except Exception as e:
@@ -1211,4 +1168,4 @@ async def health_check():
 
 
 if __name__ == "__main__":
-    uvicorn.run("proje:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=False)

@@ -1,5 +1,5 @@
 fastapi
 uvicorn
-cloudscraper
+curl_cffi
 beautifulsoup4
 pydantic
