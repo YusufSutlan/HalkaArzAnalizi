@@ -315,6 +315,25 @@ class TextUtils:
         return False
 
     @staticmethod
+    def sayi_formatla(deger: Optional[float]) -> str:
+        """
+        YENİ: Finansal tabloyu okunabilir hale getirmek için.
+        1.234.567.890 -> "1,23 mlr" ; 45.600.000 -> "45,6 mn"
+        Ham rakamların alt alta sıralanması tabloyu okunamaz kılıyordu.
+        """
+        if deger is None:
+            return "-"
+        isaret = "-" if deger < 0 else ""
+        d = abs(deger)
+        if d >= 1_000_000_000:
+            return f"{isaret}{d / 1_000_000_000:,.2f} mlr".replace(".", "#").replace(",", ".").replace("#", ",")
+        if d >= 1_000_000:
+            return f"{isaret}{d / 1_000_000:,.1f} mn".replace(".", "#").replace(",", ".").replace("#", ",")
+        if d >= 1_000:
+            return f"{isaret}{d:,.0f}".replace(",", ".")
+        return f"{isaret}{d:,.2f}".replace(".", "#").replace(",", ".").replace("#", ",")
+
+    @staticmethod
     def tarih_araligi_coz(metin: Optional[str]) -> Optional[tuple[date, date]]:
         """
         YENİ / REFAKTÖR: "12-13-14 Ağustos 2026" veya "29-30 Temmuz 2026"
@@ -1420,9 +1439,21 @@ class DataExtractor:
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
             InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi"],
-            InfoKey.FIYAT: ["halka arz fiyatı"],
-            InfoKey.BUYUKLUK: ["halka arz büyüklüğü"],
-            InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi"],
+            # DEĞİŞİKLİK: Fiyat ve işlem tarihi bazı sayfalarda farklı
+            # başlıklarla yazıldığı için "Açıklanmadı" olarak kalıyordu.
+            # Eş anlamlı başlıklar eklendi.
+            InfoKey.FIYAT: [
+                "halka arz fiyatı", "pay fiyatı", "birim pay fiyatı",
+                "arz fiyatı", "hisse fiyatı", "satış fiyatı", "fiyat"
+            ],
+            InfoKey.BUYUKLUK: [
+                "halka arz büyüklüğü", "arz büyüklüğü", "halka arz tutarı"
+            ],
+            InfoKey.ISLEM_TARIHI: [
+                "işlem tarihi", "borsada işlem tarihi",
+                "borsada işlem görme tarihi", "işlem görme tarihi",
+                "borsada işleme başlama tarihi", "ilk işlem tarihi"
+            ],
             InfoKey.ACIKLIK: ["halka açıklık", "halka açıklık oranı"],
             InfoKey.ISKONTO: ["halka arz iskontosu", "iskonto oranı"],
             InfoKey.TAAHHUT: ["satmama taahhüdü"],
@@ -1479,7 +1510,7 @@ class DataExtractor:
             InfoKey.FINANSAL_TABLO: "Açıklanmadı.",
             InfoKey.TAHSISAT: "Henüz açıklanmadı.",
             InfoKey.DAGITIM_TABLOSU: "Lot tablosu bulunamadı.",
-            InfoKey.DAGITIM_TIPI: "Tahmini Lot Dağıtımı",
+            InfoKey.DAGITIM_TIPI: "Tahmini Lot Tablosu",
         })
 
     # ───────────────────────── HTTP ─────────────────────────
@@ -1506,6 +1537,93 @@ class DataExtractor:
         return None
 
     # ───────────────────────── PARSE ─────────────────────────
+
+    # ── YENİ: etiket bulunamazsa ham metinden yedek çıkarım ──
+
+    @staticmethod
+    def _yedek_fiyat_bul(raw_text: str) -> Optional[str]:
+        """
+        Etiketli tablo okunamazsa fiyatı ham metinden yakalar.
+        "18,00 TL", "Halka arz fiyatı 18,00 TL", "1 TL nominal ... 18,00 TL"
+        gibi kalıpları arar.
+        """
+        kaliplar = [
+            r"(?:halka arz|pay|birim|satış|hisse)\s*fiyat[ıi]?\s*[:\-]?\s*([\d.,]+)\s*(?:tl|₺)",
+            r"([\d.,]+)\s*(?:tl|₺)\s*(?:halka arz )?fiyat",
+        ]
+        for k in kaliplar:
+            m = re.search(k, raw_text, re.IGNORECASE)
+            if m:
+                return f"{m.group(1)} TL"
+        return None
+
+    @staticmethod
+    def _yedek_islem_tarihi_bul(raw_text: str) -> Optional[str]:
+        """
+        "Borsada işlem görmeye 12 Ağustos 2026 tarihinde başlayacaktır"
+        gibi cümlelerden işlem tarihini çeker.
+        """
+        aylar_re = "|".join(AYLAR.keys())
+        kaliplar = [
+            rf"borsada\s+işlem[^.]{{0,60}}?(\d{{1,2}}\s+(?:{aylar_re})\s+20\d{{2}})",
+            rf"(\d{{1,2}}\s+(?:{aylar_re})\s+20\d{{2}})[^.]{{0,40}}?borsada\s+işlem",
+            rf"işlem\s+görme\s+tarihi\s*[:\-]?\s*(\d{{1,2}}\s+(?:{aylar_re})\s+20\d{{2}})",
+        ]
+        for k in kaliplar:
+            m = re.search(k, raw_text, re.IGNORECASE)
+            if m:
+                return m.group(1).title()
+        return None
+
+    def _yapisal_finansal_tablo(self, fin: dict, seriler: dict) -> dict:
+        """
+        YENİ: Finansal tabloyu ham metin yerine yapısal olarak döndürür.
+        Uygulama bunu gerçek bir tablo gibi (kalem | dönem | dönem)
+        çizebiliyor; eskiden veriler alt alta düz metin olarak
+        yazıldığı için okunmuyordu.
+        """
+        gosterim_adlari = [
+            (FinKey.HASILAT, "Hasılat"),
+            (FinKey.BRUT_KAR, "Brüt Kâr"),
+            (FinKey.FAALIYET_KARI, "Faaliyet Kârı"),
+            (FinKey.FAVOK, "FAVÖK"),
+            (FinKey.NET_KAR, "Net Kâr"),
+            (FinKey.OZKAYNAK, "Özkaynaklar"),
+            (FinKey.DONEN_VARLIK, "Dönen Varlıklar"),
+            (FinKey.KISA_VADELI_YUKUMLULUK, "Kısa Vadeli Yük."),
+            (FinKey.TOPLAM_BORC, "Toplam Yükümlülük"),
+            (FinKey.FINANSAL_BORC, "Finansal Borç"),
+            (FinKey.NAKIT, "Nakit"),
+            (FinKey.ISLETME_NAKIT_AKISI, "İşletme Nakit Akışı"),
+        ]
+
+        # Tüm serilerdeki yılları topla
+        yillar: set[int] = set()
+        for seri in seriler.values():
+            yillar.update(seri.keys())
+        donemler = [str(y) for y in sorted(yillar)]
+
+        satirlar = []
+        for anahtar, ad in gosterim_adlari:
+            seri = seriler.get(anahtar, {})
+            if donemler and seri:
+                degerler = [
+                    TextUtils.sayi_formatla(seri.get(int(d))) for d in donemler
+                ]
+            elif anahtar in fin:
+                degerler = ["-"] * max(0, len(donemler) - 1) + [
+                    TextUtils.sayi_formatla(fin[anahtar])
+                ]
+                if not donemler:
+                    degerler = [TextUtils.sayi_formatla(fin[anahtar])]
+            else:
+                continue
+            satirlar.append({"kalem": ad, "degerler": degerler})
+
+        if not donemler and satirlar:
+            donemler = ["Son Dönem"]
+
+        return {"donemler": donemler, "satirlar": satirlar}
 
     def _tablodan_doldur(self, veri: dict, soup: BeautifulSoup):
         for tr in soup.find_all("tr"):
@@ -1555,50 +1673,88 @@ class DataExtractor:
                         veri[alan] = deger
                     break
 
+    # DEĞİŞİKLİK: Bölümler birbirine karışıyordu. Önceki kod, başlıktan
+    # sonraki 20 satırı alıp içinde "lot"/"kişi"/"%" geçenleri filtreliyordu;
+    # araya giren bir sonraki başlığı fark etmediği için "Tahsisat Grupları"
+    # satırları "Dağıtılan Pay Miktarı" tablosuna karışıyordu.
+    # Artık bir sonraki bilinen bölüm başlığında toplama duruyor.
+    BOLUM_BASLIKLARI: ClassVar[set[str]] = {
+        "tahsisat grupları", "tahsisat grubu",
+        "dağıtılan pay miktarı", "dağıtılacak pay miktarı",
+        "halka arz bilgileri", "fonun kullanım yeri", "fon kullanım yeri",
+        "finansal tablo", "finansal tablolar", "özet finansal tablo",
+        "halka arz şekli", "satmama taahhüdü", "aracı kurum",
+        "şirket hakkında", "fiyat istikrarı", "dağıtım yöntemi",
+        "talep toplama tarihi", "halka arz tarihi", "izahname",
+        "yorumlar", "benzer halka arzlar", "kategoriler", "sermaye yapısı",
+        "ortaklık yapısı", "bağımsız denetim", "konsorsiyum",
+    }
+
+    def _bolum_satirlari(self, lines: list[str], normalized: list[str],
+                         baslik: str, max_satir: int = 18) -> list[str]:
+        """
+        Verilen başlıktan sonraki satırları, BİR SONRAKİ bölüm başlığına
+        kadar toplar. Bölümlerin birbirine karışmasını engelleyen kısım.
+        """
+        baslik_n = TextUtils.normalize(baslik)
+        for i, nl in enumerate(normalized):
+            if nl != baslik_n and not nl.startswith(baslik_n):
+                continue
+            toplanan: list[str] = []
+            for j in range(i + 1, min(i + 1 + max_satir, len(lines))):
+                if normalized[j] in self.BOLUM_BASLIKLARI:
+                    break
+                s = lines[j].strip().lstrip("-•").strip()
+                if s:
+                    toplanan.append(s)
+            return toplanan
+        return []
+
     def _dagitim_tahsisat_finansal_doldur(self, veri: dict, raw_text: str):
-        lines = raw_text.split("\n")
+        lines = [l.strip() for l in raw_text.split("\n")]
+        normalized = [TextUtils.normalize(l) for l in lines]
+
+        # ── Lot / dağıtım tablosu ──
         lot_baslik = None
-        if "Dağıtılan Pay Miktarı" in raw_text:
-            lot_baslik = "Dağıtılan Pay Miktarı"
-        elif "Dağıtılacak Pay Miktarı" in raw_text:
-            lot_baslik = "Dağıtılacak Pay Miktarı"
+        for aday in ("Dağıtılan Pay Miktarı", "Dağıtılacak Pay Miktarı"):
+            if aday in raw_text:
+                lot_baslik = aday
+                break
 
         if lot_baslik:
+            kesin = "Dağıtılan" in lot_baslik
+            # DEĞİŞİKLİK: Başlık adı kullanıcının istediği gibi değiştirildi.
             veri[InfoKey.DAGITIM_TIPI] = (
-                "Dağıtılan Pay Miktarı (Kesin Sonuç)" if "Dağıtılan" in lot_baslik
-                else "Tahmini Lot Dağıtımı"
+                "Kesinleşen Lot Tablosu" if kesin else "Tahmini Lot Tablosu"
             )
-            try:
-                bolunmus = raw_text.split(lot_baslik)[1]
-                lot_lines = [
-                    "• " + s.replace("-", "").strip()
-                    for s in bolunmus.split("\n")[1:20]
-                    if ("katılım" in s.lower() or "lot" in s.lower() or "kişi" in s.lower())
-                    and len(s.replace("-", "").strip()) > 4
-                ]
-                if lot_lines:
-                    veri[InfoKey.DAGITIM_TABLOSU] = "\n".join(lot_lines)
-            except Exception as e:
-                logger.debug(f"Lot parsing hatası: {e}")
+            ham = self._bolum_satirlari(lines, normalized, lot_baslik)
+            lot_satirlari = [
+                s for s in ham
+                if re.search(r"\d", s)
+                and any(k in s.lower() for k in ("lot", "kişi", "katılım", "adet"))
+            ]
+            if lot_satirlari:
+                veri[InfoKey.DAGITIM_TABLOSU] = "\n".join(
+                    "• " + s for s in lot_satirlari[:12]
+                )
 
-        for i, line in enumerate(lines):
-            nl = TextUtils.normalize(line)
-            if nl == "tahsisat grupları" and veri[InfoKey.TAHSISAT] == self.DEFAULTS[InfoKey.TAHSISAT]:
-                t_list = [
-                    "• " + lines[i + j].replace("-", "").strip()
-                    for j in range(1, 8)
-                    if i + j < len(lines) and ("%" in lines[i + j] or "Lot" in lines[i + j])
-                ]
-                if t_list:
-                    veri[InfoKey.TAHSISAT] = "\n".join(t_list)
-            elif "finansal tablo" in nl and veri[InfoKey.FINANSAL_TABLO] == self.DEFAULTS[InfoKey.FINANSAL_TABLO]:
-                t_list = [
-                    lines[i + j].strip()
-                    for j in range(1, 14)
-                    if i + j < len(lines) and "*" not in lines[i + j] and lines[i + j].strip()
-                ]
-                if t_list:
-                    veri[InfoKey.FINANSAL_TABLO] = "\n".join(t_list)
+        # ── Tahsisat grupları ──
+        for baslik in ("Tahsisat Grupları", "Tahsisat Grubu"):
+            ham = self._bolum_satirlari(lines, normalized, baslik, max_satir=12)
+            tahsisat_satirlari = [s for s in ham if "%" in s]
+            if tahsisat_satirlari:
+                veri[InfoKey.TAHSISAT] = "\n".join(
+                    "• " + s for s in tahsisat_satirlari[:8]
+                )
+                break
+
+        # ── Özet finansal tablo (ham metin yedeği) ──
+        for baslik in ("Finansal Tablo", "Özet Finansal Tablo", "Finansal Tablolar"):
+            ham = self._bolum_satirlari(lines, normalized, baslik, max_satir=16)
+            ham = [s for s in ham if "*" not in s]
+            if ham:
+                veri[InfoKey.FINANSAL_TABLO] = "\n".join(ham)
+                break
 
     def _tablo_yil_haritasi(self, tablo) -> dict[int, int]:
         """
@@ -1752,6 +1908,17 @@ class DataExtractor:
         elif "Grafiği" in buyukluk_metni:
             veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("Grafiği")[0].strip()
 
+        # YENİ: Etiketli okuma başarısız olduysa ham metinden yedek çıkarım.
+        # "Hisse fiyatı / işlem tarihi eksik görünüyor" sorununun çözümü.
+        if veri.get(InfoKey.FIYAT) == self.DEFAULTS.get(InfoKey.FIYAT):
+            yedek = self._yedek_fiyat_bul(raw_text)
+            if yedek:
+                veri[InfoKey.FIYAT] = yedek
+        if veri.get(InfoKey.ISLEM_TARIHI) == self.DEFAULTS.get(InfoKey.ISLEM_TARIHI):
+            yedek = self._yedek_islem_tarihi_bul(raw_text)
+            if yedek:
+                veri[InfoKey.ISLEM_TARIHI] = yedek
+
         durum = self._durum_belirle(
             veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""),
             raw_text, kart_metni
@@ -1773,6 +1940,8 @@ class DataExtractor:
             "durum": durum,
             "talep_aralik": TextUtils.tarih_araligi_coz(veri.get(InfoKey.TARIH, "")),
             "arz_buyuklugu": arz_buyuklugu,
+            "fiyat": fiyat,
+            "pay": pay,
         }
 
     # ─────────── FAZ 2: piyasa bağlamı hesapla ve puanla ───────────
@@ -1820,18 +1989,21 @@ class DataExtractor:
         t_kalite = s["temel_kalite"]
         baski = s["baski"]
 
+        # DEĞİŞİKLİK: Harf notu (A+, B, C, D, E) kaldırıldı. Harf notu
+        # kullanıcıya "okul karnesi" gibi kesin bir yargı hissi veriyordu;
+        # aynı bilgi zaten yıldız + sayısal skorla aktarılıyor.
         if t_kalite >= 85:
-            rating = "A+ (★★★★★)"
-        elif t_kalite >= 75:
-            rating = "A (★★★★☆)"
-        elif t_kalite >= 60:
-            rating = "B (★★★☆☆)"
-        elif t_kalite >= 45:
-            rating = "C (★★☆☆☆)"
-        elif t_kalite >= 25:
-            rating = "D (★☆☆☆☆)"
+            rating = "★★★★★"
+        elif t_kalite >= 70:
+            rating = "★★★★☆"
+        elif t_kalite >= 55:
+            rating = "★★★☆☆"
+        elif t_kalite >= 40:
+            rating = "★★☆☆☆"
+        elif t_kalite >= 20:
+            rating = "★☆☆☆☆"
         else:
-            rating = "E (☆☆☆☆☆)"
+            rating = "☆☆☆☆☆"
 
         rt = parsed["raw_text"].lower()
         t1_t2 = "t1-t2 kullanılabilir" in rt or "t1 ve t2 kullanılabilir" in rt
@@ -1931,6 +2103,18 @@ class DataExtractor:
             "veri_guvenilirligi": s["veri_guvenilirligi"],
             "tahmini_volatilite": s["volatilite"],
             "model_surumu": MODEL_SURUMU,
+            # ── YENİ: Lot hesaplayıcı için hazır sayısal değerler ──
+            # Uygulama metinden sayı ayıklamaya çalışırken "112.500.000 Lot
+            # (ek satış dahil 129.375.000)" gibi ifadelerde iki sayıyı
+            # birleştirip saçma sonuç üretiyordu. Artık ayrıştırma
+            # sunucuda yapılıyor ve tek doğru sayı gönderiliyor.
+            "fiyat_sayi": parsed.get("fiyat"),
+            "pay_sayisi_sayi": parsed.get("pay"),
+            "arz_buyuklugu_sayi": parsed.get("arz_buyuklugu"),
+            # ── YENİ: Yapısal finansal tablo ──
+            "finansal_tablo_yapisal": self._yapisal_finansal_tablo(
+                parsed["fin"], parsed["seriler"]
+            ),
         }
 
         if debug:
