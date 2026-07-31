@@ -98,13 +98,28 @@ class Category(str, Enum):
 
 
 class ArzDurumu(str, Enum):
-    HAZIRLANIYOR = "Hazırlanıyor"
-    SPK_ONAYLI = "SPK Onaylı (Tarih Bekleniyor)"
-    TALEP_YAKLASIYOR = "Talep Toplama Yaklaşıyor"
+    # DEĞİŞİKLİK: Ana ekranda yalnızca aşağıdaki 5 durum gösteriliyor.
+    # "Hazırlanıyor" ve "SPK Onaylı" kartları listeden çıkarıldı; bu
+    # aşamadaki şirketlerin izahnamesi henüz yayınlanmadığı için zaten
+    # fiyat/pay/finansal verileri boş geliyordu ve boş kart gösteriyorduk.
+    HAZIRLANIYOR = "Hazırlanıyor"                    # listede gösterilmiyor
+    SPK_ONAYLI = "SPK Onaylı (Tarih Bekleniyor)"     # listede gösterilmiyor
+    TALEP_YAKLASIYOR = "Talep Toplama Tarihi Bekleniyor"
     TALEP_TOPLANIYOR = "Talep Toplanıyor"
     DAGITIM_BEKLENIYOR = "Dağıtım Bekleniyor"
     ISLEME_BEKLENIYOR = "İşleme Girmesi Bekleniyor"
     ISLEM_GORMEYE_BASLADI = "Borsada İşlem Görüyor"
+
+
+# Ana ekranda gösterilecek durumlar. Buradan çıkarılan bir durum
+# API yanıtına hiç girmez.
+GOSTERILEN_DURUMLAR: set[str] = {
+    ArzDurumu.TALEP_YAKLASIYOR.value,
+    ArzDurumu.TALEP_TOPLANIYOR.value,
+    ArzDurumu.DAGITIM_BEKLENIYOR.value,
+    ArzDurumu.ISLEME_BEKLENIYOR.value,
+    ArzDurumu.ISLEM_GORMEYE_BASLADI.value,
+}
 
 
 class Gorunum(str, Enum):
@@ -237,9 +252,24 @@ AYLAR = {
 
 class TextUtils:
     @staticmethod
+    def kucult(s: Optional[str]) -> str:
+        """
+        YENİ VE KRİTİK: Türkçe'ye güvenli küçük harfe çevirme.
+
+        Python'un str.lower() metodu "İ" harfini "i" + birleşik nokta
+        (U+0307) olarak çevirir. Yani:
+            "Yurt İçi Bireysel".lower() -> "yurt i̇çi bireysel"
+        ve bu metin "içi" ifadesiyle EŞLEŞMEZ. Aynı sorun "İnşaat",
+        "İşletme", "İhraççı" gibi tüm kelimelerde yaşanıyordu; sektör
+        tespiti ve tahsisat okuması bu yüzden sessizce yanlış çalışıyordu.
+        Bu yüzden küçültmeden ÖNCE "İ" -> "i" dönüşümü yapılıyor.
+        """
+        return (s or "").replace("İ", "i").lower()
+
+    @staticmethod
     def normalize(s: Optional[str]) -> str:
-        s = (s or "").replace("İ", "i")
-        return re.sub(r"\s+", " ", s).strip().rstrip(":").strip().lower()
+        s = TextUtils.kucult(s)
+        return re.sub(r"\s+", " ", s).strip().rstrip(":").strip()
 
     @staticmethod
     def yuzde_bul(metin: Optional[str]) -> Optional[float]:
@@ -313,6 +343,30 @@ class TextUtils:
             if re.search(rf"(?:^|\s){re.escape(e)}(?:$|\s)", baslik_norm):
                 return True
         return False
+
+    @staticmethod
+    def tutar_coz(metin: Optional[str]) -> Optional[float]:
+        """
+        YENİ: "4,5 Milyar TL", "450 Milyon TL", "4.500.000.000 TL" gibi
+        ifadelerin hepsini TL cinsinden sayıya çevirir.
+        Eskiden sadece sayi_bul kullanılıyordu; "4,5 Milyar TL" ifadesi
+        4.5 olarak okunuyor ve arz büyüklüğü milyar yerine 4,5 TL
+        sanılıyordu. Bu, satış baskısı ve tavan hesabını sessizce bozan
+        ciddi bir hataydı.
+        """
+        if not metin:
+            return None
+        m = str(metin).lower()
+        sayi = TextUtils.sayi_bul(m)
+        if sayi is None:
+            return None
+        if re.search(r"\bmilyar\b|\bmlr\b", m):
+            return sayi * 1_000_000_000
+        if re.search(r"\bmilyon\b|\bmn\b", m):
+            return sayi * 1_000_000
+        if re.search(r"\bbin\b", m):
+            return sayi * 1_000
+        return sayi
 
     @staticmethod
     def sayi_formatla(deger: Optional[float]) -> str:
@@ -454,7 +508,7 @@ class ScoreAnalyzer:
     # ───────────────────────── Sektör ─────────────────────────
 
     def _get_sektor(self, metin: str) -> str:
-        m = metin.lower()
+        m = TextUtils.kucult(metin)
         if any(k in m for k in ["yazılım", "teknoloji", "bilişim", "savunma", "siber", "yapay zeka"]):
             return "TEKNOLOJİ"
         if any(k in m for k in ["gayrimenkul", "gyo", "emlak"]):
@@ -925,7 +979,7 @@ class ScoreAnalyzer:
         if not metin or TextUtils.normalize(metin) in ("-", "açıklanmadı", ""):
             return ScoreResult(0, 0, "Fon kullanım yeri açıklanmamış.", False)
 
-        satirlar = [s for s in metin.lower().split("\n") if s.strip()]
+        satirlar = [s for s in TextUtils.kucult(metin).split("\n") if s.strip()]
         agirlikli_buyume, borc_toplam, herhangi_yuzde = 0.0, 0.0, False
         kalem_notlari: list[str] = []
 
@@ -983,7 +1037,7 @@ class ScoreAnalyzer:
         if not metin or TextUtils.normalize(metin) in ("-", "açıklanmadı"):
             return ScoreResult(0, 0, "Arz yapısı belirsiz.", False)
 
-        m_lower = metin.lower()
+        m_lower = TextUtils.kucult(metin)
         olumsuz = re.sub(
             r"(ortak satış[ıi]?|mevcut pay satış[ıi]?)\s*[^.]{0,15}\b(yok|bulunmuyor|bulunmamaktadır)\b",
             "", m_lower
@@ -1029,7 +1083,7 @@ class ScoreAnalyzer:
 
     def satmama_puanla(self, metin: str, ceza_sozlugu: dict) -> ScoreResult:
         mx = self.weights.MAX[Category.SATMAMA]
-        m = (metin or "").lower()
+        m = TextUtils.kucult(metin)
         if any(k in m for k in ["1 yıl", "2 yıl", "18 ay", "24 ay", "12 ay"]):
             return ScoreResult(mx, mx, "Satmama taahhüdü mevcut.", True)
         if "yok" in m or "bulunmuyor" in m:
@@ -1037,10 +1091,16 @@ class ScoreAnalyzer:
             return ScoreResult(0, mx, "Satmama taahhüdü bulunmuyor.", True)
         return ScoreResult(0, 0, "Satmama taahhüdü belirsiz.", False)
 
-    def kurumsallik_puanla(self, raw_text: str) -> ScoreResult:
+    def kurumsallik_puanla(self, raw_text: str,
+                           kurulus_yili: Optional[int] = None) -> ScoreResult:
         mx = self.weights.MAX[Category.KURUMSALLIK]
-        m = raw_text.lower()
+        m = TextUtils.kucult(raw_text)
+        # DÜZELTME: Kuruluş yılı artık öncelikle sayfadaki .shc-founded
+        # alanından geliyor. Metin kalıbı ("2017 yılında ... kurulan")
+        # araya uzun cümleler girdiği için çoğu sayfada eşleşmiyordu.
         yillar = [int(y) for y in re.findall(r"(19[5-9]\d|20\d\d)\s*yılında\s*kurul", m)]
+        if kurulus_yili:
+            yillar.append(kurulus_yili)
         puan, aciklamalar = 0.0, []
 
         if yillar:
@@ -1075,6 +1135,7 @@ class ScoreAnalyzer:
         fiyat: Optional[float],
         baglam: PiyasaBaglami,
         raw_text: str,
+        olasi_lot: Optional[list[dict]] = None,
     ) -> dict:
         """
         YENİ MODEL — bu bölüm doğrudan Albayrak Beton gözleminden doğdu.
@@ -1101,9 +1162,10 @@ class ScoreAnalyzer:
             str(veri.get(InfoKey.DAGITIM_TIPI, "")),
             str(veri.get(InfoKey.DAGITIM_TABLOSU, "")),
             str(veri.get(InfoKey.SATIS_YONTEMI, "")),
-        ]).lower()
-        tahsisat_metni = str(veri.get(InfoKey.TAHSISAT, "")).lower()
-        rt = raw_text.lower()
+        ])
+        dagitim_metni = TextUtils.kucult(dagitim_metni)
+        tahsisat_metni = TextUtils.kucult(str(veri.get(InfoKey.TAHSISAT, "")))
+        rt = TextUtils.kucult(raw_text)
 
         # 1) Eşit dağıtım mı?
         esit_dagitim = any(k in dagitim_metni or k in rt for k in [
@@ -1114,15 +1176,24 @@ class ScoreAnalyzer:
             "yurt içi kurumsal", "yurtiçi kurumsal", "yurt dışı kurumsal",
             "yurtdışı kurumsal", "kurumsal yatırımcı"
         ])
+        # DÜZELTME: Kaynak site yüzdeyi etiketten ÖNCE yazıyor:
+        #   "28.987.770 Lot (%60) Yurt İçi Bireysel Yatırımcı"
+        # Önceki kalıp yüzdeyi etiketten sonra aradığı için hiç eşleşmiyordu.
         bireysel_yuzdesi = None
-        b_match = re.search(r"yurt\s*içi\s*bireysel[^%\n]{0,40}%\s*(\d{1,3})", tahsisat_metni + " " + rt)
-        if b_match:
-            try:
-                bireysel_yuzdesi = float(b_match.group(1))
-            except ValueError:
-                bireysel_yuzdesi = None
+        aranan = tahsisat_metni + " " + rt
+        for kalip in (
+            r"%\s*(\d{1,3})\s*\)\s*yurt\s*içi\s*bireysel",
+            r"yurt\s*içi\s*bireysel[^%\n]{0,40}%\s*(\d{1,3})",
+        ):
+            b_match = re.search(kalip, aranan)
+            if b_match:
+                try:
+                    bireysel_yuzdesi = float(b_match.group(1))
+                    break
+                except ValueError:
+                    continue
         tamamen_bireysel = (bireysel_yuzdesi is not None and bireysel_yuzdesi >= 95) or (
-            not kurumsal_var and "bireysel" in (tahsisat_metni + rt)
+            bireysel_yuzdesi is None and not kurumsal_var and "bireysel" in aranan
         )
 
         # 3) Arz büyüklüğü
@@ -1137,10 +1208,26 @@ class ScoreAnalyzer:
         etkin_katilimci = SETTINGS.TAHMINI_KATILIMCI / (1 + 0.25 * rakip)
         kisi_basi_tutar = None
         kisi_basi_lot = None
-        if arz_buyuklugu and etkin_katilimci > 0 and esit_dagitim:
-            kisi_basi_tutar = arz_buyuklugu / etkin_katilimci
+        tutar_kaynagi = None
+
+        # ÖNCELİK 1 (YENİ): Kaynak sitenin kendi yayınladığı olası dağıtım
+        # tablosu. Bu tablo bireysel tahsisat üzerinden hesaplandığı için
+        # benim kaba tahminimden çok daha doğru. Beklenen katılımcı
+        # sayısına en yakın satır seçiliyor.
+        if olasi_lot:
+            en_yakin = min(olasi_lot, key=lambda r: abs(r["katilimci"] - etkin_katilimci))
+            kisi_basi_tutar = en_yakin["tutar"]
+            kisi_basi_lot = float(en_yakin["lot"])
+            tutar_kaynagi = f"kaynak tablo ({en_yakin['katilimci']:,} katılımcı senaryosu)".replace(",", ".")
+
+        # ÖNCELİK 2: Tablo yoksa arz büyüklüğünden tahmin et.
+        # Sadece BİREYSEL tahsisata düşen kısım dağıtılıyor.
+        elif arz_buyuklugu and etkin_katilimci > 0:
+            bireysel_pay = (bireysel_yuzdesi / 100.0) if bireysel_yuzdesi else 1.0
+            kisi_basi_tutar = (arz_buyuklugu * bireysel_pay) / etkin_katilimci
             if fiyat and fiyat > 0:
                 kisi_basi_lot = kisi_basi_tutar / fiyat
+            tutar_kaynagi = "tahmin (arz büyüklüğü ÷ beklenen katılımcı)"
 
         # ── Puanlama ──
         if esit_dagitim:
@@ -1148,7 +1235,13 @@ class ScoreAnalyzer:
             gerekceler.append("Dağıtım eşit yöntemle yapılıyor.")
         if tamamen_bireysel:
             baski += 10
-            gerekceler.append("Tahsisat ağırlıklı/tamamen bireysel yatırımcıya ayrılmış.")
+            gerekceler.append("Tahsisat neredeyse tamamen bireysel yatırımcıya ayrılmış.")
+        elif bireysel_yuzdesi is not None and bireysel_yuzdesi >= 60:
+            baski += 5
+            gerekceler.append(
+                f"Tahsisatın %{bireysel_yuzdesi:.0f}'i bireysel yatırımcıya ayrılmış "
+                f"(kurumsal pay {100 - bireysel_yuzdesi:.0f}%)."
+            )
         if buyuk:
             baski += 15
             gerekceler.append(f"Arz büyüklüğü yüksek (~{arz_buyuklugu/1_000_000_000:.1f} milyar TL).")
@@ -1167,18 +1260,18 @@ class ScoreAnalyzer:
                 gerekceler.append(
                     f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
                     + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
-                    + ": ilk gün kâr satışı baskısı çok yüksek."
+                    + f" [{tutar_kaynagi}]: ilk gün kâr satışı baskısı çok yüksek."
                 )
             elif kisi_basi_tutar >= SETTINGS.KISI_BASI_YUKSEK_TUTAR:
                 baski += 15
                 gerekceler.append(
                     f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
                     + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
-                    + ": ilk gün satış baskısı yüksek."
+                    + f" [{tutar_kaynagi}]: ilk gün satış baskısı yüksek."
                 )
 
         # Fiyat istikrarı taahhüdü baskıyı bir miktar dengeler
-        ist = str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")).lower()
+        ist = TextUtils.kucult(str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")))
         istikrar_var = bool(ist) and ist not in ("-", "açıklanmadı") and \
             "planlanmamaktadır" not in ist and ist != "yok"
         if istikrar_var and baski > 0:
@@ -1218,6 +1311,8 @@ class ScoreAnalyzer:
             "gerekceler": gerekceler,
             "esit_dagitim": esit_dagitim,
             "tamamen_bireysel": tamamen_bireysel,
+            "kisi_basi_tutar_kaynagi": tutar_kaynagi,
+            "bireysel_tahsisat_yuzdesi": bireysel_yuzdesi,
             "kisi_basi_tahmini_tutar": round(kisi_basi_tutar, 0) if kisi_basi_tutar else None,
             "kisi_basi_tahmini_lot": round(kisi_basi_lot, 0) if kisi_basi_lot else None,
             "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
@@ -1228,7 +1323,9 @@ class ScoreAnalyzer:
     # ═══════════════════════════════════════════════════════════
 
     def skoru_topla(self, veri: dict, fin: dict, seriler: dict, durum: ArzDurumu,
-                    raw_text: str, baglam: PiyasaBaglami) -> dict:
+                    raw_text: str, baglam: PiyasaBaglami,
+                    olasi_lot: Optional[list[dict]] = None,
+                    kurulus_yili: Optional[int] = None) -> dict:
         kirmizi_bayraklar: list[str] = []
         ceza_sozlugu: dict[str, float] = {}
         uyarilar: list[str] = []
@@ -1239,11 +1336,13 @@ class ScoreAnalyzer:
         market_cap = (fiyat * pay) if (fiyat and pay) else None
         arz_buyuklugu = (
             (fiyat * pay) if (fiyat and pay)
-            else TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, ""))
+            else TextUtils.tutar_coz(veri.get(InfoKey.BUYUKLUK, ""))
         )
 
         # Baskı analizi, hazırlık aşamasında bile bilgi verici olabilir
-        baski = self.ilk_gun_satis_baskisi(veri, arz_buyuklugu, pay, fiyat, baglam, raw_text)
+        baski = self.ilk_gun_satis_baskisi(
+            veri, arz_buyuklugu, pay, fiyat, baglam, raw_text, olasi_lot
+        )
         if baski["uyari"]:
             uyarilar.append(baski["uyari"])
 
@@ -1276,7 +1375,7 @@ class ScoreAnalyzer:
             (Category.ISKONTO, self.iskonto_puanla(veri.get(InfoKey.ISKONTO, ""))),
             (Category.ACIKLIK, self.aciklik_puanla(veri.get(InfoKey.ACIKLIK, ""))),
             (Category.SATMAMA, self.satmama_puanla(veri.get(InfoKey.TAAHHUT, ""), ceza_sozlugu)),
-            (Category.KURUMSALLIK, self.kurumsallik_puanla(raw_text)),
+            (Category.KURUMSALLIK, self.kurumsallik_puanla(raw_text, kurulus_yili)),
         ]
 
         toplam_kazanilan = sum(r.score for _, r in hesaplamalar)
@@ -1295,11 +1394,34 @@ class ScoreAnalyzer:
         # DEĞİŞİKLİK: Veri güvenilirliği artık ham puan toplamı değil,
         # ölçülebilen ağırlığın toplam ağırlığa oranı (gerçek bir yüzde).
         veri_guvenilirligi = int(round((toplam_max / tum_max) * 100)) if tum_max else 0
+
+        # YENİ VE ÖNEMLİ: Kaynak site (halkarz.com) çoğu arzda finansal
+        # tablo yayınlamıyor; "izahnameye göz atın" notu bırakıyor.
+        # Bu durumda kârlılık/büyüme/borç/değerleme boyutlarının hiçbiri
+        # hesaplanamıyor ve geriye yalnızca arz yapısı, iskonto, açıklık
+        # gibi kalemler kalıyor. Ortaya çıkan sayı bir "finansal kalite"
+        # skoru DEĞİLDİR; bunu kullanıcıya açıkça söylemek zorundayız.
+        FINANSAL_BOYUTLAR = {
+            Category.KARLILIK, Category.BUYUME, Category.BORC_YAPISI,
+            Category.LIKIDITE, Category.NAKIT_AKISI, Category.DEGERLEME,
+        }
+        finansal_veri_var = any(
+            res.has_data for kat, res in hesaplamalar if kat in FINANSAL_BOYUTLAR
+        )
+        if not finansal_veri_var:
+            uyarilar.append(
+                "⚠️ BU ARZ İÇİN FİNANSAL TABLO VERİSİ YOK: Kaynakta kâr, hasılat, "
+                "borç ve özkaynak rakamları yayınlanmadığı için kârlılık, büyüme, "
+                "borçluluk ve değerleme hiç hesaplanamadı. Aşağıdaki skor yalnızca "
+                "halka arzın YAPISINI (arz şekli, iskonto, halka açıklık, taahhütler) "
+                "yansıtır; şirketin finansal sağlığı hakkında bilgi vermez. "
+                "Şirketin bilançosu için izahnameyi inceleyin."
+            )
         base_score = (toplam_kazanilan / toplam_max * 100) if toplam_max > 0 else 0.0
 
         bonuslar = 0.0
         guclu: list[str] = []
-        rt = raw_text.lower()
+        rt = TextUtils.kucult(raw_text)
 
         if any(k in rt for k in ["temettü ödemesi", "kâr payı dağıtıldı", "nakit temettü"]):
             bonuslar += 2
@@ -1312,7 +1434,7 @@ class ScoreAnalyzer:
             bonuslar += 1
             guclu.append("[bonus] Tescilli Ar-Ge / patent çalışmaları. (+1.0 Puan)")
 
-        ist = str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")).lower()
+        ist = TextUtils.kucult(str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")))
         istikrar_yok = "planlanmamaktadır" in ist or ist == "yok"
         if istikrar_yok:
             kirmizi_bayraklar.append("🚨 Fiyat istikrarı işlemi planlanmıyor.")
@@ -1423,6 +1545,7 @@ class ScoreAnalyzer:
             "sektor": sektor,
             "baski": baski,
             "uyarilar": uyarilar,
+            "finansal_veri_var": finansal_veri_var,
         }
 
 
@@ -1625,6 +1748,182 @@ class DataExtractor:
 
         return {"donemler": donemler, "satirlar": satirlar}
 
+
+    # ═══════════════════════════════════════════════════════════
+    # 🎯 halkarz.com'a ÖZEL AYRIŞTIRICILAR
+    # Kaynak sayfanın gerçek HTML yapısına göre yazıldı.
+    # Önceki sürüm sayfayı düz metne çevirip etiket tahmin ediyordu;
+    # sitenin "Özet Bilgiler" bölümü aslında bir tablo değil
+    # <ul class="aex-in"><li><h5>Başlık</h5><p>Değer</p></li></ul>
+    # yapısında olduğu için pek çok alan hiç okunamıyordu.
+    # ═══════════════════════════════════════════════════════════
+
+    # table.sp-table içindeki satır başlıkları -> alan
+    ANA_TABLO_ETIKETLERI: ClassVar[dict[str, InfoKey]] = {
+        "halka arz tarihi": InfoKey.TARIH,
+        "talep toplama tarihi": InfoKey.TARIH,
+        "halka arz fiyatı/aralığı": InfoKey.FIYAT,
+        "halka arz fiyatı": InfoKey.FIYAT,
+        "dağıtım yöntemi": InfoKey.DAGITIM_YONTEMI,
+        "pay": InfoKey.PAY_SAYISI,
+        "aracı kurum": InfoKey.ARACI_KURUM,
+        "bist kodu": InfoKey.BIST_KODU,
+        "pazar": InfoKey.PAZAR,
+        "bist ilk işlem tarihi": InfoKey.ISLEM_TARIHI,
+        "borsada işlem tarihi": InfoKey.ISLEM_TARIHI,
+    }
+
+    # ul.aex-in > li > h5 başlıkları -> alan
+    OZET_ETIKETLERI: ClassVar[dict[str, InfoKey]] = {
+        "halka arz şekli": InfoKey.HALKA_ARZ_SEKLI,
+        "fonun kullanım yeri": InfoKey.FON_KULLANIM,
+        "halka arz satış yöntemi": InfoKey.SATIS_YONTEMI,
+        "tahsisat grupları": InfoKey.TAHSISAT,
+        "finansal tablo": InfoKey.FINANSAL_TABLO,
+        "fiyat istikrarı": InfoKey.FIYAT_ISTIKRARI,
+        "satmama taahhüdü": InfoKey.TAAHHUT,
+        "halka açıklık": InfoKey.ACIKLIK,
+        "halka arz iskontosu": InfoKey.ISKONTO,
+        "halka arz büyüklüğü": InfoKey.BUYUKLUK,
+    }
+
+    # Sitenin "veri henüz yok" ifadeleri
+    BOS_IFADELER: ClassVar[set[str]] = {
+        "hazırlanıyor", "hazırlanıyor...", "açıklanmadı", "belli değil",
+        "-", "", "bekleniyor", "belirtilmemiş",
+    }
+
+    @classmethod
+    def _bos_mu(cls, deger: Optional[str]) -> bool:
+        return TextUtils.normalize(deger).rstrip(".") in cls.BOS_IFADELER
+
+    @staticmethod
+    def _etiket_temizle(ham: str) -> str:
+        """'Dağıtılacak Pay Miktarı (Olası) *' -> 'dağıtılacak pay miktarı'"""
+        n = TextUtils.normalize(ham)
+        n = re.sub(r"\s*\([^)]*\)\s*", " ", n)   # parantezli ekleri at
+        n = n.replace("*", " ")
+        return re.sub(r"\s+", " ", n).strip()
+
+    @staticmethod
+    def _dugum_metni(dugum) -> str:
+        """
+        <p> içeriğini satırlara ayırarak alır; <small> içindeki
+        kaynak dipnotlarını ('* İzahname, Sayfa 340.') atar.
+        """
+        if dugum is None:
+            return ""
+        for small in dugum.find_all("small"):
+            small.decompose()
+        ham = dugum.get_text(separator="\n", strip=True)
+        satirlar = []
+        for s in ham.split("\n"):
+            s = s.strip().lstrip("-–•").strip()
+            if not s or s.startswith("*"):
+                continue
+            satirlar.append(s)
+        return "\n".join(satirlar)
+
+    def _ana_tablodan_doldur(self, veri: dict, soup) -> None:
+        """table.sp-table -> tarih, fiyat, pay, aracı kurum, bist kodu, pazar..."""
+        for tr in soup.select("table.sp-table tr"):
+            hucreler = tr.find_all("td")
+            if len(hucreler) < 2:
+                continue
+            etiket = TextUtils.normalize(hucreler[0].get_text(separator=" ", strip=True))
+            alan = self.ANA_TABLO_ETIKETLERI.get(etiket)
+            if alan is None:
+                continue
+            deger = hucreler[1].get_text(separator=" ", strip=True)
+            if self._bos_mu(deger):
+                continue
+            veri[alan] = deger
+
+    def _ozet_bilgilerden_doldur(self, veri: dict, soup) -> None:
+        """ul.aex-in -> fon kullanımı, tahsisat, açıklık, iskonto, büyüklük..."""
+        for li in soup.select("ul.aex-in li"):
+            h5 = li.find("h5")
+            if h5 is None:
+                continue
+            etiket = self._etiket_temizle(h5.get_text(separator=" ", strip=True))
+            deger = self._dugum_metni(li.find("p"))
+            if not deger:
+                continue
+
+            alan = self.OZET_ETIKETLERI.get(etiket)
+            if alan is not None:
+                if not self._bos_mu(deger):
+                    veri[alan] = deger
+                continue
+
+            # "Dağıtılacak Pay Miktarı (Olası)" -> tahmini lot tablosu
+            if etiket.startswith("dağıtılacak pay miktarı"):
+                veri[InfoKey.DAGITIM_TABLOSU] = deger
+                veri[InfoKey.DAGITIM_TIPI] = "Tahmini Lot Tablosu"
+
+    def _kesin_dagitim_doldur(self, veri: dict, soup) -> bool:
+        """
+        article.haberler-dagitim-olasi -> KESİNLEŞEN lot tablosu.
+        DÜZELTME: Bu başlık sayfada her zaman var; içi 'Hazırlanıyor...'
+        olsa bile önceki kod ham metinde 'dağıtılan pay miktarı' görünce
+        arzı 'İşleme Girmesi Bekleniyor' durumuna geçiriyordu.
+        Artık başlığın değil, İÇERİĞİN dolu olmasına bakılıyor.
+        """
+        art = soup.select_one("article.haberler-dagitim-olasi")
+        if art is None:
+            return False
+        icerik_dugumu = art.find("div")
+        deger = self._dugum_metni(icerik_dugumu)
+        if not deger or self._bos_mu(deger):
+            return False
+        veri[InfoKey.DAGITIM_TABLOSU] = deger
+        veri[InfoKey.DAGITIM_TIPI] = "Kesinleşen Lot Tablosu"
+        return True
+
+    def _sirket_bilgisi_doldur(self, veri: dict, soup) -> Optional[int]:
+        """
+        Kuruluş yılını .shc-founded alanından okur.
+        Önceki kod '(yıl) yılında ... kurulan' kalıbını arıyordu; sitede
+        araya uzun cümleler girdiği için hiç eşleşmiyordu.
+        """
+        span = soup.select_one("span.shc-founded")
+        if span is None:
+            return None
+        m = re.search(r"(19\d{2}|20\d{2})", span.get_text(separator=" ", strip=True))
+        return int(m.group(1)) if m else None
+
+    @staticmethod
+    def _olasi_lot_tablosu_coz(metin: str) -> list[dict]:
+        """
+        YENİ: Sitenin kendi hesapladığı dağıtım tablosunu sayısal hale getirir.
+          '2.2 Milyon katılım ~ 14 Lot (1072 TL)' -> (2200000, 14, 1072)
+        Bu, ilk gün satış baskısı modelini kendi tahminim yerine
+        KAYNAĞIN kendi rakamlarına dayandırmayı sağlıyor.
+        """
+        sonuc: list[dict] = []
+        desen = re.compile(
+            r"([\d.,]+)\s*(bin|milyon)?\s*katılım[^\d]{0,6}([\d.]+)\s*lot\s*\(\s*([\d.]+)\s*tl\s*\)",
+            re.IGNORECASE,
+        )
+        for m in desen.finditer(metin or ""):
+            try:
+                taban = float(m.group(1).replace(".", "").replace(",", ".")) \
+                    if ("," in m.group(1) or len(m.group(1).split(".")[-1]) == 3) \
+                    else float(m.group(1).replace(",", "."))
+                # "1.1 Milyon" -> 1.1 ; "150" -> 150
+                if m.group(2) and "." in m.group(1) and len(m.group(1).split(".")[-1]) != 3:
+                    taban = float(m.group(1))
+                birim = (m.group(2) or "").lower()
+                katilimci = taban * (1_000 if birim == "bin" else 1_000_000 if birim == "milyon" else 1)
+                sonuc.append({
+                    "katilimci": int(katilimci),
+                    "lot": int(m.group(3).replace(".", "")),
+                    "tutar": float(m.group(4).replace(".", "")),
+                })
+            except (ValueError, AttributeError):
+                continue
+        return sonuc
+
     def _tablodan_doldur(self, veri: dict, soup: BeautifulSoup):
         for tr in soup.find_all("tr"):
             tds = tr.find_all(["th", "td"])
@@ -1731,7 +2030,7 @@ class DataExtractor:
             lot_satirlari = [
                 s for s in ham
                 if re.search(r"\d", s)
-                and any(k in s.lower() for k in ("lot", "kişi", "katılım", "adet"))
+                and any(k in TextUtils.kucult(s) for k in ("lot", "kişi", "katılım", "adet"))
             ]
             if lot_satirlari:
                 veri[InfoKey.DAGITIM_TABLOSU] = "\n".join(
@@ -1835,23 +2134,28 @@ class DataExtractor:
         return fin, seriler
 
     def _durum_belirle(self, tarih_metni: str, islem_tarihi_metni: str,
-                       raw_text: str, kart_metni: str) -> ArzDurumu:
+                       raw_text: str, kart_metni: str,
+                       kesin_dagitim: bool = False) -> ArzDurumu:
         """
         REFAKTÖR: Tarih çözümleme mantığı TextUtils.tarih_araligi_coz'a
         taşındı; ay geçişli aralıklar (30 Temmuz - 1 Ağustos) artık
         doğru işleniyor.
         """
-        rt = raw_text.lower()
+        rt = TextUtils.kucult(raw_text)
         bugun = datetime.now().date()
 
-        if "işlem görmeye başlamıştır" in rt or "gong!" in kart_metni.lower():
+        if "işlem görmeye başlamıştır" in rt or "gong!" in TextUtils.kucult(kart_metni):
             return ArzDurumu.ISLEM_GORMEYE_BASLADI
 
         islem_aralik = TextUtils.tarih_araligi_coz(islem_tarihi_metni)
         if islem_aralik and bugun >= islem_aralik[0]:
             return ArzDurumu.ISLEM_GORMEYE_BASLADI
 
-        if "dağıtılan pay miktarı" in rt or "kesinleşen" in rt:
+        # DÜZELTME: "Dağıtılan Pay Miktarı" başlığı sayfada HER ZAMAN var
+        # (içi "Hazırlanıyor..." olsa bile). Ham metinde bu ifadeyi arayan
+        # eski kod, talep toplama aşamasındaki her arzı yanlışlıkla
+        # "İşleme Girmesi Bekleniyor" durumuna geçiriyordu.
+        if kesin_dagitim:
             return ArzDurumu.ISLEME_BEKLENIYOR
 
         talep_aralik = TextUtils.tarih_araligi_coz(tarih_metni)
@@ -1888,10 +2192,16 @@ class DataExtractor:
         raw_text = soup.get_text(separator="\n", strip=True)
 
         veri = dict(self.DEFAULTS)
+        # DEĞİŞİKLİK: Önce siteye özel, yapısal ayrıştırıcılar çalışıyor.
+        # Genel/metin tabanlı okuyucular yalnızca yedek olarak kaldı.
+        self._ana_tablodan_doldur(veri, soup)
+        self._ozet_bilgilerden_doldur(veri, soup)
+        kesin_dagitim = self._kesin_dagitim_doldur(veri, soup)
+        kurulus_yili = self._sirket_bilgisi_doldur(veri, soup)
         self._tablodan_doldur(veri, soup)
         self._satirlardan_doldur(veri, raw_text)
-        self._dagitim_tahsisat_finansal_doldur(veri, raw_text)
         fin, seriler = self._finansal_tablo_cikar(soup, raw_text)
+        olasi_lot = self._olasi_lot_tablosu_coz(veri.get(InfoKey.DAGITIM_TABLOSU, ""))
 
         if veri.get(InfoKey.TARIH) == self.DEFAULTS.get(InfoKey.TARIH):
             tarih_match = re.search(
@@ -1921,15 +2231,35 @@ class DataExtractor:
 
         durum = self._durum_belirle(
             veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""),
-            raw_text, kart_metni
+            raw_text, kart_metni, kesin_dagitim
         )
 
         fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
         pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
-        arz_buyuklugu = (
-            (fiyat * pay) if (fiyat and pay)
-            else TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, ""))
-        )
+        # DEĞİŞİKLİK: "4,5 Milyar TL" artık 4.5 değil 4_500_000_000 olarak
+        # okunuyor (bkz. TextUtils.tutar_coz).
+        buyukluk_ham = TextUtils.tutar_coz(veri.get(InfoKey.BUYUKLUK, ""))
+
+        # YENİ VE ÖNEMLİ: Pay miktarı izahnameden okunamadıysa,
+        # arz büyüklüğü / fiyat formülüyle türetiliyor.
+        # Lot hesaplayıcının "hiç çalışmaması"nın en yaygın sebebi
+        # pay miktarının boş kalmasıydı; bu fallback çoğu durumda
+        # hesaplayıcıyı kurtarır.
+        pay_kaynagi = "izahname"
+        if not pay and buyukluk_ham and fiyat and fiyat > 0:
+            pay = buyukluk_ham / fiyat
+            pay_kaynagi = "hesaplandı (arz büyüklüğü ÷ fiyat)"
+        elif not pay:
+            pay_kaynagi = "bulunamadı"
+
+        arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else buyukluk_ham
+
+        # YENİ: Hangi alanların çekilemediğini her yanıtta bildir.
+        # Böylece debug anahtarı olmadan da eksik alan görülebiliyor.
+        eksik_alanlar = [
+            a.value for a in self.FIELD_LABELS
+            if veri.get(a) == self.DEFAULTS.get(a)
+        ]
 
         return {
             "sirket_adi": sirket_adi,
@@ -1942,6 +2272,10 @@ class DataExtractor:
             "arz_buyuklugu": arz_buyuklugu,
             "fiyat": fiyat,
             "pay": pay,
+            "pay_kaynagi": pay_kaynagi,
+            "eksik_alanlar": eksik_alanlar,
+            "olasi_lot_tablosu": olasi_lot,
+            "kurulus_yili": kurulus_yili,
         }
 
     # ─────────── FAZ 2: piyasa bağlamı hesapla ve puanla ───────────
@@ -1983,7 +2317,9 @@ class DataExtractor:
         durum = parsed["durum"]
 
         s = self.analyzer.skoru_topla(
-            veri, parsed["fin"], parsed["seriler"], durum, parsed["raw_text"], baglam
+            veri, parsed["fin"], parsed["seriler"], durum, parsed["raw_text"], baglam,
+            olasi_lot=parsed.get("olasi_lot_tablosu"),
+            kurulus_yili=parsed.get("kurulus_yili"),
         )
 
         t_kalite = s["temel_kalite"]
@@ -2005,13 +2341,13 @@ class DataExtractor:
         else:
             rating = "☆☆☆☆☆"
 
-        rt = parsed["raw_text"].lower()
+        rt = TextUtils.kucult(parsed["raw_text"])
         t1_t2 = "t1-t2 kullanılabilir" in rt or "t1 ve t2 kullanılabilir" in rt
         katilim = ("katılım endeksine uygun değildir" not in rt
                    and "katılım endeksine uygun" in rt)
         islem_menusu = (
             "Hisse Alış/Satış Menüsü"
-            if "borsada satış" in str(veri.get(InfoKey.DAGITIM_YONTEMI, "")).lower()
+            if "borsada satış" in TextUtils.kucult(str(veri.get(InfoKey.DAGITIM_YONTEMI, "")))
             else "Halka Arz Menüsü"
         )
 
@@ -2101,6 +2437,7 @@ class DataExtractor:
             "katilim_endeksine_uygun": katilim,
             "islem_menusu": islem_menusu,
             "veri_guvenilirligi": s["veri_guvenilirligi"],
+            "finansal_veri_var": s.get("finansal_veri_var", False),
             "tahmini_volatilite": s["volatilite"],
             "model_surumu": MODEL_SURUMU,
             # ── YENİ: Lot hesaplayıcı için hazır sayısal değerler ──
@@ -2111,6 +2448,10 @@ class DataExtractor:
             "fiyat_sayi": parsed.get("fiyat"),
             "pay_sayisi_sayi": parsed.get("pay"),
             "arz_buyuklugu_sayi": parsed.get("arz_buyuklugu"),
+            # Pay miktarı izahnameden mi okundu, yoksa türetildi mi?
+            "pay_sayisi_kaynagi": parsed.get("pay_kaynagi"),
+            # İzahnameden çekilemeyen alanlar (tanı amaçlı)
+            "eksik_alanlar": parsed.get("eksik_alanlar", []),
             # ── YENİ: Yapısal finansal tablo ──
             "finansal_tablo_yapisal": self._yapisal_finansal_tablo(
                 parsed["fin"], parsed["seriler"]
@@ -2153,8 +2494,9 @@ class DataExtractor:
                 continue
 
             parent_li = etiket.find_parent("li")
-            kart_metni = (parent_li.get_text(strip=True).lower() if parent_li
-                          else sirket_adi.lower())
+            kart_metni = TextUtils.kucult(
+                parent_li.get_text(strip=True) if parent_li else sirket_adi
+            )
 
             if not any(b in kart_metni for b in [
                 "yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan",
@@ -2187,6 +2529,18 @@ class DataExtractor:
                 parsed_list.append(res)
 
         # FAZ 2: piyasa bağlamını hesapla, sonra puanla
+        # DEĞİŞİKLİK: Gösterilmeyecek durumlar (Hazırlanıyor / SPK Onaylı)
+        # daha puanlamaya girmeden eleniyor. Hem gereksiz iş yapılmıyor
+        # hem de aynı hafta rakip arz sayımı, gerçekten talep toplayacak
+        # arzlar üzerinden hesaplanıyor.
+        elenen = [p for p in parsed_list if p["durum"].value not in GOSTERILEN_DURUMLAR]
+        if elenen:
+            logger.info(
+                "Listede gösterilmeyen (izahname aşaması) şirketler: "
+                + ", ".join(f"{p['sirket_adi']} [{p['durum'].value}]" for p in elenen)
+            )
+        parsed_list = [p for p in parsed_list if p["durum"].value in GOSTERILEN_DURUMLAR]
+
         baglamlar = self._piyasa_baglami_olustur(parsed_list)
 
         sirket_listesi: list[dict] = []
