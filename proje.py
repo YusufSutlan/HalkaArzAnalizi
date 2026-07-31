@@ -1,4 +1,3 @@
-# main.py
 import os
 import re
 import time
@@ -7,7 +6,7 @@ import logging
 from datetime import datetime, date
 from enum import Enum
 from typing import Optional, ClassVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -29,6 +28,20 @@ YATIRIM_UYARISI = (
     "kendiniz doğrulayın."
 )
 
+# ÖNEMLİ NOT (kalibrasyon):
+# Aşağıdaki "ilk gün satış baskısı" modeli, gözlemlenen bir mekanizmaya dayanır
+# (büyük arz + eşit dağıtım -> kişi başı yüksek lot -> ilk gün kâr satışı).
+# Ancak bu model HENÜZ GERİYE DÖNÜK TEST EDİLMEMİŞTİR. Eşikler
+# ortam değişkenleriyle ayarlanabilir bırakıldı; geçmiş arz verisiyle
+# doğrulanana kadar çıktı "tahmin" değil "uyarı" olarak sunulmalıdır.
+MODEL_SURUMU = "3.0.0-kalibre-edilmemis"
+
+# Sektör çarpanlarının hangi tarihe ait olduğu. Bayat veriyle kıyaslama
+# yapmak sessizce yanlış sonuç üretir; bu yüzden tarih tutuluyor ve
+# bayatladığında API yanıtında açıkça uyarı veriliyor.
+SEKTOR_VERI_TARIHI = os.environ.get("SEKTOR_VERI_TARIHI", "2026-05-01")
+SEKTOR_VERI_BAYATLAMA_GUNU = int(os.environ.get("SEKTOR_VERI_BAYATLAMA_GUNU", "120"))
+
 
 @dataclass(frozen=True)
 class AppSettings:
@@ -40,8 +53,22 @@ class AppSettings:
     ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
     ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
-    MIN_SKOR: float = float(os.environ.get("MIN_SKOR", "0.0"))
     ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
+
+    # ── İlk gün satış baskısı modeli eşikleri (ayarlanabilir) ──
+    # Talep toplamanın tarihsel ortalama bireysel katılımcı sayısı.
+    TAHMINI_KATILIMCI: int = int(os.environ.get("TAHMINI_KATILIMCI", "2500000"))
+    # Bu tutarın üzerinde kişi başı dağıtım = yüksek kâr satışı baskısı.
+    # KALİBRASYON NOTU: Türkiye'de tipik bir küçük arzda (~500 mn TL,
+    # ~3 mn katılımcı) kişi başı dağıtım ~150-200 TL (1-2 lot) civarındadır.
+    # 4-6 milyar TL'lik bir arzda ise bu tutar 1.500-3.000 TL'ye, yani
+    # 10-20 katına çıkar. Satış baskısı yaratan asıl fark budur.
+    # Bu eşikler geriye dönük test sonrası mutlaka güncellenmelidir.
+    KISI_BASI_YUKSEK_TUTAR: float = float(os.environ.get("KISI_BASI_YUKSEK_TUTAR", "1200"))
+    KISI_BASI_KRITIK_TUTAR: float = float(os.environ.get("KISI_BASI_KRITIK_TUTAR", "2500"))
+    # "Büyük arz" sayılan eşikler (TL).
+    BUYUK_ARZ_ESIGI: float = float(os.environ.get("BUYUK_ARZ_ESIGI", "3_000_000_000".replace("_", "")))
+    COK_BUYUK_ARZ_ESIGI: float = float(os.environ.get("COK_BUYUK_ARZ_ESIGI", "5_000_000_000".replace("_", "")))
 
 
 SETTINGS = AppSettings()
@@ -52,13 +79,20 @@ SETTINGS = AppSettings()
 # ═══════════════════════════════════════════════════════════════════
 
 class Category(str, Enum):
-    FINANSAL = "finansal"
+    # DEĞİŞİKLİK: Eski tek parça "finansal" kategorisi, incelemede
+    # önerilen dağılıma uygun şekilde 4 ayrı boyuta ayrıldı. Böylece
+    # bir şirketin kârlı ama küçülüyor olması gibi durumlar skorda
+    # birbirini maskelemiyor.
+    KARLILIK = "karlilik"
+    BUYUME = "buyume"
+    BORC_YAPISI = "borc_yapisi"
+    LIKIDITE = "likidite"
     DEGERLEME = "degerleme"
+    NAKIT_AKISI = "nakit_akisi"
     FON_KULLANIM = "fon_kullanim"
     ARZ_YAPISI = "arz_yapisi"
     ISKONTO = "iskonto"
     ACIKLIK = "aciklik"
-    FIYAT_ISTIKRARI = "fiyat_istikrari"
     SATMAMA = "satmama"
     KURUMSALLIK = "kurumsallik"
 
@@ -110,34 +144,96 @@ class FinKey(str, Enum):
     KISA_VADELI_YUKUMLULUK = "KisaVadeliYukumluluk"
     TOPLAM_BORC = "ToplamBorc"
     HASILAT = "Hasilat"
+    # YENİ: incelemede eksik denilen metrikler
+    FAALIYET_KARI = "FaaliyetKari"
+    AMORTISMAN = "Amortisman"
+    FAVOK = "Favok"
+    FINANSAL_BORC = "FinansalBorc"
+    NAKIT = "Nakit"
+    ISLETME_NAKIT_AKISI = "IsletmeNakitAkisi"
+    FINANSMAN_GIDERI = "FinansmanGideri"
+    BRUT_KAR = "BrutKar"
 
 
 @dataclass(frozen=True)
 class ScoreWeights:
+    """
+    DEĞİŞİKLİK: Ağırlıklar incelemede önerilen dağılıma çekildi.
+    Çekirdek 100 puan: Kârlılık 20 / Büyüme 15 / Borç 15 / Likidite 10 /
+    Değerleme 20 / Fon Kullanımı 10 / Kurumsallık 5 / Arz Yapısı 5.
+    Nakit akışı, iskonto, açıklık ve satmama ek boyutlar olarak eklendi;
+    nihai skor zaten "elde edilen / ölçülebilen maksimum" şeklinde
+    normalize edildiği için toplam 100'ü aşması sorun değil, önemli olan
+    boyutlar arası göreli ağırlıktır.
+    """
     MAX: ClassVar[dict[Category, float]] = {
-        Category.FINANSAL: 35.0,
+        Category.KARLILIK: 20.0,
+        Category.BUYUME: 15.0,
+        Category.BORC_YAPISI: 15.0,
+        Category.LIKIDITE: 10.0,
         Category.DEGERLEME: 20.0,
-        Category.FON_KULLANIM: 15.0,
-        Category.ARZ_YAPISI: 10.0,
-        Category.KURUMSALLIK: 10.0,
-        Category.ISKONTO: 5.0,
+        Category.NAKIT_AKISI: 10.0,
+        Category.FON_KULLANIM: 10.0,
+        Category.KURUMSALLIK: 5.0,
+        Category.ARZ_YAPISI: 5.0,
+        Category.ISKONTO: 4.0,
+        Category.ACIKLIK: 3.0,
         Category.SATMAMA: 3.0,
-        Category.ACIKLIK: 2.0,
-        Category.FIYAT_ISTIKRARI: 0.0,
     }
-    FINANSAL_NET_KAR: float = 14.0
-    FINANSAL_CARI: float = 9.0
-    FINANSAL_BORC: float = 12.0
-    DEGERLEME_FK: float = 12.0
-    DEGERLEME_PDDD: float = 8.0
+    # Kârlılık alt kırılımı
+    KARLILIK_ROE: float = 8.0
+    KARLILIK_NET_MARJ: float = 6.0
+    KARLILIK_FAALIYET_MARJ: float = 6.0
+    # Büyüme alt kırılımı
+    BUYUME_HASILAT: float = 8.0
+    BUYUME_NET_KAR: float = 7.0
+    # Borç alt kırılımı
+    BORC_OZKAYNAK: float = 6.0
+    BORC_NET_FAVOK: float = 5.0
+    BORC_FAIZ_KARSILAMA: float = 4.0
+    # Değerleme alt kırılımı
+    DEGERLEME_FK: float = 8.0
+    DEGERLEME_PDDD: float = 6.0
+    DEGERLEME_FD_FAVOK: float = 6.0
 
 
 WEIGHTS = ScoreWeights()
 
 
+# Sektör bazlı çarpanlar VE borçluluk eşikleri.
+# DEĞİŞİKLİK: incelemede "her sektör için eşikler farklı olmalı"
+# denilmişti; borç eşikleri artık sektöre göre değişiyor.
+SEKTOR_PROFILLERI: dict[str, dict[str, float]] = {
+    "TEKNOLOJİ": {"fk": 18.0, "pddd": 4.5, "fd_favok": 12.0,
+                  "borc_iyi": 0.4, "borc_kabul": 1.0, "net_borc_favok_iyi": 1.0},
+    "ENERJİ":    {"fk": 14.0, "pddd": 2.5, "fd_favok": 8.0,
+                  "borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.0},
+    "SANAYİ":    {"fk": 10.0, "pddd": 1.8, "fd_favok": 7.0,
+                  "borc_iyi": 0.8, "borc_kabul": 2.0, "net_borc_favok_iyi": 2.5},
+    "GIDA":      {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
+                  "borc_iyi": 0.8, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    "GYO":       {"fk": 5.0,  "pddd": 0.8, "fd_favok": 12.0,
+                  "borc_iyi": 1.0, "borc_kabul": 3.0, "net_borc_favok_iyi": 5.0},
+    "FİNANS":    {"fk": 6.0,  "pddd": 1.2, "fd_favok": 0.0,
+                  "borc_iyi": 4.0, "borc_kabul": 8.0, "net_borc_favok_iyi": 0.0},
+    "İNŞAAT":    {"fk": 8.0,  "pddd": 1.5, "fd_favok": 7.0,
+                  "borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.5},
+    "PERAKENDE": {"fk": 14.0, "pddd": 3.0, "fd_favok": 9.0,
+                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    "GENEL":     {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
+                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+}
+
+
 # ═══════════════════════════════════════════════════════════════════
 # 🔤 3. YARDIMCI ARAÇLAR
 # ═══════════════════════════════════════════════════════════════════
+
+AYLAR = {
+    "ocak": 1, "şubat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "haziran": 6,
+    "temmuz": 7, "ağustos": 8, "eylül": 9, "ekim": 10, "kasım": 11, "aralık": 12
+}
+
 
 class TextUtils:
     @staticmethod
@@ -159,36 +255,127 @@ class TextUtils:
 
     @staticmethod
     def sayi_bul(metin: Optional[str]) -> Optional[float]:
+        sayilar = TextUtils.tum_sayilari_bul(metin)
+        return sayilar[0] if sayilar else None
+
+    @staticmethod
+    def tum_sayilari_bul(metin: Optional[str]) -> list[float]:
+        """
+        YENİ: Bir metindeki TÜM sayıları sırayla döndürür.
+        Çok dönemli finansal tablo (2023 / 2024 / 2025 kolonları)
+        okuyabilmek için gerekli.
+        Parantez içindeki değerler muhasebede negatiftir: (1.234) -> -1234.
+        """
         if not metin:
-            return None
-        desenler = re.findall(r"-?\d{1,3}(?:\.\d{3})+(?:,\d+)?", metin)
-        for d in desenler:
-            return float(d.replace(".", "").replace(",", "."))
-
-        desenler = re.findall(r"-?\d+,\d+", metin)
-        for d in desenler:
-            return float(d.replace(",", "."))
-
-        desenler = re.findall(r"-?\d+\.\d+", metin)
-        for d in desenler:
-            return float(d)
-
-        desenler = re.findall(r"-?\d+", metin)
-        for d in desenler:
-            return float(d)
-
-        return None
+            return []
+        sonuc: list[float] = []
+        # Parantezli negatifleri önce işaretle
+        temiz = re.sub(r"\((\s*[\d.,]+\s*)\)", r"-\1", metin)
+        for desen in (
+            r"-?\d{1,3}(?:\.\d{3})+(?:,\d+)?",   # 1.234.567,89
+            r"-?\d+,\d+",                        # 1234,56
+            r"-?\d+\.\d+",                       # 1234.56
+            r"-?\d+",                            # 1234
+        ):
+            bulunanlar = re.findall(desen, temiz)
+            if bulunanlar:
+                for b in bulunanlar:
+                    try:
+                        if "." in b and "," in b:
+                            sonuc.append(float(b.replace(".", "").replace(",", ".")))
+                        elif re.fullmatch(r"-?\d{1,3}(?:\.\d{3})+", b):
+                            sonuc.append(float(b.replace(".", "")))
+                        else:
+                            sonuc.append(float(b.replace(",", ".")))
+                    except ValueError:
+                        continue
+                break
+        return sonuc
 
     @staticmethod
     def etiket_eslesir(baslik_norm: str, etiketler: list[str]) -> bool:
+        """
+        Kelime sınırına duyarlı eşleştirme. Saf substring kontrolü
+        ("pay" etiketinin "Pay Sahipleri" başlığıyla eşleşmesi gibi)
+        veri kirliliğine yol açıyordu.
+        """
         if not baslik_norm:
             return False
         for e in etiketler:
             if baslik_norm == e:
                 return True
+            # "pay", "nakit" gibi çok kısa/genel etiketler bir başlığın
+            # içinde ayrı kelime olarak geçse bile ("pay sahipleri
+            # hakkında") kastedilen alan olmayabilir. Bu yüzden 5
+            # karakterden kısa etiketlerde SADECE tam eşleşme kabul edilir.
+            if len(e) < 5:
+                continue
             if re.search(rf"(?:^|\s){re.escape(e)}(?:$|\s)", baslik_norm):
                 return True
         return False
+
+    @staticmethod
+    def tarih_araligi_coz(metin: Optional[str]) -> Optional[tuple[date, date]]:
+        """
+        YENİ / REFAKTÖR: "12-13-14 Ağustos 2026" veya "29-30 Temmuz 2026"
+        gibi ifadeleri (başlangıç, bitiş) tarih çiftine çevirir.
+        Eskiden bu mantık _durum_belirle içinde iki kez kopyalanmıştı ve
+        ay geçişli aralıkları (örn. 30 Temmuz - 1 Ağustos) hiç
+        desteklemiyordu.
+        """
+        if not metin:
+            return None
+        m = str(metin).lower().strip()
+        if not m or m in ("-", "açıklanmadı", "belli değil"):
+            return None
+
+        yil_match = re.search(r"(20\d{2})", m)
+        yil = int(yil_match.group(1)) if yil_match else datetime.now().year
+
+        # Metinde geçen ayları sırayla topla
+        ay_bulgular = [(m.index(ad), no) for ad, no in AYLAR.items() if ad in m]
+        if not ay_bulgular:
+            return None
+        ay_bulgular.sort()
+
+        # Ay adlarından ÖNCE gelen gün sayılarını al
+        ilk_ay_pos, ilk_ay = ay_bulgular[0]
+        son_ay_pos, son_ay = ay_bulgular[-1]
+
+        onceki_gunler = [int(g) for g in re.findall(r"\b(\d{1,2})\b", m[:ilk_ay_pos])]
+        if not onceki_gunler:
+            onceki_gunler = [1]
+        onceki_gunler = [g for g in onceki_gunler if 1 <= g <= 31] or [1]
+
+        if len(ay_bulgular) > 1:
+            # Ay geçişli aralık: "30 Temmuz - 1 Ağustos 2026"
+            arasi = m[ilk_ay_pos:son_ay_pos]
+            sonraki_gunler = [int(g) for g in re.findall(r"\b(\d{1,2})\b", arasi)]
+            sonraki_gunler = [g for g in sonraki_gunler if 1 <= g <= 31] or [1]
+            try:
+                bas = date(yil, ilk_ay, min(onceki_gunler))
+                bit = date(yil, son_ay, max(sonraki_gunler))
+                if bit < bas:
+                    bit = date(yil + 1, son_ay, max(sonraki_gunler))
+                return (bas, bit)
+            except ValueError:
+                return None
+
+        try:
+            bas = date(yil, ilk_ay, min(onceki_gunler))
+            bit = date(yil, ilk_ay, max(onceki_gunler))
+            return (bas, bit)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def sektor_verisi_bayat_mi() -> tuple[bool, int]:
+        try:
+            ref = datetime.strptime(SEKTOR_VERI_TARIHI, "%Y-%m-%d").date()
+        except ValueError:
+            return (True, 9999)
+        gun = (datetime.now().date() - ref).days
+        return (gun > SEKTOR_VERI_BAYATLAMA_GUNU, gun)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -203,216 +390,578 @@ class ScoreResult:
     has_data: bool
 
 
+@dataclass
+class PiyasaBaglami:
+    """
+    YENİ: Bir halka arzı tek başına değil, o haftaki diğer arzlarla
+    birlikte değerlendirebilmek için taşınan bağlam.
+    Aynı hafta birden fazla arz olması, toplam bireysel talebi böldüğü
+    için kişi başı dağıtılan lot miktarını artırır -> ilk gün satış
+    baskısı yükselir.
+    """
+    ayni_hafta_arz_sayisi: int = 1
+    ayni_hafta_toplam_buyukluk: float = 0.0
+    rakip_sirketler: list[str] = field(default_factory=list)
+
+
 class ScoreAnalyzer:
     def __init__(self, weights: ScoreWeights = WEIGHTS):
         self.weights = weights
-        self.BUYUME_ANAHTAR = [
-            "kapasite artırım", "yeni tesis", "yenilenebilir", "ar-ge",
-            "yatırım", "makine", "teçhizat", "büyüme"
+        # DEĞİŞİKLİK: incelemede "AR-GE, kapasite artırımı, satın alma
+        # hepsi aynı puanı alıyor" denmişti. Artık fon kullanım
+        # kalemleri etkilerine göre ağırlıklandırılıyor.
+        self.FON_AGIRLIKLARI: list[tuple[list[str], float, str]] = [
+            (["kapasite artırım", "yeni tesis", "yeni fabrika", "makine", "teçhizat",
+              "üretim hattı"], 1.0, "kapasite/üretim yatırımı"),
+            (["ar-ge", "arge", "ar ge", "patent", "yazılım geliştirme",
+              "dijitalleşme", "teknoloji yatırımı"], 0.9, "Ar-Ge/teknoloji"),
+            (["yurt dışı", "yurtdışı", "ihracat", "yeni pazar", "global"], 0.85,
+             "yurt dışı büyüme"),
+            (["yenilenebilir", "güneş", "rüzgar", "ges", "res", "enerji yatırımı"],
+             0.85, "enerji yatırımı"),
+            (["satın alma", "şirket alımı", "iştirak", "birleşme", "hisse alımı"],
+             0.6, "satın alma (entegrasyon riski)"),
+            (["işletme sermayesi", "çalışma sermayesi", "stok", "hammadde"], 0.45,
+             "işletme sermayesi"),
+            (["gayrimenkul alım", "arsa", "bina alım", "ofis"], 0.35,
+             "gayrimenkul alımı"),
         ]
         self.BORC_ANAHTAR = [
-            "borç", "kredi", "finansal borç", "borç ödeme", "kredi kapama"
+            "borç ödeme", "kredi kapama", "kredi ödeme", "finansal borç",
+            "borçların kapatılması", "borç azaltım"
         ]
-        self.SECTOR_AVERAGES = {
-            "TEKNOLOJİ": {"fk": 18.0, "pddd": 4.5},
-            "ENERJİ":    {"fk": 14.0, "pddd": 2.5},
-            "SANAYİ":    {"fk": 10.0, "pddd": 1.8},
-            "GIDA":      {"fk": 12.0, "pddd": 2.0},
-            "GYO":       {"fk": 5.0,  "pddd": 0.8},
-            "FİNANS":    {"fk": 6.0,  "pddd": 1.2},
-            "GENEL":     {"fk": 12.0, "pddd": 2.0}
-        }
+        self.SEKTOR_PROFILLERI = SEKTOR_PROFILLERI
+
+    # ───────────────────────── Sektör ─────────────────────────
 
     def _get_sektor(self, metin: str) -> str:
         m = metin.lower()
         if any(k in m for k in ["yazılım", "teknoloji", "bilişim", "savunma", "siber", "yapay zeka"]):
             return "TEKNOLOJİ"
-        if any(k in m for k in ["enerji", "elektrik", "yenilenebilir", "rüzgar", "güneş"]):
-            return "ENERJİ"
-        if any(k in m for k in ["çimento", "beton", "demir", "çelik", "inşaat", "sanayi", "üretim", "otomotiv", "makine"]):
-            return "SANAYİ"
-        if any(k in m for k in ["gıda", "tarım", "hayvancılık", "süt", "et "]):
-            return "GIDA"
         if any(k in m for k in ["gayrimenkul", "gyo", "emlak"]):
             return "GYO"
-        if any(k in m for k in ["finans", "sigorta", "banka", "faktoring", "yatırım"]):
+        if any(k in m for k in ["finans", "sigorta", "banka", "faktoring", "portföy yönetimi"]):
             return "FİNANS"
+        if any(k in m for k in ["enerji", "elektrik", "yenilenebilir", "rüzgar", "güneş", "ges", "res"]):
+            return "ENERJİ"
+        if any(k in m for k in ["market", "perakende", "zincir mağaza", "e-ticaret"]):
+            return "PERAKENDE"
+        if any(k in m for k in ["müteahhit", "taahhüt", "inşaat", "yapı işleri"]):
+            return "İNŞAAT"
+        if any(k in m for k in ["çimento", "beton", "demir", "çelik", "sanayi",
+                                "üretim", "otomotiv", "makine", "kimya", "plastik"]):
+            return "SANAYİ"
+        if any(k in m for k in ["gıda", "tarım", "hayvancılık", "süt", "et ", "içecek"]):
+            return "GIDA"
         return "GENEL"
 
-    def finansal_puanla(self, fin: dict, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
-        puan, max_possible, aciklamalar, has_data = 0.0, 0.0, [], False
+    def _profil(self, sektor: str) -> dict[str, float]:
+        return self.SEKTOR_PROFILLERI.get(sektor, self.SEKTOR_PROFILLERI["GENEL"])
+
+    # ───────────────────── Yardımcı: FAVÖK ─────────────────────
+
+    @staticmethod
+    def _favok_hesapla(fin: dict) -> Optional[float]:
+        """
+        FAVÖK doğrudan tabloda yoksa Faaliyet Kârı + Amortisman'dan
+        türetilir. İkisi de yoksa None döner ve FAVÖK'e dayalı
+        puanlamalar hiç yapılmaz (uydurma yapılmaz).
+        """
+        favok = fin.get(FinKey.FAVOK)
+        if favok is not None:
+            return favok
+        faaliyet = fin.get(FinKey.FAALIYET_KARI)
+        amortisman = fin.get(FinKey.AMORTISMAN)
+        if faaliyet is not None and amortisman is not None:
+            return faaliyet + abs(amortisman)
+        return None
+
+    @staticmethod
+    def _seri_buyume(seri: dict[int, float]) -> Optional[float]:
+        """
+        Yıl -> değer sözlüğünden yıllık bileşik büyüme (CAGR benzeri)
+        yüzdesi üretir. En az 2 dönem gerekir.
+        Negatiften pozitife geçişte CAGR anlamsız olduğu için basit
+        yön bilgisi döndürülür.
+        """
+        if not seri or len(seri) < 2:
+            return None
+        yillar = sorted(seri.keys())
+        ilk, son = seri[yillar[0]], seri[yillar[-1]]
+        donem = len(yillar) - 1
+        if ilk == 0:
+            return None
+        if ilk < 0 and son > 0:
+            return 100.0  # zarardan kâra geçiş: güçlü pozitif sinyal
+        if ilk > 0 and son < 0:
+            return -100.0  # kârdan zarara geçiş: güçlü negatif sinyal
+        if ilk < 0 and son < 0:
+            return ((abs(ilk) - abs(son)) / abs(ilk)) * 100 / donem
+        try:
+            return (((son / ilk) ** (1 / donem)) - 1) * 100
+        except (ValueError, ZeroDivisionError):
+            return None
+
+    # ───────────────────────── KÂRLILIK ─────────────────────────
+
+    def karlilik_puanla(self, fin: dict, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        """
+        DEĞİŞİKLİK: Eskiden ROE veya net marj'dan SADECE BİRİ
+        hesaplanıyordu (elif). İncelemede "ROE tek başına yeterli değil"
+        denilmişti; artık ROE + net marj + faaliyet marjı birlikte
+        ölçülüyor. Böylece tek seferlik gelirle şişmiş net kâr, düşük
+        faaliyet marjı üzerinden yakalanabiliyor.
+        """
+        puan, mx, aciklamalar, has_data = 0.0, 0.0, [], False
 
         net_kar = fin.get(FinKey.NET_KAR)
         hasilat = fin.get(FinKey.HASILAT)
         ozk = fin.get(FinKey.OZKAYNAK)
+        faaliyet_kari = fin.get(FinKey.FAALIYET_KARI)
 
-        if net_kar is not None:
+        if net_kar is not None and net_kar < 0:
             has_data = True
-            max_possible += self.weights.FINANSAL_NET_KAR
-            if net_kar < 0:
-                aciklamalar.append(f"Şirket Zararda ({net_kar:,.0f} TL).")
-                kirmizi_bayraklar.append("🚨 Son açıklanan net dönem zararı mevcut.")
-                ceza_sozlugu["zarar"] = 20
+            mx += self.weights.KARLILIK_ROE
+            aciklamalar.append(f"Şirket zararda ({net_kar:,.0f} TL).")
+            kirmizi_bayraklar.append("🚨 Son açıklanan dönemde net zarar mevcut.")
+            ceza_sozlugu["zarar"] = 18
+        elif net_kar is not None and ozk is not None and ozk > 0:
+            has_data = True
+            mx += self.weights.KARLILIK_ROE
+            roe = (net_kar / ozk) * 100
+            if roe >= 30:
+                puan += self.weights.KARLILIK_ROE
+                aciklamalar.append(f"Çok güçlü özkaynak kârlılığı (ROE %{roe:.1f}).")
+            elif roe >= 15:
+                puan += self.weights.KARLILIK_ROE * 0.7
+                aciklamalar.append(f"İyi özkaynak kârlılığı (ROE %{roe:.1f}).")
+            elif roe >= 5:
+                puan += self.weights.KARLILIK_ROE * 0.3
+                aciklamalar.append(f"Zayıf özkaynak kârlılığı (ROE %{roe:.1f}).")
             else:
-                if ozk and ozk > 0:
-                    roe = (net_kar / ozk) * 100
-                    if roe >= 30:
-                        puan += self.weights.FINANSAL_NET_KAR
-                        aciklamalar.append(f"Çok kârlı özkaynak kullanımı (ROE: %{roe:.1f}).")
-                    elif roe >= 15:
-                        puan += self.weights.FINANSAL_NET_KAR * 0.7
-                        aciklamalar.append(f"Pozitif özkaynak kârlılığı (ROE: %{roe:.1f}).")
-                    else:
-                        puan += self.weights.FINANSAL_NET_KAR * 0.3
-                        aciklamalar.append(f"Düşük özkaynak kârlılığı (ROE: %{roe:.1f}).")
-                elif hasilat and hasilat > 0:
-                    marj = (net_kar / hasilat) * 100
-                    if marj >= 25:
-                        puan += self.weights.FINANSAL_NET_KAR
-                        aciklamalar.append(f"Yüksek kâr marjı (%{marj:.1f}).")
-                    elif marj >= 10:
-                        puan += self.weights.FINANSAL_NET_KAR * 0.6
-                        aciklamalar.append(f"Makul kâr marjı (%{marj:.1f}).")
-                    else:
-                        puan += self.weights.FINANSAL_NET_KAR * 0.2
-                        aciklamalar.append(f"Düşük kâr marjı (%{marj:.1f}).")
+                aciklamalar.append(f"Çok düşük özkaynak kârlılığı (ROE %{roe:.1f}).")
 
-        donen = fin.get(FinKey.DONEN_VARLIK)
-        kv_yuk = fin.get(FinKey.KISA_VADELI_YUKUMLULUK)
-        if donen is not None and kv_yuk and kv_yuk > 0:
+        # Net kâr marjı — ROE'den bağımsız olarak ayrıca ölçülüyor
+        if net_kar is not None and hasilat and hasilat > 0:
             has_data = True
-            max_possible += self.weights.FINANSAL_CARI
-            oran = donen / kv_yuk
-            if oran >= 2.0:
-                puan += self.weights.FINANSAL_CARI
-                aciklamalar.append(f"Güçlü likidite yapısı (Cari oran: {oran:.2f}).")
-            elif oran >= 1.2:
-                puan += self.weights.FINANSAL_CARI * 0.7
-                aciklamalar.append(f"Dengeli likidite (Cari oran: {oran:.2f}).")
+            mx += self.weights.KARLILIK_NET_MARJ
+            marj = (net_kar / hasilat) * 100
+            if marj >= 20:
+                puan += self.weights.KARLILIK_NET_MARJ
+                aciklamalar.append(f"Yüksek net kâr marjı (%{marj:.1f}).")
+            elif marj >= 8:
+                puan += self.weights.KARLILIK_NET_MARJ * 0.6
+                aciklamalar.append(f"Makul net kâr marjı (%{marj:.1f}).")
+            elif marj > 0:
+                puan += self.weights.KARLILIK_NET_MARJ * 0.2
+                aciklamalar.append(f"İnce net kâr marjı (%{marj:.1f}).")
             else:
-                aciklamalar.append(f"Likidite riski, ödeme zorluğu (Cari oran: {oran:.2f}).")
+                aciklamalar.append(f"Negatif net marj (%{marj:.1f}).")
 
-        borc = fin.get(FinKey.TOPLAM_BORC)
-        if borc is not None and ozk:
+        # YENİ: Faaliyet marjı — esas faaliyet kârlılığının kalitesi
+        if faaliyet_kari is not None and hasilat and hasilat > 0:
             has_data = True
-            max_possible += self.weights.FINANSAL_BORC
-            if ozk <= 0:
-                kirmizi_bayraklar.append("🚨 Özsermaye Negatif (Teknik İflas Durumu!).")
-                ceza_sozlugu["iflas"] = 30
+            mx += self.weights.KARLILIK_FAALIYET_MARJ
+            f_marj = (faaliyet_kari / hasilat) * 100
+            if f_marj >= 15:
+                puan += self.weights.KARLILIK_FAALIYET_MARJ
+                aciklamalar.append(f"Güçlü esas faaliyet marjı (%{f_marj:.1f}).")
+            elif f_marj >= 6:
+                puan += self.weights.KARLILIK_FAALIYET_MARJ * 0.6
+                aciklamalar.append(f"Makul faaliyet marjı (%{f_marj:.1f}).")
+            elif f_marj > 0:
+                puan += self.weights.KARLILIK_FAALIYET_MARJ * 0.2
+                aciklamalar.append(f"Zayıf faaliyet marjı (%{f_marj:.1f}).")
             else:
-                oran = borc / ozk
-                if oran <= 0.5:
-                    puan += self.weights.FINANSAL_BORC
-                    aciklamalar.append(f"Düşük borçluluk (Borç/Özk: {oran:.2f}).")
-                elif oran <= 1.5:
-                    puan += self.weights.FINANSAL_BORC * 0.6
-                    aciklamalar.append(f"Kabul edilebilir borç (Borç/Özk: {oran:.2f}).")
-                else:
-                    aciklamalar.append(f"Yüksek borç yükü! (Borç/Özk: {oran:.2f}).")
-                    if oran >= 4.0:
-                        kirmizi_bayraklar.append(f"🚨 Kritik borçluluk rasyosu (Borç/Özkaynak: {oran:.1f}).")
-                        ceza_sozlugu["yuksek_borc"] = 15
+                aciklamalar.append(f"Esas faaliyetten zarar (%{f_marj:.1f}).")
+                kirmizi_bayraklar.append(
+                    "🚨 Esas faaliyet zararı: net kâr faaliyet dışı kaynaklardan geliyor olabilir."
+                )
+                ceza_sozlugu["faaliyet_zarari"] = 10
+
+            # YENİ: Net kâr faaliyet kârından belirgin şekilde büyükse,
+            # kârın tek seferlik/faaliyet dışı olma ihtimali yüksek.
+            if net_kar is not None and faaliyet_kari > 0 and net_kar > faaliyet_kari * 1.6:
+                kirmizi_bayraklar.append(
+                    "🚨 Net kâr, esas faaliyet kârının çok üzerinde: kârın önemli kısmı "
+                    "tek seferlik/faaliyet dışı gelir olabilir."
+                )
+                ceza_sozlugu["tek_seferlik_kar"] = 6
 
         if not has_data:
-            return ScoreResult(0, 0, "Finansal veriler eksik/gizlenmiş.", False)
+            return ScoreResult(0, 0, "Kârlılık verisi bulunamadı.", False)
+        return ScoreResult(round(puan, 1), mx, " ".join(aciklamalar), True)
 
-        return ScoreResult(round(puan, 1), max_possible, " ".join(aciklamalar), True)
+    # ───────────────────────── BÜYÜME ─────────────────────────
 
-    def degerleme_puanla(self, fiyat_metni: str, pay_metni: str, fin: dict, raw_text: str, kirmizi_bayraklar: list) -> ScoreResult:
-        puan, max_possible, aciklamalar, has_data = 0.0, 0.0, [], False
-        fiyat = TextUtils.sayi_bul(fiyat_metni)
-        pay = TextUtils.sayi_bul(pay_metni)
+    def buyume_puanla(self, seriler: dict, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        """
+        YENİ BOYUT: İncelemedeki en önemli eksik. Hasılat ve net kâr
+        eğilimi puanlanıyor. Çok dönemli veri yoksa bu boyut hiç
+        puanlanmaz (has_data=False) — yokluğu, sıfır puan olarak
+        cezalandırılmaz, sadece veri güvenilirliğini düşürür.
+        """
+        puan, mx, aciklamalar, has_data = 0.0, 0.0, [], False
+
+        hasilat_serisi = seriler.get(FinKey.HASILAT, {})
+        kar_serisi = seriler.get(FinKey.NET_KAR, {})
+
+        h_buyume = self._seri_buyume(hasilat_serisi)
+        if h_buyume is not None:
+            has_data = True
+            mx += self.weights.BUYUME_HASILAT
+            donem = len(hasilat_serisi)
+            if h_buyume >= 50:
+                puan += self.weights.BUYUME_HASILAT
+                aciklamalar.append(f"Hasılat güçlü büyüyor (yıllık ~%{h_buyume:.0f}, {donem} dönem).")
+            elif h_buyume >= 20:
+                puan += self.weights.BUYUME_HASILAT * 0.7
+                aciklamalar.append(f"Hasılat büyüyor (yıllık ~%{h_buyume:.0f}).")
+            elif h_buyume >= 0:
+                puan += self.weights.BUYUME_HASILAT * 0.25
+                aciklamalar.append(
+                    f"Hasılat yatay/enflasyon altı büyüyor (yıllık ~%{h_buyume:.0f})."
+                )
+            else:
+                aciklamalar.append(f"Hasılat daralıyor (yıllık ~%{h_buyume:.0f}).")
+                kirmizi_bayraklar.append("🚨 Hasılat son dönemlerde daralma eğiliminde.")
+                ceza_sozlugu["hasilat_daralmasi"] = 8
+
+        k_buyume = self._seri_buyume(kar_serisi)
+        if k_buyume is not None:
+            has_data = True
+            mx += self.weights.BUYUME_NET_KAR
+            if k_buyume >= 40:
+                puan += self.weights.BUYUME_NET_KAR
+                aciklamalar.append(f"Net kâr hızlı büyüyor (yıllık ~%{k_buyume:.0f}).")
+            elif k_buyume >= 15:
+                puan += self.weights.BUYUME_NET_KAR * 0.7
+                aciklamalar.append(f"Net kâr büyüyor (yıllık ~%{k_buyume:.0f}).")
+            elif k_buyume >= 0:
+                puan += self.weights.BUYUME_NET_KAR * 0.25
+                aciklamalar.append(f"Net kâr yatay (yıllık ~%{k_buyume:.0f}).")
+            else:
+                aciklamalar.append(f"Net kâr geriliyor (yıllık ~%{k_buyume:.0f}).")
+                kirmizi_bayraklar.append("🚨 Net kâr son dönemlerde azalma eğiliminde.")
+                ceza_sozlugu["kar_daralmasi"] = 8
+
+        if not has_data:
+            return ScoreResult(
+                0, 0,
+                "Çok dönemli veri bulunamadığı için büyüme trendi ölçülemedi.",
+                False
+            )
+        return ScoreResult(round(puan, 1), mx, " ".join(aciklamalar), True)
+
+    # ───────────────────────── BORÇ YAPISI ─────────────────────────
+
+    def borc_puanla(self, fin: dict, sektor: str, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        """
+        DEĞİŞİKLİK: Borç/Özkaynak eşiği artık sektöre göre değişiyor
+        (bir bankanın 1.5'i ile bir yazılım şirketinin 1.5'i aynı şey
+        değil). YENİ: Net Borç/FAVÖK ve faiz karşılama oranı eklendi.
+        """
+        puan, mx, aciklamalar, has_data = 0.0, 0.0, [], False
+        prof = self._profil(sektor)
+
+        ozk = fin.get(FinKey.OZKAYNAK)
+        borc = fin.get(FinKey.TOPLAM_BORC)
+        favok = self._favok_hesapla(fin)
+        finansal_borc = fin.get(FinKey.FINANSAL_BORC)
+        nakit = fin.get(FinKey.NAKIT)
+        finansman_gideri = fin.get(FinKey.FINANSMAN_GIDERI)
+        faaliyet_kari = fin.get(FinKey.FAALIYET_KARI)
+
+        if ozk is not None and ozk <= 0:
+            has_data = True
+            mx += self.weights.BORC_OZKAYNAK
+            kirmizi_bayraklar.append("🚨 Özsermaye negatif (teknik iflas göstergesi).")
+            ceza_sozlugu["negatif_ozsermaye"] = 30
+            aciklamalar.append("Özsermaye negatif.")
+        elif borc is not None and ozk:
+            has_data = True
+            mx += self.weights.BORC_OZKAYNAK
+            oran = borc / ozk
+            if oran <= prof["borc_iyi"]:
+                puan += self.weights.BORC_OZKAYNAK
+                aciklamalar.append(
+                    f"Sektörüne göre düşük borçluluk (Borç/Özk {oran:.2f}, {sektor} eşiği {prof['borc_iyi']:.1f})."
+                )
+            elif oran <= prof["borc_kabul"]:
+                puan += self.weights.BORC_OZKAYNAK * 0.6
+                aciklamalar.append(f"Kabul edilebilir borçluluk (Borç/Özk {oran:.2f}).")
+            else:
+                aciklamalar.append(
+                    f"Sektör eşiğinin üzerinde borç yükü (Borç/Özk {oran:.2f} > {prof['borc_kabul']:.1f})."
+                )
+                if oran >= prof["borc_kabul"] * 2:
+                    kirmizi_bayraklar.append(
+                        f"🚨 Kritik borçluluk (Borç/Özkaynak {oran:.1f}, {sektor} için çok yüksek)."
+                    )
+                    ceza_sozlugu["kritik_borc"] = 15
+
+        # YENİ: Net Borç / FAVÖK — profesyonellerin birincil borç metriği
+        if favok and favok > 0 and finansal_borc is not None:
+            has_data = True
+            mx += self.weights.BORC_NET_FAVOK
+            net_borc = finansal_borc - (nakit or 0)
+            oran = net_borc / favok
+            esik = prof["net_borc_favok_iyi"]
+            if oran <= 0:
+                puan += self.weights.BORC_NET_FAVOK
+                aciklamalar.append("Net nakit pozisyonu (finansal borç nakitten az).")
+            elif oran <= esik:
+                puan += self.weights.BORC_NET_FAVOK
+                aciklamalar.append(f"Sağlıklı borç çevirme kapasitesi (Net Borç/FAVÖK {oran:.1f}).")
+            elif oran <= esik * 2:
+                puan += self.weights.BORC_NET_FAVOK * 0.5
+                aciklamalar.append(f"Orta düzey borç yükü (Net Borç/FAVÖK {oran:.1f}).")
+            else:
+                aciklamalar.append(f"Ağır borç yükü (Net Borç/FAVÖK {oran:.1f}).")
+                kirmizi_bayraklar.append(
+                    f"🚨 Net Borç/FAVÖK {oran:.1f}: borç, nakit yaratma kapasitesine göre yüksek."
+                )
+                ceza_sozlugu["net_borc_favok"] = 10
+
+        # YENİ: Faiz karşılama oranı
+        if faaliyet_kari is not None and finansman_gideri and abs(finansman_gideri) > 0:
+            has_data = True
+            mx += self.weights.BORC_FAIZ_KARSILAMA
+            karsilama = faaliyet_kari / abs(finansman_gideri)
+            if karsilama >= 5:
+                puan += self.weights.BORC_FAIZ_KARSILAMA
+                aciklamalar.append(f"Faiz yükü rahat karşılanıyor ({karsilama:.1f}x).")
+            elif karsilama >= 2:
+                puan += self.weights.BORC_FAIZ_KARSILAMA * 0.6
+                aciklamalar.append(f"Faiz karşılama yeterli ({karsilama:.1f}x).")
+            elif karsilama >= 1:
+                puan += self.weights.BORC_FAIZ_KARSILAMA * 0.2
+                aciklamalar.append(f"Faiz karşılama sınırda ({karsilama:.1f}x).")
+            else:
+                aciklamalar.append(f"Faaliyet kârı faiz giderini karşılamıyor ({karsilama:.1f}x).")
+                kirmizi_bayraklar.append(
+                    "🚨 Esas faaliyet kârı finansman giderlerini karşılamıyor."
+                )
+                ceza_sozlugu["faiz_karsilama"] = 12
+
+        if not has_data:
+            return ScoreResult(0, 0, "Borç yapısı verisi bulunamadı.", False)
+        return ScoreResult(round(puan, 1), mx, " ".join(aciklamalar), True)
+
+    # ───────────────────────── LİKİDİTE ─────────────────────────
+
+    def likidite_puanla(self, fin: dict, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        mx = self.weights.MAX[Category.LIKIDITE]
+        donen = fin.get(FinKey.DONEN_VARLIK)
+        kv = fin.get(FinKey.KISA_VADELI_YUKUMLULUK)
+        if donen is None or not kv or kv <= 0:
+            return ScoreResult(0, 0, "Likidite verisi bulunamadı.", False)
+
+        oran = donen / kv
+        if oran >= 2.0:
+            return ScoreResult(mx, mx, f"Güçlü likidite (Cari oran {oran:.2f}).", True)
+        if oran >= 1.2:
+            return ScoreResult(mx * 0.7, mx, f"Dengeli likidite (Cari oran {oran:.2f}).", True)
+        if oran >= 1.0:
+            return ScoreResult(mx * 0.3, mx, f"Sınırda likidite (Cari oran {oran:.2f}).", True)
+        kirmizi_bayraklar.append(
+            f"🚨 Cari oran 1'in altında ({oran:.2f}): kısa vadeli yükümlülükler dönen varlıkları aşıyor."
+        )
+        ceza_sozlugu["likidite"] = 8
+        return ScoreResult(0, mx, f"Likidite riski (Cari oran {oran:.2f}).", True)
+
+    # ───────────────────────── NAKİT AKIŞI ─────────────────────────
+
+    def nakit_akisi_puanla(self, fin: dict, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        """
+        YENİ BOYUT: İncelemedeki Problem 5. Kâğıt üzerinde kâr açıklayan
+        ama faaliyetlerinden nakit yakan şirketi yakalar.
+        """
+        mx = self.weights.MAX[Category.NAKIT_AKISI]
+        nakit_akisi = fin.get(FinKey.ISLETME_NAKIT_AKISI)
+        net_kar = fin.get(FinKey.NET_KAR)
+
+        if nakit_akisi is None:
+            return ScoreResult(0, 0, "İşletme nakit akışı verisi bulunamadı.", False)
+
+        if nakit_akisi < 0:
+            kirmizi_bayraklar.append(
+                "🚨 İşletme faaliyetlerinden nakit çıkışı var: şirket kâr açıklasa bile nakit yakıyor."
+            )
+            ceza_sozlugu["negatif_nakit_akisi"] = 14
+            return ScoreResult(0, mx, f"Negatif işletme nakit akışı ({nakit_akisi:,.0f} TL).", True)
+
+        if net_kar is not None and net_kar > 0:
+            kalite = nakit_akisi / net_kar
+            if kalite >= 1.0:
+                return ScoreResult(mx, mx,
+                                   f"Kâr nakde dönüşüyor (Nakit akışı/Net kâr {kalite:.2f}).", True)
+            if kalite >= 0.6:
+                return ScoreResult(mx * 0.65, mx,
+                                   f"Kârın çoğu nakde dönüşüyor ({kalite:.2f}).", True)
+            ceza_sozlugu["dusuk_nakit_kalitesi"] = 5
+            return ScoreResult(mx * 0.2, mx,
+                               f"Kârın nakde dönüşümü zayıf ({kalite:.2f}) — alacak/stok birikimi olabilir.",
+                               True)
+
+        return ScoreResult(mx * 0.6, mx, "Pozitif işletme nakit akışı.", True)
+
+    # ───────────────────────── DEĞERLEME ─────────────────────────
+
+    def degerleme_puanla(self, market_cap: Optional[float], fin: dict, sektor: str,
+                         kirmizi_bayraklar: list) -> ScoreResult:
+        """
+        DEĞİŞİKLİK: F/K ve PD/DD yanına FD/FAVÖK eklendi.
+        Ayrıca sektör çarpanları bayatladığında bu boyutun ağırlığı
+        düşürülüyor — güncelliği bilinmeyen bir referansla kesin
+        hüküm vermemek için.
+        """
+        puan, mx, aciklamalar, has_data = 0.0, 0.0, [], False
+        prof = self._profil(sektor)
+        bayat, _ = TextUtils.sektor_verisi_bayat_mi()
+        guven_carpani = 0.6 if bayat else 1.0
+
+        if not market_cap:
+            return ScoreResult(0, 0, "Piyasa değeri hesaplanamadı (fiyat/pay sayısı eksik).", False)
+
         net_kar = fin.get(FinKey.NET_KAR)
         ozk = fin.get(FinKey.OZKAYNAK)
-        sektor = self._get_sektor(raw_text)
+        favok = self._favok_hesapla(fin)
+        finansal_borc = fin.get(FinKey.FINANSAL_BORC)
+        nakit = fin.get(FinKey.NAKIT)
 
-        market_cap = (fiyat * pay) if (fiyat and pay) else None
-
-        if market_cap and net_kar and net_kar > 0:
+        if net_kar and net_kar > 0:
             fk = market_cap / net_kar
             if 1.0 <= fk <= 250.0:
                 has_data = True
-                max_possible += self.weights.DEGERLEME_FK
-                ort_fk = self.SECTOR_AVERAGES[sektor]["fk"]
-                fark = ((ort_fk - fk) / ort_fk) * 100
-
+                agirlik = self.weights.DEGERLEME_FK * guven_carpani
+                mx += agirlik
+                ort = prof["fk"]
+                fark = ((ort - fk) / ort) * 100
                 if fark > 15:
-                    puan += self.weights.DEGERLEME_FK
-                    aciklamalar.append(f"Sektör ortalamasına göre iskontolu F/K ({fk:.1f}).")
+                    puan += agirlik
+                    aciklamalar.append(f"Sektör ortalamasına göre iskontolu F/K ({fk:.1f} vs ~{ort:.0f}).")
                 elif -15 <= fark <= 15:
-                    puan += self.weights.DEGERLEME_FK * 0.6
-                    aciklamalar.append(f"Sektör ortalamasında değerleme (F/K: {fk:.1f}).")
+                    puan += agirlik * 0.6
+                    aciklamalar.append(f"Sektör ortalamasına yakın F/K ({fk:.1f}).")
                 else:
-                    aciklamalar.append(f"Sektörüne göre primli/pahalı (F/K: {fk:.1f}).")
+                    aciklamalar.append(f"Sektörüne göre primli F/K ({fk:.1f} vs ~{ort:.0f}).")
                     if fark < -50:
-                        kirmizi_bayraklar.append(f"🚨 F/K oranı sektör ortalamasının çok üzerinde ({fk:.1f}).")
+                        kirmizi_bayraklar.append(
+                            f"🚨 F/K oranı sektör ortalamasının çok üzerinde ({fk:.1f})."
+                        )
 
-        if market_cap and ozk and ozk > 0:
+        if ozk and ozk > 0:
             pddd = market_cap / ozk
             if 0.2 <= pddd <= 50.0:
                 has_data = True
-                max_possible += self.weights.DEGERLEME_PDDD
-                ort_pddd = self.SECTOR_AVERAGES[sektor]["pddd"]
-                fark = ((ort_pddd - pddd) / ort_pddd) * 100
-
+                agirlik = self.weights.DEGERLEME_PDDD * guven_carpani
+                mx += agirlik
+                ort = prof["pddd"]
+                fark = ((ort - pddd) / ort) * 100
                 if fark > 10:
-                    puan += self.weights.DEGERLEME_PDDD
-                    aciklamalar.append(f"Cazip PD/DD oranı ({pddd:.2f}).")
+                    puan += agirlik
+                    aciklamalar.append(f"Cazip PD/DD ({pddd:.2f} vs ~{ort:.1f}).")
                 elif -10 <= fark <= 10:
-                    puan += self.weights.DEGERLEME_PDDD * 0.6
+                    puan += agirlik * 0.6
                     aciklamalar.append(f"Makul PD/DD ({pddd:.2f}).")
                 else:
-                    aciklamalar.append(f"Yüksek PD/DD ({pddd:.2f}).")
+                    aciklamalar.append(f"Yüksek PD/DD ({pddd:.2f} vs ~{ort:.1f}).")
+
+        # YENİ: FD/FAVÖK — sermaye yapısından bağımsız değerleme çarpanı
+        if favok and favok > 0 and prof["fd_favok"] > 0:
+            firma_degeri = market_cap + (finansal_borc or 0) - (nakit or 0)
+            fd_favok = firma_degeri / favok
+            if 0.5 <= fd_favok <= 60:
+                has_data = True
+                agirlik = self.weights.DEGERLEME_FD_FAVOK * guven_carpani
+                mx += agirlik
+                ort = prof["fd_favok"]
+                fark = ((ort - fd_favok) / ort) * 100
+                if fark > 15:
+                    puan += agirlik
+                    aciklamalar.append(f"FD/FAVÖK sektör altında ({fd_favok:.1f} vs ~{ort:.0f}).")
+                elif -15 <= fark <= 15:
+                    puan += agirlik * 0.6
+                    aciklamalar.append(f"FD/FAVÖK sektör ortalamasında ({fd_favok:.1f}).")
+                else:
+                    aciklamalar.append(f"FD/FAVÖK sektör üzerinde ({fd_favok:.1f} vs ~{ort:.0f}).")
 
         if not has_data:
-            return ScoreResult(0, 0, "Değerleme hesaplanamadı (Veri uyuşmazlığı/Eksiklik).", False)
+            return ScoreResult(0, 0, "Değerleme çarpanları hesaplanamadı.", False)
 
-        return ScoreResult(round(puan, 1), max_possible, " ".join(aciklamalar), True)
+        if bayat:
+            aciklamalar.append("(Sektör çarpanları güncel olmadığı için bu boyutun ağırlığı düşürüldü.)")
+        return ScoreResult(round(puan, 1), mx, " ".join(aciklamalar), True)
+
+    # ───────────────────────── FON KULLANIMI ─────────────────────────
 
     def fon_kullanim_puanla(self, metin: str, fin: dict, kirmizi_bayraklar: list) -> ScoreResult:
+        """
+        DEĞİŞİKLİK: Fon kalemleri artık etkilerine göre farklı
+        ağırlıklarla puanlanıyor (kapasite yatırımı > satın alma >
+        işletme sermayesi).
+        """
         mx = self.weights.MAX[Category.FON_KULLANIM]
-        if not metin or metin in ("-", "açıklanmadı", ""):
-            return ScoreResult(0, 0, "Fon kullanım yeri gizlenmiş/belirsiz.", False)
+        if not metin or TextUtils.normalize(metin) in ("-", "açıklanmadı", ""):
+            return ScoreResult(0, 0, "Fon kullanım yeri açıklanmamış.", False)
 
-        satirlar = metin.lower().split("\n")
-        buyume_toplam, borc_toplam, herhangi_yuzde = 0.0, 0.0, False
+        satirlar = [s for s in metin.lower().split("\n") if s.strip()]
+        agirlikli_buyume, borc_toplam, herhangi_yuzde = 0.0, 0.0, False
+        kalem_notlari: list[str] = []
 
         for satir in satirlar:
             yuzde = TextUtils.yuzde_bul(satir)
-            if yuzde is not None:
-                herhangi_yuzde = True
-            if any(k in satir for k in self.BUYUME_ANAHTAR):
-                buyume_toplam += yuzde if yuzde else 0
-            if any(k in satir for k in self.BORC_ANAHTAR):
-                borc_toplam += yuzde if yuzde else 0
+            if yuzde is None:
+                continue
+            herhangi_yuzde = True
+            eslesti = False
+            for anahtarlar, katsayi, etiket in self.FON_AGIRLIKLARI:
+                if any(k in satir for k in anahtarlar):
+                    agirlikli_buyume += yuzde * katsayi
+                    kalem_notlari.append(f"%{yuzde:.0f} {etiket}")
+                    eslesti = True
+                    break
+            if not eslesti and any(k in satir for k in self.BORC_ANAHTAR):
+                borc_toplam += yuzde
+                kalem_notlari.append(f"%{yuzde:.0f} borç ödeme")
 
         if not herhangi_yuzde:
-            return ScoreResult(0, 0, "Oransal fon dağılımı bulunamadı.", False)
+            return ScoreResult(0, 0, "Fon dağılımı oransal olarak belirtilmemiş.", False)
 
         borc = fin.get(FinKey.TOPLAM_BORC)
         ozk = fin.get(FinKey.OZKAYNAK)
-        if borc and ozk and ozk > 0 and (borc / ozk) > 2.0 and borc_toplam > 30:
+        asiri_borclu = bool(borc and ozk and ozk > 0 and (borc / ozk) > 2.0)
+
+        if asiri_borclu and borc_toplam > 30:
             return ScoreResult(
-                mx * 0.8, mx,
-                f"Ağır borç yükünü hafifletmek için fonun %{borc_toplam:.0f}'i borca ayrılmış (Olumlu).",
+                round(mx * 0.8, 1), mx,
+                f"Ağır borç yükünü hafifletmek için fonun ~%{borc_toplam:.0f}'i borç ödemeye ayrılmış "
+                f"(bu durumda olumlu). {', '.join(kalem_notlari[:4])}",
                 True
             )
 
         if borc_toplam >= 70:
-            kirmizi_bayraklar.append(f"🚨 Halka arz gelirinin çok büyük kısmı (%{borc_toplam:.0f}) borç ödemeye gidiyor.")
+            kirmizi_bayraklar.append(
+                f"🚨 Halka arz gelirinin ~%{borc_toplam:.0f}'i borç ödemeye gidiyor, büyümeye değil."
+            )
 
-        buyume_katki = (min(buyume_toplam, 100) / 70.0) * mx
-        borc_ceza = (min(borc_toplam, 100) / 40.0) * mx
+        buyume_katki = (min(agirlikli_buyume, 100) / 70.0) * mx
+        borc_ceza = (min(borc_toplam, 100) / 45.0) * mx
         puan = max(0.0, min(mx, buyume_katki - borc_ceza))
         return ScoreResult(
             round(puan, 1), mx,
-            f"Büyüme/Yatırım ~%{min(buyume_toplam, 100):.0f}, Borç ödemesi ~%{min(borc_toplam, 100):.0f}.",
+            f"Kalemler: {', '.join(kalem_notlari[:5])}. "
+            f"Ağırlıklı büyüme katkısı ~%{min(agirlikli_buyume, 100):.0f}, "
+            f"borç ödeme ~%{min(borc_toplam, 100):.0f}.",
             True
         )
 
+    # ───────────────────── DİĞER BOYUTLAR ─────────────────────
+
     def arz_yapisi_puanla(self, metin: str, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
         mx = self.weights.MAX[Category.ARZ_YAPISI]
-        if not metin or metin in ("-", "açıklanmadı"):
+        if not metin or TextUtils.normalize(metin) in ("-", "açıklanmadı"):
             return ScoreResult(0, 0, "Arz yapısı belirsiz.", False)
 
         m_lower = metin.lower()
@@ -423,203 +972,443 @@ class ScoreAnalyzer:
         ortak = "ortak satış" in olumsuz or "mevcut pay satış" in olumsuz
 
         if "sermaye artırımı" in m_lower and not ortak:
-            return ScoreResult(mx, mx, "Tamamen sermaye artırımı (Fon kasada kalıyor).", True)
+            return ScoreResult(mx, mx, "Tamamen sermaye artırımı (fon şirkete giriyor).", True)
         if "sermaye artırımı" in m_lower and ortak:
-            return ScoreResult(mx * 0.4, mx, "Kısmi ortak satışı var.", True)
+            return ScoreResult(mx * 0.4, mx, "Kısmi ortak satışı mevcut.", True)
         if ortak:
-            kirmizi_bayraklar.append("🚨 Tamamen ortak satışı! Halka arz geliri şirketin kasasına GİRMİYOR.")
+            kirmizi_bayraklar.append(
+                "🚨 Tamamen ortak satışı: halka arz geliri şirketin kasasına girmiyor."
+            )
             ceza_sozlugu["ortak_satis"] = 15
-            return ScoreResult(0, mx, "Tamamen ortak satışı (Fon kasaya girmiyor!).", True)
-        return ScoreResult(0, 0, "Belirsiz arz yapısı.", False)
+            return ScoreResult(0, mx, "Tamamen ortak satışı.", True)
+        return ScoreResult(0, 0, "Arz yapısı çözümlenemedi.", False)
 
     def iskonto_puanla(self, metin: str) -> ScoreResult:
         mx = self.weights.MAX[Category.ISKONTO]
         isk = TextUtils.yuzde_bul(metin)
         if isk is None:
-            return ScoreResult(0, 0, "İskonto belirsiz.", False)
+            return ScoreResult(0, 0, "İskonto belirtilmemiş.", False)
         mult = 1.0 if isk >= 25 else 0.7 if isk >= 20 else 0.3 if isk >= 15 else 0.0
-        return ScoreResult(round(mx * mult, 1), mx, f"İskonto oranı: %{isk:.0f}.", True)
+        return ScoreResult(round(mx * mult, 1), mx, f"Halka arz iskontosu %{isk:.0f}.", True)
 
     def aciklik_puanla(self, metin: str) -> ScoreResult:
         mx = self.weights.MAX[Category.ACIKLIK]
         a = TextUtils.yuzde_bul(metin)
         if a is None:
-            return ScoreResult(0, 0, "Açıklık belirsiz.", False)
+            return ScoreResult(0, 0, "Halka açıklık oranı belirtilmemiş.", False)
         if a < 10:
-            p, not_ = 0.0, "Riskli-Dar Hacim"
+            p, notu = 0.0, "çok dar hacim"
         elif a <= 25:
-            p, not_ = 0.8, "İdeal"
+            p, notu = 0.8, "ideal aralık"
         elif a <= 35:
-            p, not_ = 1.0, "Dengeli"
+            p, notu = 1.0, "dengeli"
         elif a <= 45:
-            p, not_ = 0.3, "Fazla Yüksek"
+            p, notu = 0.3, "yüksek"
         else:
-            p, not_ = 0.0, "Riskli-Tahta Ağır"
-        return ScoreResult(round(mx * p, 1), mx, f"Halka açıklık oranı %{a:.0f} ({not_}).", True)
+            p, notu = 0.0, "çok yüksek, tahta ağır"
+        return ScoreResult(round(mx * p, 1), mx, f"Halka açıklık %{a:.0f} ({notu}).", True)
 
     def satmama_puanla(self, metin: str, ceza_sozlugu: dict) -> ScoreResult:
         mx = self.weights.MAX[Category.SATMAMA]
         m = (metin or "").lower()
-        if "1 yıl" in m or "2 yıl" in m or "18 ay" in m:
-            return ScoreResult(mx, mx, "Kurumsal satmama taahhüdü mevcut.", True)
+        if any(k in m for k in ["1 yıl", "2 yıl", "18 ay", "24 ay", "12 ay"]):
+            return ScoreResult(mx, mx, "Satmama taahhüdü mevcut.", True)
         if "yok" in m or "bulunmuyor" in m:
             ceza_sozlugu["satmama_yok"] = 2
             return ScoreResult(0, mx, "Satmama taahhüdü bulunmuyor.", True)
-        return ScoreResult(0, 0, "Taahhüt belirsiz.", False)
+        return ScoreResult(0, 0, "Satmama taahhüdü belirsiz.", False)
 
     def kurumsallik_puanla(self, raw_text: str) -> ScoreResult:
         mx = self.weights.MAX[Category.KURUMSALLIK]
         m = raw_text.lower()
         yillar = [int(y) for y in re.findall(r"(19[5-9]\d|20\d\d)\s*yılında\s*kurul", m)]
-        puan = 0.0
-        aciklamalar = []
+        puan, aciklamalar = 0.0, []
 
         if yillar:
             yas = datetime.now().year - min(yillar)
             if yas >= 20:
                 puan += mx * 0.5
-                aciklamalar.append(f"Köklü şirket geçmişi (~{yas} yıl).")
+                aciklamalar.append(f"Köklü geçmiş (~{yas} yıl).")
             elif yas >= 10:
                 puan += mx * 0.3
-                aciklamalar.append(f"Kurumsal yapı (~{yas} yıl).")
+                aciklamalar.append(f"Yerleşik kurumsal yapı (~{yas} yıl).")
 
         if any(k in m for k in ["bağımsız denetim", "kurumsal yönetim"]):
             puan += mx * 0.2
-            aciklamalar.append("Bağımsız denetim yapısı mevcut.")
-        if any(k in m for k in ["iso ", "esg", "sürdürülebilirlik", "bist100", "bist 100"]):
+            aciklamalar.append("Bağımsız denetim/kurumsal yönetim yapısı.")
+        if any(k in m for k in ["iso ", "esg", "sürdürülebilirlik"]):
             puan += mx * 0.3
-            aciklamalar.append("Kurumsal yönetim/Sürdürülebilirlik vizyonu.")
+            aciklamalar.append("Sürdürülebilirlik/sertifikasyon vizyonu.")
 
-        if not yillar and not aciklamalar:
+        if not aciklamalar:
             return ScoreResult(0, 0, "Kurumsallık verisi bulunamadı.", False)
         return ScoreResult(round(min(mx, puan), 1), mx, " ".join(aciklamalar), True)
 
-    def skoru_topla(self, veri: dict, fin: dict, durum: ArzDurumu, raw_text: str):
-        kirmizi_bayraklar = []
-        ceza_sozlugu = {}
+    # ═══════════════════════════════════════════════════════════
+    # 🔥 YENİ: İLK GÜN SATIŞ BASKISI MODELİ
+    # ═══════════════════════════════════════════════════════════
+
+    def ilk_gun_satis_baskisi(
+        self,
+        veri: dict,
+        arz_buyuklugu: Optional[float],
+        pay_sayisi: Optional[float],
+        fiyat: Optional[float],
+        baglam: PiyasaBaglami,
+        raw_text: str,
+    ) -> dict:
+        """
+        YENİ MODEL — bu bölüm doğrudan Albayrak Beton gözleminden doğdu.
+
+        Mekanizma:
+          Büyük bir arz + tamamen bireysel eşit dağıtım
+            -> kişi başına yüksek miktarda lot düşer
+            -> aynı hafta başka arzlar da varsa toplam talep bölünür,
+               kişi başı düşen lot daha da artar
+            -> ilk gün çok sayıda yatırımcının elinde satılabilir
+               büyüklükte pozisyon olur
+            -> kâr satışı arzı, tavan alıcısını kırar.
+
+        ÖNEMLİ: Bu bir OLASILIK sinyalidir, kesin bir tahmin değildir.
+        Bu yüzden çıktı ayrı bir "baskı skoru" + uyarı metni olarak
+        veriliyor; temel kalite skorunu kirletmiyor, yalnızca kısa
+        vadeli "tavan potansiyeli"ni aşağı çekiyor.
+        """
+        gerekceler: list[str] = []
+        baski = 0.0
+
+        dagitim_metni = " ".join([
+            str(veri.get(InfoKey.DAGITIM_YONTEMI, "")),
+            str(veri.get(InfoKey.DAGITIM_TIPI, "")),
+            str(veri.get(InfoKey.DAGITIM_TABLOSU, "")),
+            str(veri.get(InfoKey.SATIS_YONTEMI, "")),
+        ]).lower()
+        tahsisat_metni = str(veri.get(InfoKey.TAHSISAT, "")).lower()
+        rt = raw_text.lower()
+
+        # 1) Eşit dağıtım mı?
+        esit_dagitim = any(k in dagitim_metni or k in rt for k in [
+            "eşit dağıtım", "eşit olarak dağıt", "eşit dagitim"
+        ])
+        # 2) Tamamen bireysel mi? (kurumsal/yurt dışı tahsisat yoksa)
+        kurumsal_var = any(k in tahsisat_metni or k in rt for k in [
+            "yurt içi kurumsal", "yurtiçi kurumsal", "yurt dışı kurumsal",
+            "yurtdışı kurumsal", "kurumsal yatırımcı"
+        ])
+        bireysel_yuzdesi = None
+        b_match = re.search(r"yurt\s*içi\s*bireysel[^%\n]{0,40}%\s*(\d{1,3})", tahsisat_metni + " " + rt)
+        if b_match:
+            try:
+                bireysel_yuzdesi = float(b_match.group(1))
+            except ValueError:
+                bireysel_yuzdesi = None
+        tamamen_bireysel = (bireysel_yuzdesi is not None and bireysel_yuzdesi >= 95) or (
+            not kurumsal_var and "bireysel" in (tahsisat_metni + rt)
+        )
+
+        # 3) Arz büyüklüğü
+        buyuk = bool(arz_buyuklugu and arz_buyuklugu >= SETTINGS.BUYUK_ARZ_ESIGI)
+        cok_buyuk = bool(arz_buyuklugu and arz_buyuklugu >= SETTINGS.COK_BUYUK_ARZ_ESIGI)
+
+        # 4) Aynı hafta rakip arz sayısı -> talebin bölünmesi
+        rakip = max(0, baglam.ayni_hafta_arz_sayisi - 1)
+
+        # 5) Kişi başı tahmini dağıtım tutarı (asıl sinyal)
+        # Rakip arz varsa katılımcı talebi bölünür varsayımı.
+        etkin_katilimci = SETTINGS.TAHMINI_KATILIMCI / (1 + 0.25 * rakip)
+        kisi_basi_tutar = None
+        kisi_basi_lot = None
+        if arz_buyuklugu and etkin_katilimci > 0 and esit_dagitim:
+            kisi_basi_tutar = arz_buyuklugu / etkin_katilimci
+            if fiyat and fiyat > 0:
+                kisi_basi_lot = kisi_basi_tutar / fiyat
+
+        # ── Puanlama ──
+        if esit_dagitim:
+            baski += 10
+            gerekceler.append("Dağıtım eşit yöntemle yapılıyor.")
+        if tamamen_bireysel:
+            baski += 10
+            gerekceler.append("Tahsisat ağırlıklı/tamamen bireysel yatırımcıya ayrılmış.")
+        if buyuk:
+            baski += 15
+            gerekceler.append(f"Arz büyüklüğü yüksek (~{arz_buyuklugu/1_000_000_000:.1f} milyar TL).")
+        if cok_buyuk:
+            baski += 10
+            gerekceler.append("Arz büyüklüğü çok yüksek: talebin tamamının karşılanması zor.")
+        if rakip >= 1:
+            baski += 12 * min(rakip, 3)
+            gerekceler.append(
+                f"Aynı dönemde {rakip} başka halka arz var "
+                f"({', '.join(baglam.rakip_sirketler[:3])}): bireysel talep bölünüyor."
+            )
+        if kisi_basi_tutar is not None:
+            if kisi_basi_tutar >= SETTINGS.KISI_BASI_KRITIK_TUTAR:
+                baski += 25
+                gerekceler.append(
+                    f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
+                    + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
+                    + ": ilk gün kâr satışı baskısı çok yüksek."
+                )
+            elif kisi_basi_tutar >= SETTINGS.KISI_BASI_YUKSEK_TUTAR:
+                baski += 15
+                gerekceler.append(
+                    f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
+                    + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
+                    + ": ilk gün satış baskısı yüksek."
+                )
+
+        # Fiyat istikrarı taahhüdü baskıyı bir miktar dengeler
+        ist = str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")).lower()
+        istikrar_var = bool(ist) and ist not in ("-", "açıklanmadı") and \
+            "planlanmamaktadır" not in ist and ist != "yok"
+        if istikrar_var and baski > 0:
+            baski -= 10
+            gerekceler.append("Fiyat istikrarı işlemi planlanmış (baskıyı kısmen dengeler).")
+
+        baski = round(max(0.0, min(100.0, baski)), 1)
+
+        if baski >= 65:
+            seviye = "Çok Yüksek"
+            uyari = (
+                "⚠️ İLK GÜN SATIŞ BASKISI ÇOK YÜKSEK: Büyük arz büyüklüğü, eşit/bireysel "
+                "dağıtım ve bölünmüş talep bir arada. Kişi başına yüksek miktarda lot düşmesi "
+                "beklendiği için ilk gün yoğun kâr satışı görülebilir; tavan serisi "
+                "beklentisi bu arzda zayıftır."
+            )
+        elif baski >= 40:
+            seviye = "Yüksek"
+            uyari = (
+                "⚠️ İLK GÜN SATIŞ BASKISI YÜKSEK: Dağıtım yapısı ve arz büyüklüğü, ilk günde "
+                "satış gelmesini kolaylaştırıyor. Tavan serisi beklentisini temkinli kurun."
+            )
+        elif baski >= 20:
+            seviye = "Orta"
+            uyari = (
+                "ℹ️ İlk gün satış baskısı orta seviyede: dağıtım yapısı kaynaklı bir miktar "
+                "arz gelmesi beklenebilir."
+            )
+        else:
+            seviye = "Düşük"
+            uyari = ""
+
+        return {
+            "skor": baski,
+            "seviye": seviye,
+            "uyari": uyari,
+            "gerekceler": gerekceler,
+            "esit_dagitim": esit_dagitim,
+            "tamamen_bireysel": tamamen_bireysel,
+            "kisi_basi_tahmini_tutar": round(kisi_basi_tutar, 0) if kisi_basi_tutar else None,
+            "kisi_basi_tahmini_lot": round(kisi_basi_lot, 0) if kisi_basi_lot else None,
+            "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    # TOPLAM SKOR
+    # ═══════════════════════════════════════════════════════════
+
+    def skoru_topla(self, veri: dict, fin: dict, seriler: dict, durum: ArzDurumu,
+                    raw_text: str, baglam: PiyasaBaglami) -> dict:
+        kirmizi_bayraklar: list[str] = []
+        ceza_sozlugu: dict[str, float] = {}
+        uyarilar: list[str] = []
+
+        sektor = self._get_sektor(raw_text)
+        fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
+        pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
+        market_cap = (fiyat * pay) if (fiyat and pay) else None
+        arz_buyuklugu = (
+            (fiyat * pay) if (fiyat and pay)
+            else TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, ""))
+        )
+
+        # Baskı analizi, hazırlık aşamasında bile bilgi verici olabilir
+        baski = self.ilk_gun_satis_baskisi(veri, arz_buyuklugu, pay, fiyat, baglam, raw_text)
+        if baski["uyari"]:
+            uyarilar.append(baski["uyari"])
+
+        bayat, gun = TextUtils.sektor_verisi_bayat_mi()
+        if bayat:
+            uyarilar.append(
+                f"ℹ️ Değerleme karşılaştırmasında kullanılan sektör çarpanları "
+                f"{gun} gün önceki verilere dayanıyor; değerleme yorumunu bu kısıtla okuyun."
+            )
 
         if durum == ArzDurumu.HAZIRLANIYOR:
-            return 0.0, 0.0, 0.0, [], [], kirmizi_bayraklar, [], 0, "Belirsiz"
+            return {
+                "temel_kalite": 0.0, "tavan_potansiyeli": 0.0, "risk": 0.0,
+                "guclu": [], "risk_listesi": [], "kirmizi_bayraklar": [],
+                "detaylar": [], "veri_guvenilirligi": 0, "volatilite": "Belirsiz",
+                "sektor": sektor, "baski": baski, "uyarilar": uyarilar,
+            }
 
         hesaplamalar = [
-            (Category.FINANSAL, self.finansal_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
-            (Category.DEGERLEME, self.degerleme_puanla(
-                veri.get(InfoKey.FIYAT, ""), veri.get(InfoKey.PAY_SAYISI, ""), fin, raw_text, kirmizi_bayraklar
-            )),
-            (Category.FON_KULLANIM, self.fon_kullanim_puanla(veri.get(InfoKey.FON_KULLANIM, ""), fin, kirmizi_bayraklar)),
-            (Category.ARZ_YAPISI, self.arz_yapisi_puanla(veri.get(InfoKey.HALKA_ARZ_SEKLI, ""), kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.KARLILIK, self.karlilik_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.BUYUME, self.buyume_puanla(seriler, kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.BORC_YAPISI, self.borc_puanla(fin, sektor, kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.LIKIDITE, self.likidite_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.NAKIT_AKISI, self.nakit_akisi_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
+            (Category.DEGERLEME, self.degerleme_puanla(market_cap, fin, sektor, kirmizi_bayraklar)),
+            (Category.FON_KULLANIM, self.fon_kullanim_puanla(
+                veri.get(InfoKey.FON_KULLANIM, ""), fin, kirmizi_bayraklar)),
+            (Category.ARZ_YAPISI, self.arz_yapisi_puanla(
+                veri.get(InfoKey.HALKA_ARZ_SEKLI, ""), kirmizi_bayraklar, ceza_sozlugu)),
             (Category.ISKONTO, self.iskonto_puanla(veri.get(InfoKey.ISKONTO, ""))),
             (Category.ACIKLIK, self.aciklik_puanla(veri.get(InfoKey.ACIKLIK, ""))),
             (Category.SATMAMA, self.satmama_puanla(veri.get(InfoKey.TAAHHUT, ""), ceza_sozlugu)),
             (Category.KURUMSALLIK, self.kurumsallik_puanla(raw_text)),
         ]
 
-        toplam_kazanilan = 0.0
-        toplam_max_possible = 0.0
-        puan_detaylari, guclu, risk = [], [], []
+        toplam_kazanilan = sum(r.score for _, r in hesaplamalar)
+        toplam_max = sum(r.max_possible for _, r in hesaplamalar)
+        tum_max = sum(self.weights.MAX.values())
 
-        for kategori, res in hesaplamalar:
-            toplam_kazanilan += res.score
-            toplam_max_possible += res.max_possible
-            puan_detaylari.append({
-                "kategori": kategori,
-                "puan": res.score,
-                "max_puan": self.weights.MAX[kategori],
-                "aciklama": res.explanation,
-                "veri_bulundu": res.has_data
-            })
+        detaylar = [{
+            "kategori": kat.value,
+            "puan": res.score,
+            "max_puan": self.weights.MAX[kat],
+            "olculebilen_max": res.max_possible,
+            "aciklama": res.explanation,
+            "veri_bulundu": res.has_data,
+        } for kat, res in hesaplamalar]
 
-        veri_guvenilirligi = int(toplam_max_possible)
-        base_score = (toplam_kazanilan / toplam_max_possible * 100) if toplam_max_possible > 0 else 0
+        # DEĞİŞİKLİK: Veri güvenilirliği artık ham puan toplamı değil,
+        # ölçülebilen ağırlığın toplam ağırlığa oranı (gerçek bir yüzde).
+        veri_guvenilirligi = int(round((toplam_max / tum_max) * 100)) if tum_max else 0
+        base_score = (toplam_kazanilan / toplam_max * 100) if toplam_max > 0 else 0.0
 
-        bonuslar = 0
-        rt_lower = raw_text.lower()
+        bonuslar = 0.0
+        guclu: list[str] = []
+        rt = raw_text.lower()
 
-        if any(k in rt_lower for k in ["temettü ödemesi", "kâr payı dağıtıldı", "nakit temettü"]):
+        if any(k in rt for k in ["temettü ödemesi", "kâr payı dağıtıldı", "nakit temettü"]):
             bonuslar += 2
-            guclu.append("[bonus] Geçmiş yıllara ait somut temettü ödeme kültürü. (+2.0 Puan)")
-
-        ihracat_match = re.search(r'ihracat oranı %([2-9][0-9]|100)', rt_lower)
-        if ihracat_match:
+            guclu.append("[bonus] Geçmişte somut temettü ödeme kültürü. (+2.0 Puan)")
+        ihracat = re.search(r"ihracat oranı %([2-9][0-9]|100)", rt)
+        if ihracat:
             bonuslar += 2
-            guclu.append(f"[bonus] Güçlü döviz girdisi (İhracat oranı %{ihracat_match.group(1)}). (+2.0 Puan)")
-
-        if any(k in rt_lower for k in ["ar-ge merkezi", "patent", "tübitak destekli"]):
+            guclu.append(f"[bonus] Güçlü döviz girdisi (ihracat %{ihracat.group(1)}). (+2.0 Puan)")
+        if any(k in rt for k in ["ar-ge merkezi", "patent", "tübitak destekli"]):
             bonuslar += 1
-            guclu.append("[bonus] Tescilli Ar-Ge / Patent çalışmaları mevcut. (+1.0 Puan)")
+            guclu.append("[bonus] Tescilli Ar-Ge / patent çalışmaları. (+1.0 Puan)")
 
-        ist = veri.get(InfoKey.FIYAT_ISTIKRARI, "").lower()
+        ist = str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")).lower()
         istikrar_yok = "planlanmamaktadır" in ist or ist == "yok"
         if istikrar_yok:
-            kirmizi_bayraklar.append("🚨 Fiyat istikrarı planlanmıyor.")
+            kirmizi_bayraklar.append("🚨 Fiyat istikrarı işlemi planlanmıyor.")
             ceza_sozlugu["istikrar_yok"] = 3
 
+        # ── DEĞİŞİKLİK: Risk artık doğrusal değil ──
+        # İncelemede belirtildiği gibi, kritik sorunlar bir araya
+        # geldiğinde risk katlanarak artmalı.
+        KRITIK_CEZALAR = {
+            "negatif_ozsermaye", "zarar", "faiz_karsilama",
+            "negatif_nakit_akisi", "kritik_borc", "faaliyet_zarari",
+        }
         toplam_ceza = sum(ceza_sozlugu.values())
+        kritik_sayisi = sum(1 for k in ceza_sozlugu if k in KRITIK_CEZALAR)
+        kritik_carpani = 1.0 + 0.3 * max(0, kritik_sayisi - 1)
 
-        temel_kalite_skoru = base_score + bonuslar - toplam_ceza
-        temel_kalite_skoru = round(max(0.0, min(100.0, temel_kalite_skoru)), 1)
+        temel_kalite = round(max(0.0, min(100.0, base_score + bonuslar - toplam_ceza)), 1)
 
-        risk_skoru = 10.0 + toplam_ceza
+        risk = 10.0 + (toplam_ceza * kritik_carpani)
         if veri_guvenilirligi < 70:
-            risk_skoru += (70 - veri_guvenilirligi) * 0.5
+            risk += (70 - veri_guvenilirligi) * 0.4
         aciklik_val = TextUtils.yuzde_bul(veri.get(InfoKey.ACIKLIK, "")) or 25.0
         if aciklik_val > 40:
-            risk_skoru += 15
-        risk_skoru = round(max(0.0, min(100.0, risk_skoru)), 1)
+            risk += 12
+        # YENİ: ilk gün satış baskısı riske de yansıyor
+        risk += baski["skor"] * 0.15
+        risk = round(max(0.0, min(100.0, risk)), 1)
 
-        tavan_potansiyeli = 50.0
-        fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
-        pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
+        if kritik_sayisi >= 2:
+            uyarilar.append(
+                f"⚠️ Birden fazla kritik finansal sorun bir arada ({kritik_sayisi} adet); "
+                "riskler birbirini büyütüyor."
+            )
 
-        arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else (TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, "")) or 1_000_000_000)
+        # ── Tavan potansiyeli ──
+        tavan = 50.0
+        if arz_buyuklugu:
+            if arz_buyuklugu < 500_000_000:
+                tavan += 25
+            elif arz_buyuklugu < 1_000_000_000:
+                tavan += 12
+            elif arz_buyuklugu > SETTINGS.COK_BUYUK_ARZ_ESIGI:
+                tavan -= 20
+            elif arz_buyuklugu > SETTINGS.BUYUK_ARZ_ESIGI:
+                tavan -= 12
 
-        if arz_buyuklugu < 500_000_000:
-            tavan_potansiyeli += 30
-        elif arz_buyuklugu < 1_000_000_000:
-            tavan_potansiyeli += 15
-        elif arz_buyuklugu > 3_000_000_000:
-            tavan_potansiyeli -= 15
-
-        sektor = self._get_sektor(raw_text)
-        if sektor in ["TEKNOLOJİ", "ENERJİ"]:
-            tavan_potansiyeli += 10
-
+        if sektor in ("TEKNOLOJİ", "ENERJİ"):
+            tavan += 8
         isk_val = TextUtils.yuzde_bul(veri.get(InfoKey.ISKONTO, "")) or 0.0
         if isk_val >= 25:
-            tavan_potansiyeli += 10
-
+            tavan += 8
         if istikrar_yok:
-            tavan_potansiyeli -= 10
+            tavan -= 8
         if ceza_sozlugu.get("ortak_satis"):
-            tavan_potansiyeli -= 15
+            tavan -= 12
+        if temel_kalite >= 70:
+            tavan += 5
+        elif temel_kalite <= 35 and temel_kalite > 0:
+            tavan -= 8
 
-        tavan_potansiyeli = round(max(0.0, min(100.0, tavan_potansiyeli)), 1)
+        # YENİ VE EN ÖNEMLİ DÜZELTME:
+        # İlk gün satış baskısı doğrudan tavan potansiyelini kırıyor.
+        # Albayrak Beton tipi durumda (büyük arz + eşit/bireysel dağıtım
+        # + bölünmüş talep) yüksek kalite skoru artık otomatik olarak
+        # "tavan yapar" beklentisine dönüşmüyor.
+        tavan -= baski["skor"] * 0.45
+        # Taban 3 puan: baskı çok yüksek olsa bile skoru tam 0'a
+        # sabitlemek, farklı kötü senaryoları birbirinden ayırt
+        # edilemez hale getiriyordu.
+        tavan = round(max(3.0, min(100.0, tavan)), 1)
 
-        if tavan_potansiyeli > 75:
-            volatilite = "Yüksek (Tavan Serisi / Agresif Hareket Potansiyeli)"
-        elif risk_skoru > 60:
-            volatilite = "Yüksek (Aşağı Yönlü Dalgalanma Riski)"
-        elif tavan_potansiyeli < 40:
-            volatilite = "Düşük (Ağır Tahta - Sınırlı Hareket)"
+        if baski["skor"] >= 65:
+            volatilite = "Yüksek (İlk gün satış baskısı - aşağı yönlü)"
+        elif tavan > 75:
+            volatilite = "Yüksek (Agresif yukarı hareket potansiyeli)"
+        elif risk > 60:
+            volatilite = "Yüksek (Aşağı yönlü dalgalanma riski)"
+        elif tavan < 40:
+            volatilite = "Düşük (Ağır tahta - sınırlı hareket)"
         else:
-            volatilite = "Orta (Piyasa ve Sektör Koşullarına Bağlı)"
+            volatilite = "Orta (Piyasa ve sektör koşullarına bağlı)"
 
-        for kategori, res in hesaplamalar:
-            if not res.has_data:
+        risk_listesi: list[str] = []
+        for kat, res in hesaplamalar:
+            if not res.has_data or not res.max_possible:
                 continue
-            oran = res.score / res.max_possible if res.max_possible else 0
+            oran = res.score / res.max_possible
             if oran >= 0.8:
-                guclu.append(f"[{kategori.value}] {res.explanation} (+{res.score:.1f} Puan)")
+                guclu.append(f"[{kat.value}] {res.explanation} (+{res.score:.1f} Puan)")
             elif oran <= 0.3:
-                risk.append(f"[{kategori.value}] {res.explanation} (-{abs(res.max_possible - res.score):.1f} Puan)")
+                risk_listesi.append(
+                    f"[{kat.value}] {res.explanation} (-{res.max_possible - res.score:.1f} Puan)"
+                )
 
-        kirmizi_bayraklar = list(set(kirmizi_bayraklar))
+        # Sıralamayı koruyarak tekilleştir
+        kirmizi_bayraklar = list(dict.fromkeys(kirmizi_bayraklar))
 
-        return temel_kalite_skoru, tavan_potansiyeli, risk_skoru, guclu, risk, kirmizi_bayraklar, puan_detaylari, veri_guvenilirligi, volatilite
+        return {
+            "temel_kalite": temel_kalite,
+            "tavan_potansiyeli": tavan,
+            "risk": risk,
+            "guclu": guclu,
+            "risk_listesi": risk_listesi,
+            "kirmizi_bayraklar": kirmizi_bayraklar,
+            "detaylar": detaylar,
+            "veri_guvenilirligi": veri_guvenilirligi,
+            "volatilite": volatilite,
+            "sektor": sektor,
+            "baski": baski,
+            "uyarilar": uyarilar,
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 🕸️ 5. VERİ ÇEKİCİ (GELİŞTİRİLMİŞ ESNEK SCRAPER)
+# 🕸️ 5. VERİ ÇEKİCİ (ASYNC)
 # ═══════════════════════════════════════════════════════════════════
 
 class DataExtractor:
@@ -630,34 +1419,54 @@ class DataExtractor:
 
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
-            InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi", "tarih"],
-            InfoKey.FIYAT: ["halka arz fiyatı", "fiyatı", "fiyat"],
-            InfoKey.BUYUKLUK: ["halka arz büyüklüğü", "büyüklüğü"],
-            InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi", "işlem tarihi"],
-            InfoKey.ACIKLIK: ["halka açıklık", "halka açıklık oranı", "açıklık oranı"],
-            InfoKey.ISKONTO: ["halka arz iskontosu", "iskonto oranı", "iskonto"],
-            InfoKey.TAAHHUT: ["satmama taahhüdü", "taahhüt"],
-            InfoKey.HALKA_ARZ_SEKLI: ["halka arz şekli", "arz şekli"],
-            InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri", "fonun kullanımı"],
-            InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi", "satış yöntemi"],
+            InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi"],
+            InfoKey.FIYAT: ["halka arz fiyatı"],
+            InfoKey.BUYUKLUK: ["halka arz büyüklüğü"],
+            InfoKey.ISLEM_TARIHI: ["işlem tarihi", "borsada işlem tarihi"],
+            InfoKey.ACIKLIK: ["halka açıklık", "halka açıklık oranı"],
+            InfoKey.ISKONTO: ["halka arz iskontosu", "iskonto oranı"],
+            InfoKey.TAAHHUT: ["satmama taahhüdü"],
+            InfoKey.HALKA_ARZ_SEKLI: ["halka arz şekli"],
+            InfoKey.FON_KULLANIM: ["fonun kullanım yeri", "fon kullanım yeri"],
+            InfoKey.SATIS_YONTEMI: ["halka arz satış yöntemi"],
             InfoKey.FIYAT_ISTIKRARI: ["fiyat istikrarı"],
             InfoKey.PAY_SAYISI: [
-                "pay", "halka arz edilecek pay", "dağıtılacak pay miktarı",
-                "toplam pay miktarı", "toplam pay", "çıkarılmış sermaye", "ödenmiş sermaye", "lot"
+                "halka arz edilecek pay", "dağıtılacak pay miktarı",
+                "toplam pay miktarı", "toplam pay", "pay miktarı",
+                "çıkarılmış sermaye", "ödenmiş sermaye"
             ],
-            InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi", "dağıtım şekli"],
+            InfoKey.DAGITIM_YONTEMI: ["dağıtım yöntemi"],
             InfoKey.ARACI_KURUM: ["aracı kurum", "konsorsiyum lideri"],
             InfoKey.PAZAR: ["pazar"],
         }
         self.TUM_ETIKETLER = {e for etiketler in self.FIELD_LABELS.values() for e in etiketler}
 
         self.FIN_LABELS: dict[FinKey, list[str]] = {
-            FinKey.NET_KAR: ["net dönem karı", "net dönem kârı", "net kar", "net kâr", "dönem net karı", "dönem net kârı"],
-            FinKey.OZKAYNAK: ["özkaynaklar", "toplam özkaynaklar", "öz kaynaklar"],
+            FinKey.NET_KAR: ["net dönem karı", "net dönem kârı", "net kar", "net kâr",
+                             "dönem net karı", "dönem net kârı", "dönem karı", "dönem kârı"],
+            FinKey.OZKAYNAK: ["özkaynaklar", "toplam özkaynaklar", "öz kaynaklar", "özkaynak"],
             FinKey.DONEN_VARLIK: ["dönen varlıklar", "toplam dönen varlıklar"],
             FinKey.KISA_VADELI_YUKUMLULUK: ["kısa vadeli yükümlülükler", "kısa vadeli borçlar"],
-            FinKey.TOPLAM_BORC: ["toplam yükümlülükler", "toplam borçlar", "finansal borçlar"],
-            FinKey.HASILAT: ["hasılat", "satış gelirleri", "net satışlar"],
+            FinKey.TOPLAM_BORC: ["toplam yükümlülükler", "toplam borçlar"],
+            FinKey.HASILAT: ["hasılat", "satış gelirleri", "net satışlar", "satış hasılatı"],
+            # YENİ etiketler
+            FinKey.FAALIYET_KARI: ["esas faaliyet karı", "esas faaliyet kârı",
+                                   "faaliyet karı", "faaliyet kârı", "faaliyet kar/zararı"],
+            FinKey.AMORTISMAN: ["amortisman", "amortisman ve tükenme payları",
+                                "amortisman gideri"],
+            FinKey.FAVOK: ["favök", "favok", "ebitda"],
+            FinKey.FINANSAL_BORC: ["finansal borçlar", "finansal yükümlülükler",
+                                   "banka kredileri", "toplam finansal borç"],
+            FinKey.NAKIT: ["nakit ve nakit benzerleri", "nakit ve benzerleri", "nakit"],
+            FinKey.ISLETME_NAKIT_AKISI: [
+                "işletme faaliyetlerinden nakit akışları",
+                "işletme faaliyetlerinden elde edilen nakit",
+                "işletme faaliyetlerinden nakit akışı",
+                "faaliyetlerden sağlanan nakit",
+            ],
+            FinKey.FINANSMAN_GIDERI: ["finansman giderleri", "finansman gideri",
+                                      "faiz gideri", "faiz giderleri"],
+            FinKey.BRUT_KAR: ["brüt kar", "brüt kâr", "brüt esas faaliyet karı"],
         }
 
         self.DEFAULTS: dict[InfoKey, str] = {k: "Açıklanmadı" for k in self.FIELD_LABELS}
@@ -673,6 +1482,8 @@ class DataExtractor:
             InfoKey.DAGITIM_TIPI: "Tahmini Lot Dağıtımı",
         })
 
+    # ───────────────────────── HTTP ─────────────────────────
+
     async def _get_session(self) -> AsyncSession:
         if self.session is None or getattr(self.session, "closed", True):
             async with self._session_lock:
@@ -687,15 +1498,17 @@ class DataExtractor:
                 res = await session.get(url, timeout=SETTINGS.TIMEOUT)
                 if res.status_code == 200:
                     return res.text
-                logger.warning(f"Bağlantı hatası ({url}), Durum Kodu: {res.status_code}")
+                logger.warning(f"Bağlantı hatası ({url}), durum kodu: {res.status_code}")
             except Exception as e:
-                logger.warning(f"Timeout/Hata ({url}): {e}")
+                logger.warning(f"Timeout/hata ({url}): {e}")
             if i < SETTINGS.MAX_RETRY - 1:
                 await asyncio.sleep(1 * (i + 1))
         return None
 
-    def _tablodan_doldur(self, veri: dict, detay_soup: BeautifulSoup):
-        for tr in detay_soup.find_all("tr"):
+    # ───────────────────────── PARSE ─────────────────────────
+
+    def _tablodan_doldur(self, veri: dict, soup: BeautifulSoup):
+        for tr in soup.find_all("tr"):
             tds = tr.find_all(["th", "td"])
             if len(tds) < 2:
                 continue
@@ -733,7 +1546,10 @@ class DataExtractor:
             if veri.get(alan) != self.DEFAULTS.get(alan):
                 continue
             for i, nl in enumerate(normalized_lines):
-                if any(nl.startswith(e) and (len(nl) == len(e) or nl[len(e)] in (":", " ")) for e in etiketler) or nl in etiketler:
+                if any(
+                    nl.startswith(e) and (len(nl) == len(e) or nl[len(e)] in (":", " "))
+                    for e in etiketler
+                ) or nl in etiketler:
                     deger = self._satirdan_deger_al(lines, normalized_lines, i)
                     if deger:
                         veri[alan] = deger
@@ -749,7 +1565,8 @@ class DataExtractor:
 
         if lot_baslik:
             veri[InfoKey.DAGITIM_TIPI] = (
-                "Dağıtılan Pay Miktarı (Kesin Sonuç)" if "Dağıtılan" in lot_baslik else "Tahmini Lot Dağıtımı"
+                "Dağıtılan Pay Miktarı (Kesin Sonuç)" if "Dağıtılan" in lot_baslik
+                else "Tahmini Lot Dağıtımı"
             )
             try:
                 bolunmus = raw_text.split(lot_baslik)[1]
@@ -762,14 +1579,14 @@ class DataExtractor:
                 if lot_lines:
                     veri[InfoKey.DAGITIM_TABLOSU] = "\n".join(lot_lines)
             except Exception as e:
-                logger.debug(f"Lot Parsing Error: {e}")
+                logger.debug(f"Lot parsing hatası: {e}")
 
         for i, line in enumerate(lines):
             nl = TextUtils.normalize(line)
             if nl == "tahsisat grupları" and veri[InfoKey.TAHSISAT] == self.DEFAULTS[InfoKey.TAHSISAT]:
                 t_list = [
                     "• " + lines[i + j].replace("-", "").strip()
-                    for j in range(1, 6)
+                    for j in range(1, 8)
                     if i + j < len(lines) and ("%" in lines[i + j] or "Lot" in lines[i + j])
                 ]
                 if t_list:
@@ -777,103 +1594,136 @@ class DataExtractor:
             elif "finansal tablo" in nl and veri[InfoKey.FINANSAL_TABLO] == self.DEFAULTS[InfoKey.FINANSAL_TABLO]:
                 t_list = [
                     lines[i + j].strip()
-                    for j in range(1, 10)
+                    for j in range(1, 14)
                     if i + j < len(lines) and "*" not in lines[i + j] and lines[i + j].strip()
                 ]
                 if t_list:
                     veri[InfoKey.FINANSAL_TABLO] = "\n".join(t_list)
 
-    def _finansal_tablo_cikar(self, detay_soup: BeautifulSoup, raw_text: str) -> dict:
-        bulunan = {}
-        for tr in detay_soup.find_all("tr"):
-            tds = tr.find_all(["th", "td"])
-            if len(tds) < 2:
-                continue
-            baslik_norm = TextUtils.normalize(tds[0].get_text(strip=True))
-            for alan, etiketler in self.FIN_LABELS.items():
-                if alan in bulunan:
+    def _tablo_yil_haritasi(self, tablo) -> dict[int, int]:
+        """
+        YENİ: Bir finansal tablonun başlık satırından kolon -> yıl
+        eşleşmesi çıkarır. Büyüme hesabı için kolonların hangi döneme
+        ait olduğunu bilmek şart; yıl tespit edilemezse büyüme hiç
+        hesaplanmaz (yanlış yönde büyüme raporlamaktan iyidir).
+        """
+        harita: dict[int, int] = {}
+        satirlar = tablo.find_all("tr")
+        for tr in satirlar[:3]:
+            hucreler = tr.find_all(["th", "td"])
+            gecici: dict[int, int] = {}
+            for idx, h in enumerate(hucreler):
+                metin = h.get_text(strip=True)
+                yil_match = re.search(r"(20\d{2})", metin)
+                if yil_match:
+                    gecici[idx] = int(yil_match.group(1))
+            if len(gecici) >= 2:
+                harita = gecici
+                break
+        return harita
+
+    def _finansal_tablo_cikar(self, soup: BeautifulSoup, raw_text: str) -> tuple[dict, dict]:
+        """
+        DEĞİŞİKLİK: Artık iki şey döndürüyor:
+          1) fin      -> en güncel dönemin değerleri
+          2) seriler  -> {FinKey: {yil: deger}} çok dönemli seri
+        Çok dönemli seri, büyüme puanlaması için gerekli.
+        """
+        fin: dict[FinKey, float] = {}
+        seriler: dict[FinKey, dict[int, float]] = {}
+
+        for tablo in soup.find_all("table"):
+            yil_haritasi = self._tablo_yil_haritasi(tablo)
+            for tr in tablo.find_all("tr"):
+                tds = tr.find_all(["th", "td"])
+                if len(tds) < 2:
                     continue
-                if TextUtils.etiket_eslesir(baslik_norm, etiketler):
-                    for td in tds[1:]:
-                        sayi = TextUtils.sayi_bul(td.get_text(strip=True))
-                        if sayi is not None:
-                            bulunan[alan] = sayi
-                            break
+                baslik_norm = TextUtils.normalize(tds[0].get_text(strip=True))
+                for alan, etiketler in self.FIN_LABELS.items():
+                    if not TextUtils.etiket_eslesir(baslik_norm, etiketler):
+                        continue
+                    # Kolon kolon ilerle, yıl haritası varsa seriye yaz
+                    for idx in range(1, len(tds)):
+                        sayilar = TextUtils.tum_sayilari_bul(tds[idx].get_text(strip=True))
+                        if not sayilar:
+                            continue
+                        deger = sayilar[0]
+                        yil = yil_haritasi.get(idx)
+                        if yil:
+                            seriler.setdefault(alan, {})[yil] = deger
+                        if alan not in fin:
+                            fin[alan] = deger
+                    break
+
+        # Metin bazlı yedek okuma (tablo yapısı bozuksa)
         lines = raw_text.split("\n")
         for i, line in enumerate(lines):
             nl = TextUtils.normalize(line)
             for alan, etiketler in self.FIN_LABELS.items():
-                if alan in bulunan:
+                if alan in fin:
                     continue
                 if any(nl == e or nl.startswith(e) for e in etiketler):
-                    sayi = TextUtils.sayi_bul(line)
-                    if sayi is None and i + 1 < len(lines):
-                        sayi = TextUtils.sayi_bul(lines[i + 1])
-                    if sayi is not None:
-                        bulunan[alan] = sayi
-        return bulunan
+                    sayilar = TextUtils.tum_sayilari_bul(line)
+                    if not sayilar and i + 1 < len(lines):
+                        sayilar = TextUtils.tum_sayilari_bul(lines[i + 1])
+                    if sayilar:
+                        fin[alan] = sayilar[0]
 
-    def _durum_belirle(self, tarih_metni: str, islem_tarihi_metni: str, raw_text: str, kart_metni: str) -> ArzDurumu:
-        rt_lower = raw_text.lower()
+        # Serilerde en güncel yılın değerini "fin" için tercih et
+        for alan, seri in seriler.items():
+            if seri:
+                fin[alan] = seri[max(seri.keys())]
+
+        # Sadece 2+ dönemi olan serileri tut
+        seriler = {k: v for k, v in seriler.items() if len(v) >= 2}
+        return fin, seriler
+
+    def _durum_belirle(self, tarih_metni: str, islem_tarihi_metni: str,
+                       raw_text: str, kart_metni: str) -> ArzDurumu:
+        """
+        REFAKTÖR: Tarih çözümleme mantığı TextUtils.tarih_araligi_coz'a
+        taşındı; ay geçişli aralıklar (30 Temmuz - 1 Ağustos) artık
+        doğru işleniyor.
+        """
+        rt = raw_text.lower()
         bugun = datetime.now().date()
-        aylar = {
-            "ocak": 1, "şubat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "haziran": 6,
-            "temmuz": 7, "ağustos": 8, "eylül": 9, "ekim": 10, "kasım": 11, "aralık": 12
-        }
 
-        if "işlem görmeye başlamıştır" in rt_lower or "gong!" in kart_metni.lower():
+        if "işlem görmeye başlamıştır" in rt or "gong!" in kart_metni.lower():
             return ArzDurumu.ISLEM_GORMEYE_BASLADI
 
-        is_trh = str(islem_tarihi_metni).lower().strip()
-        if is_trh and is_trh not in ("-", "açıklanmadı", "belli değil"):
-            ay_str = next((ay for ay in aylar if ay in is_trh), None)
-            sayilar = re.findall(r'\d+', is_trh)
-            if ay_str and sayilar:
-                try:
-                    yil = next((int(s) for s in sayilar if len(s) == 4), bugun.year)
-                    gun = next((int(s) for s in sayilar if 1 <= int(s) <= 31 and len(s) <= 2), 1)
-                    islem_dt = date(yil, aylar[ay_str], gun)
-                    if bugun >= islem_dt:
-                        return ArzDurumu.ISLEM_GORMEYE_BASLADI
-                except Exception as e:
-                    logger.debug(f"Islem Tarihi Parse Hatasi: {e}")
+        islem_aralik = TextUtils.tarih_araligi_coz(islem_tarihi_metni)
+        if islem_aralik and bugun >= islem_aralik[0]:
+            return ArzDurumu.ISLEM_GORMEYE_BASLADI
 
-        if "dağıtılan pay miktarı" in rt_lower or "kesinleşen" in rt_lower:
+        if "dağıtılan pay miktarı" in rt or "kesinleşen" in rt:
             return ArzDurumu.ISLEME_BEKLENIYOR
 
-        t_metin = str(tarih_metni).lower().strip()
-        if not t_metin or t_metin in ("-", "açıklanmadı", "belli değil"):
+        talep_aralik = TextUtils.tarih_araligi_coz(tarih_metni)
+        if not talep_aralik:
             return (
                 ArzDurumu.HAZIRLANIYOR
-                if "taslak" in kart_metni or "hazırlanıyor" in kart_metni
+                if ("taslak" in kart_metni or "hazırlanıyor" in kart_metni)
                 else ArzDurumu.SPK_ONAYLI
             )
 
-        ay_str = next((ay for ay in aylar if ay in t_metin), None)
-        sayilar = re.findall(r'\d+', t_metin)
+        bas, bit = talep_aralik
+        if bugun < bas:
+            return ArzDurumu.TALEP_YAKLASIYOR
+        if bas <= bugun <= bit:
+            return ArzDurumu.TALEP_TOPLANIYOR
+        return ArzDurumu.DAGITIM_BEKLENIYOR
 
-        if ay_str and len(sayilar) >= 2:
-            try:
-                yil = next((int(s) for s in sayilar if len(s) == 4), bugun.year)
-                gunler = [int(s) for s in sayilar if len(s) < 4]
-                if not gunler:
-                    gunler = [1]
-                bas_dt = date(yil, aylar[ay_str], gunler[0])
-                bit_dt = date(yil, aylar[ay_str], max(gunler))
-                if bugun < bas_dt:
-                    return ArzDurumu.TALEP_YAKLASIYOR
-                elif bas_dt <= bugun <= bit_dt:
-                    return ArzDurumu.TALEP_TOPLANIYOR
-                elif bugun > bit_dt:
-                    return ArzDurumu.DAGITIM_BEKLENIYOR
-            except Exception as e:
-                logger.debug(f"Talep Tarihi Parse Hatasi: {e}")
+    # ─────────────── FAZ 1: sadece indir ve ayrıştır ───────────────
 
-        if "hazırlanıyor" in kart_metni or "taslak" in kart_metni:
-            return ArzDurumu.HAZIRLANIYOR
-        return ArzDurumu.SPK_ONAYLI
-
-    async def _sirket_isle(self, sirket_adi: str, detay_linki: str, kart_metni: str, debug: bool) -> Optional[dict]:
+    async def _sirket_parse(self, sirket_adi: str, detay_linki: str,
+                            kart_metni: str) -> Optional[dict]:
+        """
+        YENİ MİMARİ (2 fazlı):
+        Faz 1 sadece veriyi indirir ve ayrıştırır — puanlama YAPMAZ.
+        Çünkü "aynı hafta kaç arz var" bilgisi ancak tüm şirketler
+        ayrıştırıldıktan sonra bilinebilir ve bu bilgi puanlamanın
+        girdisidir.
+        """
         html = await self._fetch_url_with_retry(detay_linki)
         if not html:
             return None
@@ -885,22 +1735,12 @@ class DataExtractor:
         self._tablodan_doldur(veri, soup)
         self._satirlardan_doldur(veri, raw_text)
         self._dagitim_tahsisat_finansal_doldur(veri, raw_text)
-        fin = self._finansal_tablo_cikar(soup, raw_text)
-
-        t1_t2 = "t1-t2 kullanılabilir" in raw_text.lower() or "t1 ve t2 kullanılabilir" in raw_text.lower()
-        katilim = (
-            "katılım endeksine uygun değildir" not in raw_text.lower()
-            and "katılım endeksine uygun" in raw_text.lower()
-        )
-        islem_menusu = (
-            "Hisse Alış/Satış Menüsü"
-            if "borsada satış" in veri.get(InfoKey.DAGITIM_YONTEMI, "").lower()
-            else "Halka Arz Menüsü"
-        )
+        fin, seriler = self._finansal_tablo_cikar(soup, raw_text)
 
         if veri.get(InfoKey.TARIH) == self.DEFAULTS.get(InfoKey.TARIH):
             tarih_match = re.search(
-                r"(\d{1,2}(?:-\d{1,2})*\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{4})",
+                r"(\d{1,2}(?:[-–]\d{1,2})*\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|"
+                r"temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{4})",
                 kart_metni, re.IGNORECASE
             )
             if tarih_match:
@@ -913,15 +1753,72 @@ class DataExtractor:
             veri[InfoKey.BUYUKLUK] = buyukluk_metni.split("Grafiği")[0].strip()
 
         durum = self._durum_belirle(
-            veri.get(InfoKey.TARIH, ""),
-            veri.get(InfoKey.ISLEM_TARIHI, ""),
-            raw_text,
-            kart_metni
+            veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""),
+            raw_text, kart_metni
         )
 
-        t_kalite, t_potansiyel, t_risk, guclu, risk, kirmizi, detaylar, guven_skoru, volatilite = self.analyzer.skoru_topla(
-            veri, fin, durum, raw_text
+        fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
+        pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
+        arz_buyuklugu = (
+            (fiyat * pay) if (fiyat and pay)
+            else TextUtils.sayi_bul(veri.get(InfoKey.BUYUKLUK, ""))
         )
+
+        return {
+            "sirket_adi": sirket_adi,
+            "veri": veri,
+            "fin": fin,
+            "seriler": seriler,
+            "raw_text": raw_text,
+            "durum": durum,
+            "talep_aralik": TextUtils.tarih_araligi_coz(veri.get(InfoKey.TARIH, "")),
+            "arz_buyuklugu": arz_buyuklugu,
+        }
+
+    # ─────────── FAZ 2: piyasa bağlamı hesapla ve puanla ───────────
+
+    @staticmethod
+    def _piyasa_baglami_olustur(parsed_list: list[dict]) -> dict[str, PiyasaBaglami]:
+        """
+        YENİ: Her şirket için, talep toplama tarihi ÇAKIŞAN diğer arzları
+        sayar. Bu, "aynı hafta birden fazla şirket halka arz oluyorsa
+        bireysel talep bölünür" gözlemini modele sokan bileşendir.
+        """
+        baglamlar: dict[str, PiyasaBaglami] = {}
+        for p in parsed_list:
+            ad = p["sirket_adi"]
+            aralik = p["talep_aralik"]
+            if not aralik:
+                baglamlar[ad] = PiyasaBaglami(ayni_hafta_arz_sayisi=1)
+                continue
+            bas, bit = aralik
+            rakipler: list[str] = []
+            toplam = p["arz_buyuklugu"] or 0.0
+            for d in parsed_list:
+                if d["sirket_adi"] == ad or not d["talep_aralik"]:
+                    continue
+                d_bas, d_bit = d["talep_aralik"]
+                # ±3 gün tolerans: aynı hafta içindeki arzlar da talebi böler
+                if (d_bas - bit).days <= 3 and (bas - d_bit).days <= 3:
+                    rakipler.append(d["sirket_adi"])
+                    toplam += d["arz_buyuklugu"] or 0.0
+            baglamlar[ad] = PiyasaBaglami(
+                ayni_hafta_arz_sayisi=1 + len(rakipler),
+                ayni_hafta_toplam_buyukluk=toplam,
+                rakip_sirketler=rakipler,
+            )
+        return baglamlar
+
+    def _sonuc_olustur(self, parsed: dict, baglam: PiyasaBaglami, debug: bool) -> dict:
+        veri = parsed["veri"]
+        durum = parsed["durum"]
+
+        s = self.analyzer.skoru_topla(
+            veri, parsed["fin"], parsed["seriler"], durum, parsed["raw_text"], baglam
+        )
+
+        t_kalite = s["temel_kalite"]
+        baski = s["baski"]
 
         if t_kalite >= 85:
             rating = "A+ (★★★★★)"
@@ -936,39 +1833,84 @@ class DataExtractor:
         else:
             rating = "E (☆☆☆☆☆)"
 
+        rt = parsed["raw_text"].lower()
+        t1_t2 = "t1-t2 kullanılabilir" in rt or "t1 ve t2 kullanılabilir" in rt
+        katilim = ("katılım endeksine uygun değildir" not in rt
+                   and "katılım endeksine uygun" in rt)
+        islem_menusu = (
+            "Hisse Alış/Satış Menüsü"
+            if "borsada satış" in str(veri.get(InfoKey.DAGITIM_YONTEMI, "")).lower()
+            else "Halka Arz Menüsü"
+        )
+
         if durum == ArzDurumu.HAZIRLANIYOR:
             gorunum = Gorunum.HAZIRLIK
             degerlendirme = "Şirket taslak sürecinde olduğu için finansal değerlemesi yapılamamıştır."
             rating = "Hazırlanıyor"
         else:
-            gorunum = Gorunum.COK_GUCLU if t_kalite >= 80 else Gorunum.DENGELI if t_kalite >= 45 else Gorunum.RISKLI
-            deg_metin = f"Algoritmamız bu halka arzın temel yatırım kalitesini {t_kalite} puan ile değerlendirdi. Kısa vadede tavan serisi potansiyeli {t_potansiyel}/100, risk seviyesi ise {t_risk}/100 olarak ölçüldü. "
-            if guven_skoru < 60:
-                deg_metin += f"Ancak bu analiz, izahnamedeki eksik finansal veriler sebebiyle düşük veri güvenilirliği (%{guven_skoru}) ile oluşturulmuştur. "
-            deg_metin += "Şirket katılım endeksine UYGUN." if katilim else "Şirket katılım endeksine UYGUN DEĞİL."
-            degerlendirme = deg_metin
+            gorunum = (Gorunum.COK_GUCLU if t_kalite >= 80
+                       else Gorunum.DENGELI if t_kalite >= 45
+                       else Gorunum.RISKLI)
+            parcalar = [
+                f"Şirketin temel finansal kalitesi {t_kalite}/100 olarak ölçüldü "
+                f"(sektör: {s['sektor']}). Risk seviyesi {s['risk']}/100."
+            ]
+            # DEĞİŞİKLİK: Artık "tavan yapar" ima eden bir dil kullanılmıyor.
+            # Kısa vadeli beklenti, satış baskısıyla birlikte ifade ediliyor.
+            if baski["skor"] >= 40:
+                parcalar.append(
+                    f"Kısa vadeli fiyat davranışı açısından ilk gün satış baskısı "
+                    f"{baski['seviye'].lower()} ({baski['skor']}/100) görünüyor; bu nedenle "
+                    f"ilk günlerde yukarı yönlü hareket beklentisi zayıflatılmıştır "
+                    f"(potansiyel skoru {s['tavan_potansiyeli']}/100)."
+                )
+            else:
+                parcalar.append(
+                    f"Kısa vadeli yukarı yönlü hareket potansiyeli {s['tavan_potansiyeli']}/100 "
+                    f"olarak hesaplandı; ilk gün satış baskısı düşük görünüyor."
+                )
+            if s["veri_guvenilirligi"] < 60:
+                parcalar.append(
+                    f"Bu analiz, izahnamede bulunabilen sınırlı veriyle (%{s['veri_guvenilirligi']} "
+                    f"veri kapsamı) oluşturulmuştur; eksik kalemler skoru olduğundan farklı "
+                    f"gösterebilir."
+                )
+            parcalar.append("Şirket katılım endeksine UYGUN." if katilim
+                            else "Şirket katılım endeksine UYGUN DEĞİL.")
+            degerlendirme = " ".join(parcalar)
 
         result = {
-            "sirket": sirket_adi,
+            "sirket": parsed["sirket_adi"],
             "bist_kodu": veri[InfoKey.BIST_KODU],
             "durum": durum,
             "islem_tarihi": veri[InfoKey.ISLEM_TARIHI],
             "skor": t_kalite,
             "temel_kalite_skoru": t_kalite,
-            "tavan_potansiyeli_skoru": t_potansiyel,
-            "risk_skoru": t_risk,
+            "tavan_potansiyeli_skoru": s["tavan_potansiyeli"],
+            "risk_skoru": s["risk"],
+            "sektor": s["sektor"],
             "yildiz": rating,
             "genel_gorunum": gorunum,
             "genel_degerlendirme": degerlendirme,
-            "guclu_yanlar": guclu,
-            "riskler": risk,
-            "kirmizi_bayraklar": kirmizi,
-            "puan_detaylari": detaylar,
+            "guclu_yanlar": s["guclu"],
+            "riskler": s["risk_listesi"],
+            "kirmizi_bayraklar": s["kirmizi_bayraklar"],
+            "uyarilar": s["uyarilar"],
+            "puan_detaylari": s["detaylar"],
+            # ── YENİ: ilk gün satış baskısı bloğu ──
+            "ilk_gun_satis_baskisi": baski["skor"],
+            "ilk_gun_baski_seviyesi": baski["seviye"],
+            "ilk_gun_baski_uyarisi": baski["uyari"],
+            "ilk_gun_baski_gerekceleri": baski["gerekceler"],
+            "kisi_basi_tahmini_tutar": baski["kisi_basi_tahmini_tutar"],
+            "kisi_basi_tahmini_lot": baski["kisi_basi_tahmini_lot"],
+            "ayni_hafta_arz_sayisi": baski["ayni_hafta_arz_sayisi"],
+            "rakip_arzlar": baglam.rakip_sirketler,
+            # ── mevcut alanlar ──
             "tarih": veri[InfoKey.TARIH],
             "fiyat": veri[InfoKey.FIYAT],
             "buyukluk": veri[InfoKey.BUYUKLUK],
             "aciklik": veri[InfoKey.ACIKLIK],
-            "yorum_aciklik": "",
             "iskonto": veri[InfoKey.ISKONTO],
             "taahhut": veri[InfoKey.TAAHHUT],
             "halka_arz_sekli": veri[InfoKey.HALKA_ARZ_SEKLI],
@@ -986,74 +1928,90 @@ class DataExtractor:
             "t1_t2_kullanilabilir": t1_t2,
             "katilim_endeksine_uygun": katilim,
             "islem_menusu": islem_menusu,
-            "veri_guvenilirligi": guven_skoru,
-            "tahmini_volatilite": volatilite,
+            "veri_guvenilirligi": s["veri_guvenilirligi"],
+            "tahmini_volatilite": s["volatilite"],
+            "model_surumu": MODEL_SURUMU,
         }
 
         if debug:
             result["debug_bilgisi"] = {
                 "veri_ham": {k.value: v for k, v in veri.items()},
-                "finansal_ham": {k.value: v for k, v in fin.items()},
-                "default_kalanlar": [a.value for a in self.FIELD_LABELS if veri.get(a) == self.DEFAULTS.get(a)],
+                "finansal_ham": {k.value: v for k, v in parsed["fin"].items()},
+                "finansal_seriler": {
+                    k.value: v for k, v in parsed["seriler"].items()
+                },
+                "default_kalanlar": [
+                    a.value for a in self.FIELD_LABELS
+                    if veri.get(a) == self.DEFAULTS.get(a)
+                ],
+                "baski_detay": baski,
             }
 
         return result
 
-    async def analiz_et(self, debug: bool = False) -> list[dict]:
-        sirket_listesi: list[dict] = []
-        gorulen_sirketler = set()
+    # ───────────────────────── ORKESTRA ─────────────────────────
 
+    async def analiz_et(self, debug: bool = False) -> list[dict]:
         html = await self._fetch_url_with_retry(SETTINGS.BASE_URL)
         if not html:
             return []
 
         soup = BeautifulSoup(html, "html.parser")
-        meta_list = []
+        gorulen: set[str] = set()
+        meta_list: list[tuple[str, str, str]] = []
 
         for etiket in soup.find_all("h3"):
             link = etiket.find("a") or etiket.find_parent("a")
             if not link or "href" not in link.attrs:
                 continue
             sirket_adi = etiket.get_text(strip=True)
-            if sirket_adi in gorulen_sirketler or len(sirket_adi) <= 3:
+            if sirket_adi in gorulen or len(sirket_adi) <= 3:
                 continue
 
             parent_li = etiket.find_parent("li")
-            if parent_li:
-                kart_metni = parent_li.get_text(strip=True).lower()
-            else:
-                kart_metni = sirket_adi.lower()
+            kart_metni = (parent_li.get_text(strip=True).lower() if parent_li
+                          else sirket_adi.lower())
 
-            # YALNIZCA YENİ VE GONG ( İLK İŞLEM GÜNÜ ) OLANLARI FİLTRELE
-            if not any(b in kart_metni for b in ["yeni!", "gong!"]):
+            if not any(b in kart_metni for b in [
+                "yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan",
+                "hazırlanıyor", "işlem görüyor", "gong!"
+            ]):
                 continue
 
-            gorulen_sirketler.add(sirket_adi)
+            gorulen.add(sirket_adi)
             meta_list.append((sirket_adi, link["href"], kart_metni))
-
             if len(meta_list) >= SETTINGS.MAX_SIRKET:
                 break
 
         semaphore = asyncio.Semaphore(SETTINGS.ESZAMANLI_ISTEK_LIMITI)
 
-        async def _sinirli_isle(sirket_adi: str, href: str, kart_metni: str) -> Optional[dict]:
+        async def _sinirli_parse(ad: str, href: str, kart: str) -> Optional[dict]:
             async with semaphore:
-                sonuc = await self._sirket_isle(sirket_adi, href, kart_metni, debug)
+                sonuc = await self._sirket_parse(ad, href, kart)
                 await asyncio.sleep(SETTINGS.ISTEK_ARASI_BEKLEME)
                 return sonuc
 
-        tasks = [
-            asyncio.create_task(_sinirli_isle(sirket_adi, href, kart_metni))
-            for sirket_adi, href, kart_metni in meta_list
-        ]
+        tasks = [asyncio.create_task(_sinirli_parse(a, h, k)) for a, h, k in meta_list]
+        parse_sonuclari = await asyncio.gather(*tasks, return_exceptions=True)
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for res in results:
+        parsed_list: list[dict] = []
+        for res in parse_sonuclari:
             if isinstance(res, Exception):
-                logger.exception(f"Şirket işlenirken hata: {res}")
+                logger.exception(f"Şirket ayrıştırılırken hata: {res}")
                 continue
             if res:
-                sirket_listesi.append(res)
+                parsed_list.append(res)
+
+        # FAZ 2: piyasa bağlamını hesapla, sonra puanla
+        baglamlar = self._piyasa_baglami_olustur(parsed_list)
+
+        sirket_listesi: list[dict] = []
+        for p in parsed_list:
+            try:
+                baglam = baglamlar.get(p["sirket_adi"], PiyasaBaglami())
+                sirket_listesi.append(self._sonuc_olustur(p, baglam, debug))
+            except Exception as e:
+                logger.exception(f"{p['sirket_adi']} puanlanırken hata: {e}")
 
         return sirket_listesi
 
@@ -1102,7 +2060,13 @@ def check_debug_permission(x_debug_key: Optional[str] = Header(None, alias="X-De
 async def lifespan(app: FastAPI):
     extractor = DataExtractor()
     app.state.extractor = extractor
-    logger.info("Uygulama başlatıldı.")
+    bayat, gun = TextUtils.sektor_verisi_bayat_mi()
+    logger.info(f"Uygulama başlatıldı. Model: {MODEL_SURUMU}")
+    if bayat:
+        logger.warning(
+            f"Sektör çarpanları {gun} gün önceki verilere ait; güncellenmesi önerilir "
+            f"(SEKTOR_VERI_TARIHI ortam değişkeni)."
+        )
     yield
     await extractor.close()
     logger.info("Uygulama kapatıldı.")
@@ -1110,24 +2074,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Halka Arz Asistanı Pro",
-    description="Gelişmiş halka arz analiz ve puanlama API'si",
-    version="2.0.1",
-    lifespan=lifespan
+    description="Halka arz analiz ve puanlama API'si",
+    version=MODEL_SURUMU,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if SETTINGS.ALLOWED_ORIGINS == "*" else SETTINGS.ALLOWED_ORIGINS.split(","),
+    allow_origins=["*"] if SETTINGS.ALLOWED_ORIGINS == "*"
+    else SETTINGS.ALLOWED_ORIGINS.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+def _meta_bilgisi() -> dict:
+    bayat, gun = TextUtils.sektor_verisi_bayat_mi()
+    return {
+        "model_surumu": MODEL_SURUMU,
+        "sektor_veri_tarihi": SEKTOR_VERI_TARIHI,
+        "sektor_verisi_bayat": bayat,
+        "sektor_verisi_yasi_gun": gun,
+        "model_notu": (
+            "İlk gün satış baskısı modeli gözleme dayalıdır ve henüz geriye dönük "
+            "test edilmemiştir. Çıktılar tahmin değil, risk uyarısı olarak yorumlanmalıdır."
+        ),
+    }
+
+
 @app.get("/api/halkarzlar")
 async def get_halka_arzlar(
     debug: bool = Query(False, description="Debug modu (ham verileri döner)"),
-    x_debug_key: Optional[str] = Header(None, alias="X-Debug-Key")
+    x_debug_key: Optional[str] = Header(None, alias="X-Debug-Key"),
 ):
     if debug and not check_debug_permission(x_debug_key):
         raise HTTPException(status_code=403, detail="Debug modu için geçerli API Key gerekli.")
@@ -1135,23 +2114,22 @@ async def get_halka_arzlar(
     if not debug:
         cached = await CACHE.get()
         if cached:
-            return {"halka_arzlar": cached, "uyari": YATIRIM_UYARISI}
+            return {"halka_arzlar": cached, "uyari": YATIRIM_UYARISI, "meta": _meta_bilgisi()}
 
     extractor: DataExtractor = app.state.extractor
-
     try:
         veriler = await extractor.analiz_et(debug=debug)
     except Exception as e:
         logger.exception(f"Analiz sırasında beklenmeyen hata: {e}")
         raise HTTPException(
             status_code=502,
-            detail="Veri kaynağına şu anda ulaşılamıyor, lütfen daha sonra tekrar deneyin."
+            detail="Veri kaynağına şu anda ulaşılamıyor, lütfen daha sonra tekrar deneyin.",
         )
 
     if veriler and not debug:
         await CACHE.set(veriler)
 
-    return {"halka_arzlar": veriler, "uyari": YATIRIM_UYARISI}
+    return {"halka_arzlar": veriler, "uyari": YATIRIM_UYARISI, "meta": _meta_bilgisi()}
 
 
 @app.post("/api/cache/clear")
@@ -1164,8 +2142,9 @@ async def clear_cache(x_debug_key: Optional[str] = Header(None, alias="X-Debug-K
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "timestamp": time.time()}
+    return {"status": "ok", "timestamp": time.time(), "meta": _meta_bilgisi()}
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)), reload=False)
+    uvicorn.run("proje:app", host="0.0.0.0",
+                port=int(os.environ.get("PORT", 8000)), reload=False)
