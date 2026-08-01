@@ -3,3 +3,9 @@ uvicorn
 curl_cffi
 beautifulsoup4
 pydantic
+
+
+pdfplumber
+pytesseract
+Pillow
+pypdfium2
