@@ -507,26 +507,107 @@ class ScoreAnalyzer:
 
     # ───────────────────────── Sektör ─────────────────────────
 
-    def _get_sektor(self, metin: str) -> str:
-        m = TextUtils.kucult(metin)
-        if any(k in m for k in ["yazılım", "teknoloji", "bilişim", "savunma", "siber", "yapay zeka"]):
-            return "TEKNOLOJİ"
-        if any(k in m for k in ["gayrimenkul", "gyo", "emlak"]):
-            return "GYO"
-        if any(k in m for k in ["finans", "sigorta", "banka", "faktoring", "portföy yönetimi"]):
-            return "FİNANS"
-        if any(k in m for k in ["enerji", "elektrik", "yenilenebilir", "rüzgar", "güneş", "ges", "res"]):
-            return "ENERJİ"
-        if any(k in m for k in ["market", "perakende", "zincir mağaza", "e-ticaret"]):
-            return "PERAKENDE"
-        if any(k in m for k in ["müteahhit", "taahhüt", "inşaat", "yapı işleri"]):
-            return "İNŞAAT"
-        if any(k in m for k in ["çimento", "beton", "demir", "çelik", "sanayi",
-                                "üretim", "otomotiv", "makine", "kimya", "plastik"]):
-            return "SANAYİ"
-        if any(k in m for k in ["gıda", "tarım", "hayvancılık", "süt", "et ", "içecek"]):
-            return "GIDA"
-        return "GENEL"
+    # Sektör anahtar kelimeleri ve ağırlıkları.
+    # DEĞİŞİKLİK: Eski sürüm "ilk eşleşen kazanır" mantığıyla çalışıyordu ve
+    # TEKNOLOJİ listesi başta olduğu için, açıklamasında "ileri teknoloji" /
+    # "finansal teknoloji" geçen Quick Sigorta gibi şirketler TEKNOLOJİ
+    # sayılıyordu — metinde "sigorta" 10 kez geçmesine rağmen.
+    # Artık ağırlıklı puanlama yapılıyor ve şirket ADI en güçlü sinyal.
+    SEKTOR_ANAHTARLARI: ClassVar[dict[str, list[tuple[str, float]]]] = {
+        "FİNANS": [("sigorta", 3.0), ("sigortacılık", 3.0), ("reasürans", 3.0),
+                   ("emeklilik", 2.5), ("banka", 3.0), ("katılım bankası", 3.0),
+                   ("faktoring", 3.0), ("finansal kiralama", 3.0), ("leasing", 2.5),
+                   ("portföy yönetimi", 3.0), ("aracı kurumu", 2.0),
+                   ("varlık yönetim", 2.0), ("finansman", 1.0), ("finans", 0.8)],
+        "TEKNOLOJİ": [("yazılım", 2.5), ("bilişim", 2.5), ("siber güvenlik", 3.0),
+                      ("yapay zeka", 2.0), ("savunma sanayi", 3.0),
+                      ("teknoloji", 0.7), ("dijital", 0.4), ("elektronik", 1.5),
+                      ("oyun", 1.5), ("veri merkezi", 2.0)],
+        "GYO": [("gayrimenkul yatırım ortaklığı", 4.0), ("gyo", 3.0),
+                ("emlak", 1.5), ("gayrimenkul", 0.8)],
+        "ENERJİ": [("elektrik üretim", 3.0), ("yenilenebilir enerji", 3.0),
+                   ("rüzgar enerji", 3.0), ("güneş enerji", 3.0),
+                   ("jeotermal", 2.5), ("doğalgaz", 2.5), ("petrol", 2.0),
+                   ("enerji", 1.0), ("elektrik", 0.8)],
+        "İNŞAAT": [("müteahhit", 3.0), ("inşaat taahhüt", 3.0),
+                   ("yapı işleri", 2.5), ("inşaat", 1.2)],
+        "PERAKENDE": [("perakende", 3.0), ("zincir mağaza", 3.0),
+                      ("e-ticaret", 2.5), ("market", 1.5), ("mağazacılık", 2.0)],
+        "GIDA": [("gıda", 2.5), ("tarım", 2.0), ("hayvancılık", 2.5),
+                 ("süt ürünleri", 2.5), ("içecek", 2.0), ("un ", 1.0),
+                 ("yem ", 1.5)],
+        "SANAYİ": [("çimento", 3.0), ("hazır beton", 3.0), ("demir çelik", 3.0),
+                   ("otomotiv", 2.5), ("makine imalat", 2.5), ("kimya", 2.0),
+                   ("plastik", 2.0), ("tekstil", 2.5), ("ambalaj", 2.0),
+                   ("madencilik", 2.5), ("üretim tesisi", 1.5),
+                   ("sanayi", 0.8), ("üretim", 0.4), ("makine", 0.6)],
+    }
+
+    # Şirket adında geçen sektör kelimeleri çok daha güvenilir bir sinyaldir.
+    AD_AGIRLIGI: ClassVar[float] = 6.0
+
+    # Her sayfada bulunan ve sektörle ilgisi olmayan kalıplar. Metinden
+    # çıkarılmazsa "Garanti YATIRIM" -> FİNANS, "Satmama TAAHHÜDÜ" -> İNŞAAT
+    # gibi yanlış sinyaller üretiyorlar.
+    GURULTU_KALIPLARI: ClassVar[list[str]] = [
+        r"aracı kurum[^\n]*", r"konsorsiyum lideri[^\n]*",
+        r"satmama taahhüd[^\n]*", r"halka arz[^\n]*", r"tahsisat[^\n]*",
+        r"fiyat istikrar[^\n]*", r"pazar\s*:[^\n]*", r"bist[^\n]*",
+        r"izahname[^\n]*", r"spk bülteni[^\n]*", r"fiyat tespit raporu[^\n]*",
+        r"yatırım menkul[^\n]*", r"menkul kıymetler[^\n]*",
+        r"yurt içi bireysel[^\n]*", r"yurt içi kurumsal[^\n]*",
+    ]
+
+    def _get_sektor(self, metin: str, sirket_adi: str = "") -> str:
+        """
+        Ağırlıklı sektör tespiti.
+
+        1) Şirket adı en güçlü sinyal ("Quick SİGORTA A.Ş." -> FİNANS)
+        2) Sayfadaki sabit kalıplar (aracı kurum, tahsisat vb.) temizlenir
+        3) Kalan metinde anahtar kelimeler ağırlıklı ve frekanslı sayılır
+        """
+        ad = TextUtils.kucult(sirket_adi)
+        govde = TextUtils.kucult(metin)
+        for kalip in self.GURULTU_KALIPLARI:
+            govde = re.sub(kalip, " ", govde)
+
+        puanlar: dict[str, float] = {}
+        for sektor, anahtarlar in self.SEKTOR_ANAHTARLARI.items():
+            toplam = 0.0
+            for kelime, agirlik in anahtarlar:
+                if ad and kelime in ad:
+                    toplam += agirlik * self.AD_AGIRLIGI
+                adet = govde.count(kelime)
+                if adet:
+                    # Frekansın etkisi sınırlı: 1 kez geçen kelime ile
+                    # 50 kez geçen kelime arasında orantısız fark olmasın.
+                    toplam += agirlik * min(adet, 6)
+            if toplam:
+                puanlar[sektor] = toplam
+
+        if not puanlar:
+            return "GENEL"
+        en_iyi = max(puanlar.items(), key=lambda x: x[1])
+        # Çok zayıf sinyalle sektör atamak, yanlış sektör ortalamasıyla
+        # değerleme yapmaktan daha kötü; eşiğin altında GENEL kalıyor.
+        return en_iyi[0] if en_iyi[1] >= 2.0 else "GENEL"
+
+    def sektor_puan_dokumu(self, metin: str, sirket_adi: str = "") -> dict[str, float]:
+        """Tanı amaçlı: hangi sektörün kaç puan aldığını gösterir."""
+        ad = TextUtils.kucult(sirket_adi)
+        govde = TextUtils.kucult(metin)
+        for kalip in self.GURULTU_KALIPLARI:
+            govde = re.sub(kalip, " ", govde)
+        dokum: dict[str, float] = {}
+        for sektor, anahtarlar in self.SEKTOR_ANAHTARLARI.items():
+            t = 0.0
+            for kelime, agirlik in anahtarlar:
+                if ad and kelime in ad:
+                    t += agirlik * self.AD_AGIRLIGI
+                t += agirlik * min(govde.count(kelime), 6)
+            if t:
+                dokum[sektor] = round(t, 1)
+        return dict(sorted(dokum.items(), key=lambda x: -x[1]))
 
     def _profil(self, sektor: str) -> dict[str, float]:
         return self.SEKTOR_PROFILLERI.get(sektor, self.SEKTOR_PROFILLERI["GENEL"])
@@ -1325,12 +1406,13 @@ class ScoreAnalyzer:
     def skoru_topla(self, veri: dict, fin: dict, seriler: dict, durum: ArzDurumu,
                     raw_text: str, baglam: PiyasaBaglami,
                     olasi_lot: Optional[list[dict]] = None,
-                    kurulus_yili: Optional[int] = None) -> dict:
+                    kurulus_yili: Optional[int] = None,
+                    sirket_adi: str = "") -> dict:
         kirmizi_bayraklar: list[str] = []
         ceza_sozlugu: dict[str, float] = {}
         uyarilar: list[str] = []
 
-        sektor = self._get_sektor(raw_text)
+        sektor = self._get_sektor(raw_text, sirket_adi)
         fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
         pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
         market_cap = (fiyat * pay) if (fiyat and pay) else None
@@ -1559,6 +1641,20 @@ class DataExtractor:
         self.session: Optional[AsyncSession] = None
         self._session_lock = asyncio.Lock()
 
+        # YENİ: İzahname PDF'inden finansal tablo çıkarma servisi.
+        # Ayrı modülde tutuluyor (izahname.py + izahname_servis.py) çünkü
+        # PDF/OCR işi bu dosyanın sorumluluğundan tamamen farklı ve
+        # ağır bağımlılıklar (pdfplumber, pytesseract) gerektiriyor.
+        # Modül yoksa uygulama yine de çalışır, sadece finansal veri gelmez.
+        self.izahname_servisi = None
+        try:
+            from izahname_servis import IzahnameServisi
+            self.izahname_servisi = IzahnameServisi(
+                fetch_bytes_fn=self._fetch_bytes
+            )
+        except ImportError as e:
+            logger.info(f"İzahname modülü yüklenemedi, finansal veri devre dışı: {e}")
+
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
             InfoKey.TARIH: ["halka arz tarihi", "talep toplama tarihi"],
@@ -1657,6 +1753,25 @@ class DataExtractor:
                 logger.warning(f"Timeout/hata ({url}): {e}")
             if i < SETTINGS.MAX_RETRY - 1:
                 await asyncio.sleep(1 * (i + 1))
+        return None
+
+    async def _fetch_bytes(self, url: str) -> Optional[bytes]:
+        """
+        PDF gibi ikili içerik indirir. _fetch_url_with_retry metin
+        döndürdüğü için PDF'lerde kullanılamaz.
+        """
+        session = await self._get_session()
+        for i in range(SETTINGS.MAX_RETRY):
+            try:
+                # PDF'ler büyük (~18 MB), zaman aşımı uzun tutuluyor
+                res = await session.get(url, timeout=SETTINGS.TIMEOUT * 6)
+                if res.status_code == 200:
+                    return res.content
+                logger.warning(f"PDF indirilemedi ({url}): {res.status_code}")
+            except Exception as e:
+                logger.warning(f"PDF indirme hatası ({url}): {e}")
+            if i < SETTINGS.MAX_RETRY - 1:
+                await asyncio.sleep(2 * (i + 1))
         return None
 
     # ───────────────────────── PARSE ─────────────────────────
@@ -2254,6 +2369,38 @@ class DataExtractor:
 
         arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else buyukluk_ham
 
+        # ── YENİ: İzahname PDF'inden finansal veri ──
+        # halkarz.com "Ekler" bölümünde SPK onaylı izahname linki var.
+        # KAP'a gitmeye gerek yok; kaynak zaten burada.
+        izahname_url = None
+        izahname_durumu = "kapali"
+        if self.izahname_servisi is not None:
+            try:
+                from izahname_servis import (izahname_linki_bul,
+                                             finansal_tablo_sayfasi_bul,
+                                             kayittan_finansal_uret)
+                izahname_url = izahname_linki_bul(soup)
+                ipucu = finansal_tablo_sayfasi_bul(
+                    str(veri.get(InfoKey.FINANSAL_TABLO, "")) + " " + raw_text[:4000]
+                )
+                kayit = self.izahname_servisi.finansal_getir(izahname_url, ipucu)
+                if kayit is not None:
+                    pdf_fin, pdf_seriler = kayittan_finansal_uret(kayit, FinKey)
+                    # İzahname verisi ÖNCELİKLİ: sitenin özet tablosundan
+                    # değil, şirketin denetlenmiş bilançosundan geliyor.
+                    for k, v in pdf_fin.items():
+                        fin[k] = v
+                    for k, v in pdf_seriler.items():
+                        seriler[k] = v
+                    izahname_durumu = "hazir"
+                elif izahname_url:
+                    izahname_durumu = "isleniyor"
+                else:
+                    izahname_durumu = "link_bulunamadi"
+            except Exception as e:
+                logger.warning(f"İzahname entegrasyonu hatası ({sirket_adi}): {e}")
+                izahname_durumu = "hata"
+
         # YENİ: Hangi alanların çekilemediğini her yanıtta bildir.
         # Böylece debug anahtarı olmadan da eksik alan görülebiliyor.
         eksik_alanlar = [
@@ -2276,6 +2423,8 @@ class DataExtractor:
             "eksik_alanlar": eksik_alanlar,
             "olasi_lot_tablosu": olasi_lot,
             "kurulus_yili": kurulus_yili,
+            "izahname_url": izahname_url,
+            "izahname_durumu": izahname_durumu,
         }
 
     # ─────────── FAZ 2: piyasa bağlamı hesapla ve puanla ───────────
@@ -2320,6 +2469,7 @@ class DataExtractor:
             veri, parsed["fin"], parsed["seriler"], durum, parsed["raw_text"], baglam,
             olasi_lot=parsed.get("olasi_lot_tablosu"),
             kurulus_yili=parsed.get("kurulus_yili"),
+            sirket_adi=parsed["sirket_adi"],
         )
 
         t_kalite = s["temel_kalite"]
@@ -2438,6 +2588,10 @@ class DataExtractor:
             "islem_menusu": islem_menusu,
             "veri_guvenilirligi": s["veri_guvenilirligi"],
             "finansal_veri_var": s.get("finansal_veri_var", False),
+            # İzahname PDF'i işlendi mi? "isleniyor" ise finansal veri
+            # bir sonraki istekte hazır olacak.
+            "izahname_durumu": parsed.get("izahname_durumu", "kapali"),
+            "izahname_url": parsed.get("izahname_url"),
             "tahmini_volatilite": s["volatilite"],
             "model_surumu": MODEL_SURUMU,
             # ── YENİ: Lot hesaplayıcı için hazır sayısal değerler ──
@@ -2470,6 +2624,11 @@ class DataExtractor:
                     if veri.get(a) == self.DEFAULTS.get(a)
                 ],
                 "baski_detay": baski,
+                # Sektörün neden o şekilde belirlendiğini gösterir;
+                # yanlış sınıflandırmayı ayıklamayı kolaylaştırır.
+                "sektor_puan_dokumu": self.analyzer.sektor_puan_dokumu(
+                    parsed["raw_text"], parsed["sirket_adi"]
+                ),
             }
 
         return result
