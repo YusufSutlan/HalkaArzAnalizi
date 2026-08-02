@@ -61,7 +61,7 @@ LLM_SAGLAYICI = os.environ.get("LLM_SAGLAYICI", "gemini")   # gemini | anthropic
 LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.0-flash")
 LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 # Tek istekte gönderilecek en fazla sayfa. Maliyeti sınırlar.
-MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "5"))
+MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "10"))
 # Görüntü çözünürlüğü. 150 DPI okunabilir ve makul boyutta.
 GORUNTU_DPI = int(os.environ.get("GORUNTU_DPI", "150"))
 

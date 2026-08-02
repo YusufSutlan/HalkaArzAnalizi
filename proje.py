@@ -1746,7 +1746,7 @@ class DataExtractor:
             try:
                 res = await session.get(url, timeout=SETTINGS.TIMEOUT)
                 if res.status_code == 200:
-                    return res.text
+                    return res.content.decode("utf-8")
                 logger.warning(f"Bağlantı hatası ({url}), durum kodu: {res.status_code}")
             except Exception as e:
                 logger.warning(f"Timeout/hata ({url}): {e}")
