@@ -58,7 +58,7 @@ HALKARZ_URL = "https://halkarz.com/"
 
 # Yapay zeka ayarları
 LLM_SAGLAYICI = os.environ.get("LLM_SAGLAYICI", "gemini")   # gemini | anthropic
-LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-3.5-flash")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
 LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 # Tek istekte gönderilecek en fazla sayfa. Maliyeti sınırlar.
 MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "10"))
