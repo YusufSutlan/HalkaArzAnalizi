@@ -1641,19 +1641,18 @@ class DataExtractor:
         self.session: Optional[AsyncSession] = None
         self._session_lock = asyncio.Lock()
 
-        # YENİ: İzahname PDF'inden finansal tablo çıkarma servisi.
-        # Ayrı modülde tutuluyor (izahname.py + izahname_servis.py) çünkü
-        # PDF/OCR işi bu dosyanın sorumluluğundan tamamen farklı ve
-        # ağır bağımlılıklar (pdfplumber, pytesseract) gerektiriyor.
-        # Modül yoksa uygulama yine de çalışır, sadece finansal veri gelmez.
-        self.izahname_servisi = None
+        # DEĞİŞİKLİK (mimari): Sunucu artık PDF indirmiyor, OCR yapmıyor,
+        # yapay zekaya istek atmıyor. Tüm bu ağır iş GitHub Actions'ta
+        # yapılıp sonucu veri/finansallar/*.json olarak depoya yazılıyor.
+        # Burada sadece hazır JSON okunuyor — milisaniyeler sürer.
+        # Bu sayede Render'da Docker/tesseract/API anahtarı GEREKMEZ.
+        self.finansal_depo = None
         try:
-            from izahname_servis import IzahnameServisi
-            self.izahname_servisi = IzahnameServisi(
-                fetch_bytes_fn=self._fetch_bytes
-            )
+            from Finansaldepo import FinansalDepo
+            self.finansal_depo = FinansalDepo()
+            self.finansal_depo.yukle()
         except ImportError as e:
-            logger.info(f"İzahname modülü yüklenemedi, finansal veri devre dışı: {e}")
+            logger.info(f"Finansal veri modülü yok, bu özellik devre dışı: {e}")
 
         self.FIELD_LABELS: dict[InfoKey, list[str]] = {
             InfoKey.BIST_KODU: ["bist kodu"],
@@ -2369,36 +2368,32 @@ class DataExtractor:
 
         arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else buyukluk_ham
 
-        # ── YENİ: İzahname PDF'inden finansal veri ──
-        # halkarz.com "Ekler" bölümünde SPK onaylı izahname linki var.
-        # KAP'a gitmeye gerek yok; kaynak zaten burada.
-        izahname_url = None
+        # ── İzahname finansallarını birleştir ──
+        # Kaynak: GitHub Actions'ın hazırladığı JSON (bkz. finansal_depo.py)
         izahname_durumu = "kapali"
-        if self.izahname_servisi is not None:
+        izahname_url = None
+        if self.finansal_depo is not None:
             try:
-                from izahname_servis import (izahname_linki_bul,
-                                             finansal_tablo_sayfasi_bul,
-                                             kayittan_finansal_uret)
-                izahname_url = izahname_linki_bul(soup)
-                ipucu = finansal_tablo_sayfasi_bul(
-                    str(veri.get(InfoKey.FINANSAL_TABLO, "")) + " " + raw_text[:4000]
+                from Finansaldepo import kayittan_finansal_uret
+                kayit = self.finansal_depo.bul(
+                    sirket_adi, str(veri.get(InfoKey.BIST_KODU, ""))
                 )
-                kayit = self.izahname_servisi.finansal_getir(izahname_url, ipucu)
-                if kayit is not None:
-                    pdf_fin, pdf_seriler = kayittan_finansal_uret(kayit, FinKey)
-                    # İzahname verisi ÖNCELİKLİ: sitenin özet tablosundan
-                    # değil, şirketin denetlenmiş bilançosundan geliyor.
-                    for k, v in pdf_fin.items():
-                        fin[k] = v
-                    for k, v in pdf_seriler.items():
-                        seriler[k] = v
-                    izahname_durumu = "hazir"
-                elif izahname_url:
-                    izahname_durumu = "isleniyor"
+                if kayit is None:
+                    izahname_durumu = "veri_yok"
+                elif not kayit.get("guvenilir"):
+                    # Doğrulamayı geçmemiş veri KULLANILMAZ.
+                    izahname_durumu = "dogrulanamadi"
+                    izahname_url = kayit.get("izahname_url")
                 else:
-                    izahname_durumu = "link_bulunamadi"
+                    pdf_fin, pdf_seriler = kayittan_finansal_uret(kayit, FinKey)
+                    # İzahname verisi ÖNCELİKLİ: şirketin denetlenmiş
+                    # bilançosundan geliyor, sitenin özetinden değil.
+                    fin.update(pdf_fin)
+                    seriler.update(pdf_seriler)
+                    izahname_durumu = "hazir"
+                    izahname_url = kayit.get("izahname_url")
             except Exception as e:
-                logger.warning(f"İzahname entegrasyonu hatası ({sirket_adi}): {e}")
+                logger.warning(f"Finansal veri okunamadı ({sirket_adi}): {e}")
                 izahname_durumu = "hata"
 
         # YENİ: Hangi alanların çekilemediğini her yanıtta bildir.
@@ -2839,7 +2834,18 @@ async def clear_cache(x_debug_key: Optional[str] = Header(None, alias="X-Debug-K
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "timestamp": time.time(), "meta": _meta_bilgisi()}
+    """Sunucunun ayakta olup olmadığını ve hangi sürümün çalıştığını gösterir."""
+    saglik = {"status": "ok", "timestamp": time.time(), "meta": _meta_bilgisi()}
+    # Finansal veri dosyaları yüklendi mi? Deploy sonrası kontrol için.
+    try:
+        depo = getattr(app.state.extractor, "finansal_depo", None)
+        if depo is not None:
+            saglik["finansal_veri"] = depo.durum_ozeti()
+        else:
+            saglik["finansal_veri"] = {"dosya_sayisi": 0, "modul": "yok"}
+    except Exception:
+        saglik["finansal_veri"] = {"hata": True}
+    return saglik
 
 
 if __name__ == "__main__":
