@@ -55,7 +55,7 @@ jobs:
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
-        run: python Izahname_isle.py --modelleri-listele
+        run: python Izahnameisle.py --modelleri-listele
 
       - name: İzahnameleri işle
         env:
@@ -66,10 +66,10 @@ jobs:
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
           MAX_SAYFA_GONDER: "5"
         run: |
-          python Izahname_isle.py \
-            --limit "${{ github.event.inputs.limit || '5' }}" \
-            ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
-            ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
+          python Izahnameisle.py \
+          --limit "${{ github.event.inputs.limit || '5' }}" \
+          ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
+          ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
 
       - name: Sonuçları özetle
         run: |
