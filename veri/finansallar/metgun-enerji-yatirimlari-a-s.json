@@ -1,0 +1,25 @@
+{
+  "slug": "metgun-enerji-yatirimlari-a-s",
+  "sirket_adi": "Metgün Enerji Yatırımları A.Ş.",
+  "izahname_url": "https://metgunenerji.com.tr/Content/files/halka-arz/MetgunEnerji-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-03T20:35:15Z",
+  "olcek": 1.0,
+  "donemler": [],
+  "guncel": {},
+  "seriler": {},
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168
+  ]
+}

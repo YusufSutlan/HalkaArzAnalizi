@@ -1,0 +1,39 @@
+{
+  "slug": "saat-ve-saat-san-ve-tic-a-s",
+  "sirket_adi": "Saat ve Saat San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.garantibbvayatirim.com.tr/medium/document-file-1831.vsf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-03T20:39:30Z",
+  "olcek": 1000.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12",
+    "2026-03"
+  ],
+  "guncel": {
+    "OdenmisSermaye": 620222000.0
+  },
+  "seriler": {
+    "OdenmisSermaye": {
+      "2023-12": 191211000.0,
+      "2024-12": 620222000.0,
+      "2025-12": 620222000.0,
+      "2026-03": 620222000.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    195,
+    196,
+    197,
+    198,
+    199,
+    200,
+    201,
+    202
+  ]
+}
