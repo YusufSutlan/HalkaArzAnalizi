@@ -45,9 +45,32 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# Proje kökünü import yoluna ekle (izahname.py'deki yardımcılar için)
-KOK = Path(__file__).resolve().parent.parent
+def _proje_kokunu_bul() -> Path:
+    """
+    Depo kökünü güvenilir şekilde bulur.
+
+    DÜZELTME: Önceki sürüm `parent.parent` kullanıyordu ve betiğin
+    araclar/ klasöründe olduğunu varsayıyordu. Betik depo köküne
+    konulunca JSON dosyaları DEPONUN DIŞINA yazılıyor, git add da
+    "pathspec did not match any files" hatası veriyordu.
+
+    Artık .git klasörü yukarı doğru aranıyor; betik nereye konulursa
+    konulsun doğru çalışır.
+    """
+    ortam = os.environ.get("PROJE_KOK")
+    if ortam:
+        return Path(ortam).resolve()
+    burasi = Path(__file__).resolve().parent
+    for aday in (burasi, *burasi.parents):
+        if (aday / ".git").exists():
+            return aday
+    # .git yoksa (ör. zip olarak indirilmişse) çalışma dizinini kullan
+    return Path.cwd().resolve()
+
+
+KOK = _proje_kokunu_bul()
 sys.path.insert(0, str(KOK))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 logging.basicConfig(level=logging.INFO,
                     format="%(levelname)s: %(message)s")
@@ -646,32 +669,123 @@ def pdf_indir(url: str, hedef: Path) -> bool:
         return False
 
 
+# Taranmış PDF'lerde sayfa puanlaması çalışmadığı için daha geniş
+# pencere kullanılır; kapsama alanı doğruluktan daha kritik.
+TARANMIS_PENCERE = int(os.environ.get("TARANMIS_PENCERE", "8"))
+
+
+def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list[int]]:
+    """
+    Denenecek sayfa aralıklarını sırayla üretir.
+
+    DÜZELTME: Taranmış PDF'lerde metin olmadığı için sayfa puanlaması
+    çalışmıyor ve tek bir konum tahmini (%52) yapılıyordu. Bu tahmin
+    tutmayınca hiç veri çıkmıyordu ("0 kalem").
+
+    Artık birden fazla aday pencere üretiliyor ve ilk başarılı olanda
+    duruluyor. Finansal tablolar izahnamelerde tipik olarak son
+    üçte birde, ekler bölümünden hemen önce yer alır.
+    """
+    import warnings
+    warnings.filterwarnings("ignore")
+    import pdfplumber
+
+    with pdfplumber.open(pdf_yolu) as pdf:
+        toplam = len(pdf.pages)
+        metinler = [(s.extract_text() or "") for s in pdf.pages]
+
+    ortalama = sum(len(m) for m in metinler) / max(toplam, 1)
+
+    # ── Metin tabanlı PDF: puanlama güvenilir, tek pencere yeter ──
+    if ortalama >= 200:
+        secilen = finansal_sayfalari_bul(pdf_yolu, pencere)
+        return [secilen] if secilen else []
+
+    # ── Taranmış PDF: birden çok oran denenir ──
+    pencere = max(pencere, TARANMIS_PENCERE)
+    logger.info(
+        f"PDF taranmış ({ortalama:.0f} kr/sayfa); {toplam} sayfada "
+        f"{pencere}'er sayfalık bitişik bloklar denenecek."
+    )
+    # Pencereler BİTİŞİK olmalı. Seyrek örnekleme yapılırsa aradaki
+    # sayfalar hiç görülmez: Quick Sigorta'nın bilançosu 185. sayfadaydı
+    # ve seyrek pencereler onu tamamen atlıyordu.
+    #
+    # Merkez %50'den başlanır (finansal tablolar izahnamenin ortasının
+    # biraz sonrasında, ekler bölümünden önce yer alır), sonra sırayla
+    # aşağı ve yukarı bitişik bloklar denenir.
+    merkez = int(toplam * 0.50)
+    baslangiclar: list[int] = []
+    for adim in range(0, 6):
+        # 0, -1, +1, -2, +2, -3 ... sırasıyla merkezden uzaklaş
+        yon = 0 if adim == 0 else (-((adim + 1) // 2) if adim % 2 else (adim // 2))
+        bas = merkez + yon * pencere
+        bas = max(0, min(bas, max(0, toplam - pencere)))
+        if bas not in baslangiclar:
+            baslangiclar.append(bas)
+
+    pencereler = [
+        list(range(b, min(toplam, b + pencere))) for b in baslangiclar
+    ]
+    return [p for p in pencereler if p]
+
+
 def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
-             izahname_url: str = "") -> FinansalSonuc:
-    """Tek bir PDF'i baştan sona işler."""
-    sayfalar = finansal_sayfalari_bul(pdf_yolu)
-    logger.info(f"Seçilen sayfalar (1-tabanlı): {[s+1 for s in sayfalar]}")
-
-    goruntuler = sayfalari_goruntuye_cevir(pdf_yolu, sayfalar)
-    toplam_mb = sum(len(g) for g in goruntuler) / 1e6
-    logger.info(f"{len(goruntuler)} görüntü hazırlandı ({toplam_mb:.1f} MB)")
-
-    ham = llm_cagir(goruntuler)
-    if ham is None:
+             izahname_url: str = "", max_deneme: int = 3) -> FinansalSonuc:
+    """
+    Tek bir PDF'i işler. Taranmış PDF'lerde farklı sayfa aralıkları
+    denenir; ilk GÜVENİLİR sonuçta durulur.
+    """
+    pencereler = aday_pencereler(pdf_yolu)
+    if not pencereler:
         s = FinansalSonuc(slug=slug, sirket_adi=sirket_adi,
                           izahname_url=izahname_url)
-        s.not_ = "Yapay zeka yanıtı alınamadı."
+        s.not_ = "PDF'te aday finansal tablo sayfası bulunamadı."
         return s
 
-    sonuc = llm_ciktisini_isle(ham, slug)
-    sonuc.sirket_adi = sirket_adi
-    sonuc.izahname_url = izahname_url
-    sonuc.islenen_sayfalar = [s + 1 for s in sayfalar]
-    return sonuc
+    en_iyi: Optional[FinansalSonuc] = None
+    for deneme, sayfalar in enumerate(pencereler[:max_deneme], start=1):
+        logger.info(
+            f"  Deneme {deneme}/{min(len(pencereler), max_deneme)} — "
+            f"sayfalar (1-tabanlı): {[s+1 for s in sayfalar]}"
+        )
+        goruntuler = sayfalari_goruntuye_cevir(pdf_yolu, sayfalar)
+        if not goruntuler:
+            continue
+        toplam_mb = sum(len(g) for g in goruntuler) / 1e6
+        logger.info(f"  {len(goruntuler)} görüntü ({toplam_mb:.1f} MB) gönderiliyor")
+
+        ham = llm_cagir(goruntuler)
+        if ham is None:
+            logger.warning("  Yapay zeka yanıtı alınamadı, sonraki aralık.")
+            continue
+
+        sonuc = llm_ciktisini_isle(ham, slug)
+        sonuc.sirket_adi = sirket_adi
+        sonuc.izahname_url = izahname_url
+        sonuc.islenen_sayfalar = [s + 1 for s in sayfalar]
+
+        if sonuc.guvenilir:
+            logger.info(f"  ✓ Güvenilir sonuç ({len(sonuc.guncel)} kalem)")
+            return sonuc
+
+        logger.info(f"  Yetersiz ({len(sonuc.guncel)} kalem): {sonuc.not_}")
+        # En çok kalem bulan denemeyi sakla; hepsi başarısız olursa
+        # en azından bunu kaydedip neyin bulunduğunu görebilelim.
+        if en_iyi is None or len(sonuc.guncel) > len(en_iyi.guncel):
+            en_iyi = sonuc
+
+    if en_iyi is not None:
+        return en_iyi
+    s = FinansalSonuc(slug=slug, sirket_adi=sirket_adi,
+                      izahname_url=izahname_url)
+    s.not_ = "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı."
+    return s
 
 
 def kaydet(sonuc: FinansalSonuc) -> Path:
     CIKTI_DIZINI.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Yazılıyor: {CIKTI_DIZINI}")
     yol = CIKTI_DIZINI / f"{sonuc.slug}.json"
     yol.write_text(json.dumps(sonuc.to_dict(), ensure_ascii=False, indent=2),
                    encoding="utf-8")
@@ -712,6 +826,8 @@ def main() -> int:
         return 0
 
     CIKTI_DIZINI.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Proje kökü : {KOK}")
+    logger.info(f"Çıktı dizini: {CIKTI_DIZINI}")
 
     # ── Yerel PDF modu (test) ──
     if args.pdf:

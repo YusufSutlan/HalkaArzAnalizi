@@ -1,15 +1,13 @@
 name: İzahname Finansal Veri Çıkarımı
 
 # NE YAPAR
-#   Yeni halka arzların izahname PDF'lerini indirir, finansal tablo
-#   sayfalarını bulur, yapay zekaya okutur ve sonucu depoya kaydeder.
+#   Halka arz izahnamelerini indirir, finansal tablo sayfalarını
+#   yapay zekaya okutur, doğrular ve sonucu depoya kaydeder.
 #   Render'daki uygulama bu hazır JSON'ları okur; PDF'e hiç dokunmaz.
 
 on:
-  # Her gün sabah 07:00 (TR saati 10:00) otomatik çalışır
   schedule:
-    - cron: "0 7 * * *"
-  # Panelden elle de çalıştırılabilir
+    - cron: "0 7 * * *"        # her gün 07:00 UTC (TR 10:00)
   workflow_dispatch:
     inputs:
       zorla:
@@ -17,22 +15,20 @@ on:
         type: boolean
         default: false
       sirket:
-        description: "Sadece bu şirket (boş bırakılırsa hepsi)"
+        description: "Sadece bu şirket (boş = hepsi)"
         type: string
         default: ""
       limit:
-        description: "Bir çalıştırmada en fazla kaç şirket"
+        description: "En fazla kaç şirket"
         type: string
         default: "5"
 
-# Depoya commit atabilmek için yazma izni gerekiyor
 permissions:
   contents: write
 
 jobs:
   izahname:
     runs-on: ubuntu-latest
-    # Bir izahname ~2-4 dakika; 5 şirket için 30 dk fazlasıyla yeter
     timeout-minutes: 45
 
     steps:
@@ -50,67 +46,77 @@ jobs:
           python -m pip install --upgrade pip
           pip install pdfplumber beautifulsoup4 curl_cffi Pillow
 
+      # DÜZELTME: Klasör yoksa "git add" hata veriyordu
+      # (fatal: pathspec 'veri/finansallar' did not match any files).
+      - name: Çıktı klasörünü hazırla
+        run: mkdir -p veri/finansallar
+
       - name: Kullanılabilir modelleri göster (tanı)
         continue-on-error: true
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
-        run: python Izahnameisle.py --modelleri-listele
+        run: python araclar/izahname_isle.py --modelleri-listele
 
       - name: İzahnameleri işle
         env:
-          # GitHub -> Settings -> Secrets and variables -> Actions
-          # bölümünden LLM_API_KEY olarak eklenmeli. Koda YAZILMAZ.
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_SAGLAYICI: ${{ vars.LLM_SAGLAYICI || 'gemini' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
           MAX_SAYFA_GONDER: "5"
+          TARANMIS_PENCERE: "8"
         run: |
-          python Izahnameisle.py \
-          --limit "${{ github.event.inputs.limit || '5' }}" \
-          ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
-          ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
+          python araclar/izahname_isle.py \
+            --limit "${{ github.event.inputs.limit || '5' }}" \
+            ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
+            ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
 
       - name: Sonuçları özetle
+        if: always()
         run: |
-          echo "### İşlenen izahnameler" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Şirket | Güvenilir | Kalem | Not |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          python - <<'PY' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### İşlenen izahnameler"
+            echo ""
+            echo "| Şirket | Durum | Kalem | Not |"
+            echo "|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json, pathlib
           d = pathlib.Path("veri/finansallar")
-          for f in sorted(d.glob("*.json")) if d.exists() else []:
-              v = json.loads(f.read_text(encoding="utf-8"))
-              isaret = "✅" if v.get("guvenilir") else "❌"
-              print(f"| {v.get('sirket_adi') or v.get('slug')} | {isaret} | "
-                    f"{len(v.get('guncel', {}))} | {v.get('not','')[:60]} |")
+          dosyalar = sorted(d.glob("*.json")) if d.exists() else []
+          if not dosyalar:
+              print("| _hiç dosya üretilmedi_ | | | |")
+          for f in dosyalar:
+              try:
+                  v = json.loads(f.read_text(encoding="utf-8"))
+              except Exception as e:
+                  print(f"| {f.name} | okunamadı | | {e} |")
+                  continue
+              isaret = "OK" if v.get("guvenilir") else "HAYIR"
+              ad = v.get("sirket_adi") or v.get("slug")
+              print(f"| {ad} | {isaret} | {len(v.get('guncel', {}))} | "
+                    f"{(v.get('not') or '')[:70]} |")
           PY
 
+      # DÜZELTME: Bu adım workflow'da İKİ KEZ vardı; ilki hata verince
+      # ikincisi hiç çalışmıyordu. Tek adıma indirildi.
       - name: Değişiklikleri depoya kaydet
+        if: always()
         run: |
           git config user.name  "izahname-bot"
           git config user.email "actions@github.com"
+
+          if [ -z "$(ls -A veri/finansallar 2>/dev/null)" ]; then
+            echo "Üretilmiş dosya yok, commit atlanıyor."
+            exit 0
+          fi
+
           git add veri/finansallar
           if git diff --staged --quiet; then
             echo "Değişiklik yok, commit atlanıyor."
-          else
-            git commit -m "izahname finansal verileri güncellendi [skip ci]"
-            git push
-          fi
-          
-      - name: Değişiklikleri depoya kaydet
-        run: |
-          git config user.name  "izahname-bot"
-          git config user.email "actions@github.com"
-          
-          # Dosya yoksa veya klasör boşsa hata vermemesi için "|| true" ekledik
-          git add veri/finansallar || true
-          
-          if git diff --staged --quiet; then
-            echo "Değişiklik yok, commit atlanıyor."
-          else
-            git commit -m "izahname finansal verileri güncellendi [skip ci]"
-            git push
+            exit 0
           fi
 
+          git commit -m "izahname finansal verileri güncellendi [skip ci]"
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}"
