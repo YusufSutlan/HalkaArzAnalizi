@@ -81,7 +81,8 @@ HALKARZ_URL = "https://halkarz.com/"
 
 # Yapay zeka ayarları
 LLM_SAGLAYICI = os.environ.get("LLM_SAGLAYICI", "gemini")   # gemini | anthropic
-LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-flash-latest")
+# Analitik ve okuma becerisi çok daha yüksek olan Pro modelini varsayılan yap
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-1.5-pro")
 LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 # Tek istekte gönderilecek en fazla sayfa. Maliyeti sınırlar.
 MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "5"))
@@ -382,8 +383,11 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optio
         })
     govde = json.dumps({
         "contents": [{"parts": parcalar}],
-        # Sıcaklık 0: finansal veride yaratıcılık istemiyoruz
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 4096},
+        "generationConfig": {
+            "temperature": 0, 
+            "maxOutputTokens": 4096,
+            "responseMimeType": "application/json" # <-- BU SATIRI EKLE
+        },
     }).encode("utf-8")
 
     kullanilan = model or LLM_MODEL
