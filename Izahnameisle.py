@@ -87,6 +87,9 @@ LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "5"))
 # Görüntü çözünürlüğü. 150 DPI okunabilir ve makul boyutta.
 GORUNTU_DPI = int(os.environ.get("GORUNTU_DPI", "150"))
+# JPEG kalitesi: 80 taranmış belgede rakamları net tutar, boyutu
+# PNG'ye göre ~5-10 kat küçültür.
+JPEG_KALITE = int(os.environ.get("JPEG_KALITE", "80"))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -200,22 +203,68 @@ def finansal_sayfalari_bul(pdf_yolu: str,
 
 
 def sayfalari_goruntuye_cevir(pdf_yolu: str, sayfalar: list[int],
-                              dpi: int = GORUNTU_DPI) -> list[bytes]:
-    """Seçilen sayfaları PNG baytlarına çevirir (yapay zekaya göndermek için)."""
+                              dpi: int = GORUNTU_DPI
+                              ) -> tuple[list[bytes], bool]:
+    """
+    Seçilen sayfaları görüntüye çevirir.
+
+    FORMAT SEÇİMİ: Tüm sayfalar hem PNG hem JPEG olarak kodlanır ve
+    TOPLAMI küçük olan format seçilir. Tek tek seçmek yanlış olur —
+    istekteki her görüntünün MIME tipi doğru bildirilmek zorunda,
+    karışık format göndermek API hatasına yol açar.
+
+    Neden ölçüyoruz: Taranmış belge sayfaları çoğunlukla beyaz zeminde
+    siyah metin olduğu için PNG genelde küçük çıkıyor (ölçtüm: bir
+    izahname sayfasında PNG 0,30 MB, JPEG 0,46 MB). Ama gri tonlamalı
+    veya gürültülü taramalarda tersi oluyor.
+
+    BOYUT KORUMASI: Toplam base64 sonrası 15 MB'ı aşarsa çözünürlük
+    otomatik düşürülür. Loglarda 8 sayfanın 11,7 MB tuttuğu görülmüştü;
+    base64 ile ~16 MB'a çıkıp istek reddediliyordu.
+
+    Dönüş: (görüntüler, jpeg_mi)
+    """
     import warnings
     warnings.filterwarnings("ignore")
     import pdfplumber
 
-    goruntuler: list[bytes] = []
-    with pdfplumber.open(pdf_yolu) as pdf:
-        for i in sayfalar:
-            if i >= len(pdf.pages):
-                continue
-            im = pdf.pages[i].to_image(resolution=dpi).original
-            tampon = io.BytesIO()
-            im.save(tampon, format="PNG", optimize=True)
-            goruntuler.append(tampon.getvalue())
-    return goruntuler
+    for deneme_dpi in (dpi, 110, 85):
+        pngler: list[bytes] = []
+        jpegler: list[bytes] = []
+        with pdfplumber.open(pdf_yolu) as pdf:
+            for i in sayfalar:
+                if i >= len(pdf.pages):
+                    continue
+                try:
+                    im = pdf.pages[i].to_image(resolution=deneme_dpi).original
+                except Exception as e:
+                    logger.debug(f"Sayfa {i+1} çevrilemedi: {e}")
+                    continue
+                if im.mode != "RGB":
+                    im = im.convert("RGB")
+                p = io.BytesIO()
+                im.save(p, format="PNG", optimize=True)
+                pngler.append(p.getvalue())
+                j = io.BytesIO()
+                im.save(j, format="JPEG", quality=JPEG_KALITE, optimize=True)
+                jpegler.append(j.getvalue())
+
+        if not pngler:
+            continue
+
+        png_toplam = sum(len(g) for g in pngler)
+        jpeg_toplam = sum(len(g) for g in jpegler)
+        jpeg_mi = jpeg_toplam < png_toplam
+        secilen = jpegler if jpeg_mi else pngler
+        toplam = jpeg_toplam if jpeg_mi else png_toplam
+
+        if toplam * 1.37 < 15 * 1024 * 1024 or deneme_dpi == 85:
+            if deneme_dpi != dpi:
+                logger.info(
+                    f"  Boyut nedeniyle çözünürlük {deneme_dpi} DPI'a düşürüldü"
+                )
+            return secilen, jpeg_mi
+    return [], False
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -328,7 +377,22 @@ def _http_hata_detayi(e) -> str:
         govde = e.read().decode("utf-8", "replace")
         try:
             j = json.loads(govde)
-            mesaj = j.get("error", {}).get("message", "")
+            hata = j.get("error", {})
+            mesaj = hata.get("message", "")
+            # "Request contains an invalid argument" tek başına işe
+            # yaramaz; hangi alanın sorunlu olduğu details içindedir.
+            detaylar = hata.get("details") or []
+            ek = []
+            for d in detaylar:
+                for anahtar in ("fieldViolations", "violations"):
+                    for v in (d.get(anahtar) or []):
+                        alan = v.get("field", "")
+                        aciklama = v.get("description", "")
+                        ek.append(f"{alan}: {aciklama}".strip(": "))
+                if d.get("reason"):
+                    ek.append(str(d["reason"]))
+            if ek:
+                return f"{mesaj} | {' ; '.join(ek[:4])}"
             if mesaj:
                 return mesaj
         except Exception:
@@ -406,6 +470,17 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None,
                 "data": base64.b64encode(g).decode("ascii"),
             }
         })
+    # KADEMELİ CONFIG (400 "invalid argument" çözümü)
+    #
+    # Gemini modelleri farklı generationConfig alanlarını destekliyor.
+    # thinkingConfig yalnızca bazı sürümlerde geçerli; desteklemeyen
+    # model 400 "Request contains an invalid argument" döndürüyor ve
+    # İSTEK HİÇ ÇALIŞMIYOR.
+    #
+    # Hangi alanın sorunlu olduğunu tahmin edip hepsini silmek yerine,
+    # en zengin ayardan en sadeye doğru sırayla deneniyor. Böylece
+    # destekleyen modellerde JSON modunun avantajı korunuyor,
+    # desteklemeyende otomatik olarak sadeye düşülüyor.
     # DÜZELTME 1: "JSON ayrıştırılamadı: Expecting ',' delimiter" hatası
     # yanıtın YARIDA KESİLMESİNDEN kaynaklanıyordu (253 karakterde bitmiş).
     # İki sebebi var:
@@ -417,33 +492,62 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None,
     # DÜZELTME 2: responseMimeType ile modelden GEÇERLİ JSON dönmesi
     # garanti altına alınıyor. Böylece ``` sarmalı, önsöz, yarım küme
     # parantezi gibi ayrıştırma sorunları tamamen ortadan kalkıyor.
-    uretim_ayari: dict = {
-        "temperature": 0,
-        "maxOutputTokens": 16384,
-        "responseMimeType": "application/json",
-    }
-    # Düşünme bütçesi 0: finansal tablo okumak muhakeme değil, okuma
-    # işi. Kapatmak hem hızlandırır hem çıktı bütçesini korur.
-    # Desteklemeyen modeller bu alanı yok sayar.
-    uretim_ayari["thinkingConfig"] = {"thinkingBudget": 0}
+    kademeler: list[dict] = [
+        # 1) En zengin: JSON modu + düşünme kapalı
+        {"temperature": 0, "maxOutputTokens": 16384,
+         "responseMimeType": "application/json",
+         "thinkingConfig": {"thinkingBudget": 0}},
+        # 2) JSON modu var, düşünme ayarı yok
+        {"temperature": 0, "maxOutputTokens": 16384,
+         "responseMimeType": "application/json"},
+        # 3) Sade: hiçbir özel alan yok (her modelde çalışır)
+        {"temperature": 0, "maxOutputTokens": 8192},
+    ]
 
-    govde = json.dumps({
-        "contents": [{"parts": parcalar}],
-        "generationConfig": uretim_ayari,
-    }).encode("utf-8")
+    # Boyut koruması: base64 kodlama veriyi ~%33 şişirir. Çok büyük
+    # istek de 400 döndürebilir.
+    ham_boyut = sum(len(g) for g in goruntuler)
+    if ham_boyut * 1.37 > 18 * 1024 * 1024:
+        logger.warning(
+            f"İstek çok büyük ({ham_boyut/1e6:.1f} MB ham). "
+            f"Daha az sayfa gönderin (MAX_SAYFA_GONDER / TARANMIS_PENCERE)."
+        )
 
     kullanilan = model or LLM_MODEL
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{kullanilan}:generateContent?key={LLM_ANAHTAR}")
-    istek = urllib.request.Request(
-        url, data=govde, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(istek, timeout=300) as yanit:
-            veri = json.loads(yanit.read().decode("utf-8"))
-    except Exception as e:
-        detay = _http_hata_detayi(e) if hasattr(e, "read") else str(e)
-        kod = getattr(e, "code", None)
 
+    veri = None
+    son_hata = ""
+    son_kod = None
+    for i, ayar in enumerate(kademeler, start=1):
+        govde = json.dumps({
+            "contents": [{"parts": parcalar}],
+            "generationConfig": ayar,
+        }).encode("utf-8")
+        istek = urllib.request.Request(
+            url, data=govde, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(istek, timeout=300) as yanit:
+                veri = json.loads(yanit.read().decode("utf-8"))
+            if i > 1:
+                logger.info(f"  (config kademesi {i} ile başarılı)")
+            break
+        except Exception as e:
+            son_kod = getattr(e, "code", None)
+            son_hata = _http_hata_detayi(e) if hasattr(e, "read") else str(e)
+            if son_kod == 400 and i < len(kademeler):
+                # Config bu modelde desteklenmiyor; bir alt kademeye in
+                logger.info(
+                    f"  Config kademesi {i} reddedildi ({son_hata[:90]}), "
+                    f"kademe {i+1} deneniyor."
+                )
+                continue
+            break
+
+    if veri is None:
+        detay = son_hata
+        kod = son_kod
         # 404 = model bu anahtar için yok. Otomatik olarak erişilebilir
         # bir model seç ve BİR KEZ yeniden dene.
         if kod == 404 and model is None:
@@ -905,6 +1009,8 @@ def kesif_turu(pdf_yolu: str, toplam: int) -> list[int]:
         for i in ornek:
             try:
                 im = pdf.pages[i].to_image(resolution=60).original
+                if im.mode != "RGB":
+                    im = im.convert("RGB")
                 tampon = io.BytesIO()
                 im.save(tampon, format="JPEG", quality=55, optimize=True)
                 goruntuler.append(tampon.getvalue())
@@ -958,13 +1064,16 @@ def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
             f"  Deneme {deneme}/{min(len(pencereler), max_deneme)} — "
             f"sayfalar (1-tabanlı): {[s+1 for s in sayfalar]}"
         )
-        goruntuler = sayfalari_goruntuye_cevir(pdf_yolu, sayfalar)
+        goruntuler, jpeg_mi = sayfalari_goruntuye_cevir(pdf_yolu, sayfalar)
         if not goruntuler:
             continue
         toplam_mb = sum(len(g) for g in goruntuler) / 1e6
-        logger.info(f"  {len(goruntuler)} görüntü ({toplam_mb:.1f} MB) gönderiliyor")
+        logger.info(
+            f"  {len(goruntuler)} görüntü ({toplam_mb:.1f} MB, "
+            f"{'JPEG' if jpeg_mi else 'PNG'}) gönderiliyor"
+        )
 
-        ham = llm_cagir(goruntuler)
+        ham = llm_cagir(goruntuler, jpeg=jpeg_mi)
         if ham is None:
             logger.warning("  Yapay zeka yanıtı alınamadı, sonraki aralık.")
             continue
