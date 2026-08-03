@@ -260,16 +260,17 @@ KURALLAR:
 """ % "\n".join(f"- {a}" for a in ISTENEN_ALANLAR)
 
 
-def llm_cagir(goruntuler: list[bytes]) -> Optional[dict]:
+def llm_cagir(goruntuler: list[bytes], istem: Optional[str] = None,
+              jpeg: bool = False) -> Optional[dict]:
     """
     Görüntüleri yapay zekaya gönderip JSON alır.
-    Sağlayıcı LLM_SAGLAYICI ile seçilir.
+    istem verilmezse varsayılan finansal tablo istemi kullanılır.
     """
     if not LLM_ANAHTAR:
         logger.error("LLM_API_KEY tanımlı değil.")
         return None
     if LLM_SAGLAYICI == "gemini":
-        return _gemini_cagir(goruntuler)
+        return _gemini_cagir(goruntuler, istem=istem, jpeg=jpeg)
     if LLM_SAGLAYICI == "anthropic":
         return _anthropic_cagir(goruntuler)
     logger.error(f"Bilinmeyen sağlayıcı: {LLM_SAGLAYICI}")
@@ -285,14 +286,37 @@ def _json_ayikla(ham: str) -> Optional[dict]:
     s = ham.strip()
     s = re.sub(r"^```(?:json)?\s*", "", s)
     s = re.sub(r"\s*```$", "", s)
-    ilk, son = s.find("{"), s.rfind("}")
-    if ilk == -1 or son == -1:
+    ilk = s.find("{")
+    if ilk == -1:
         return None
-    try:
-        return json.loads(s[ilk:son + 1])
-    except json.JSONDecodeError as e:
-        logger.warning(f"JSON ayrıştırılamadı: {e}")
-        return None
+    son = s.rfind("}")
+    if son > ilk:
+        try:
+            return json.loads(s[ilk:son + 1])
+        except json.JSONDecodeError:
+            pass
+
+    # ── Yarıda kesilmiş JSON onarımı ──
+    # Model token sınırına takılırsa JSON ortasından kesilir. Bu durumda
+    # her şeyi kaybetmek yerine, tamamlanmış kısmı kurtarmayı deneriz:
+    # son geçerli virgülden sonrasını atıp açık parantezleri kapatırız.
+    govde = s[ilk:]
+    for kesim in range(len(govde), ilk, -1):
+        parca = govde[:kesim].rstrip().rstrip(",")
+        acik_kume = parca.count("{") - parca.count("}")
+        acik_dizi = parca.count("[") - parca.count("]")
+        if acik_kume < 0 or acik_dizi < 0:
+            continue
+        aday = parca + "]" * acik_dizi + "}" * acik_kume
+        try:
+            sonuc = json.loads(aday)
+            logger.warning(
+                "JSON yarıda kesilmişti; tamamlanan kısım kurtarıldı."
+            )
+            return sonuc
+        except json.JSONDecodeError:
+            continue
+    return None
 
 
 def _http_hata_detayi(e) -> str:
@@ -369,21 +393,43 @@ def gemini_model_sec() -> Optional[str]:
     return siralanmis[0] if siralanmis else None
 
 
-def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optional[dict]:
+def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None,
+                  istem: Optional[str] = None, jpeg: bool = False) -> Optional[dict]:
     import urllib.request
 
-    parcalar: list[dict] = [{"text": ISTEM}]
+    parcalar: list[dict] = [{"text": istem or ISTEM}]
+    mim = "image/jpeg" if jpeg else "image/png"
     for g in goruntuler:
         parcalar.append({
             "inline_data": {
-                "mime_type": "image/png",
+                "mime_type": mim,
                 "data": base64.b64encode(g).decode("ascii"),
             }
         })
+    # DÜZELTME 1: "JSON ayrıştırılamadı: Expecting ',' delimiter" hatası
+    # yanıtın YARIDA KESİLMESİNDEN kaynaklanıyordu (253 karakterde bitmiş).
+    # İki sebebi var:
+    #   a) maxOutputTokens düşüktü
+    #   b) yeni Gemini modelleri "düşünme" (thinking) yapıyor ve bu
+    #      tokenler çıktı bütçesinden yeniyor; geriye JSON için yer
+    #      kalmayınca yanıt ortasından kesiliyor
+    #
+    # DÜZELTME 2: responseMimeType ile modelden GEÇERLİ JSON dönmesi
+    # garanti altına alınıyor. Böylece ``` sarmalı, önsöz, yarım küme
+    # parantezi gibi ayrıştırma sorunları tamamen ortadan kalkıyor.
+    uretim_ayari: dict = {
+        "temperature": 0,
+        "maxOutputTokens": 16384,
+        "responseMimeType": "application/json",
+    }
+    # Düşünme bütçesi 0: finansal tablo okumak muhakeme değil, okuma
+    # işi. Kapatmak hem hızlandırır hem çıktı bütçesini korur.
+    # Desteklemeyen modeller bu alanı yok sayar.
+    uretim_ayari["thinkingConfig"] = {"thinkingBudget": 0}
+
     govde = json.dumps({
         "contents": [{"parts": parcalar}],
-        # Sıcaklık 0: finansal veride yaratıcılık istemiyoruz
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 4096},
+        "generationConfig": uretim_ayari,
     }).encode("utf-8")
 
     kullanilan = model or LLM_MODEL
@@ -406,7 +452,8 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optio
             yedek = gemini_model_sec()
             if yedek and yedek != kullanilan:
                 logger.info(f"Yedek model deneniyor: {yedek}")
-                return _gemini_cagir(goruntuler, model=yedek)
+                return _gemini_cagir(goruntuler, model=yedek,
+                                     istem=istem, jpeg=jpeg)
             logger.error(
                 "Erişilebilir bir model bulunamadı. "
                 "'python araclar/izahname_isle.py --modelleri-listele' "
@@ -424,12 +471,28 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optio
             geri = veri.get("promptFeedback", {})
             logger.error(f"Model yanıt vermedi. promptFeedback: {geri}")
             return None
-        parcalar = adaylar[0].get("content", {}).get("parts", [])
+        aday = adaylar[0]
+        bitis = aday.get("finishReason")
+        parcalar = aday.get("content", {}).get("parts", [])
         metin = "".join(p.get("text", "") for p in parcalar)
+
+        if bitis == "MAX_TOKENS":
+            logger.warning(
+                "Yanıt token sınırına takıldı (MAX_TOKENS). Daha az sayfa "
+                "göndermeyi deneyin (MAX_SAYFA_GONDER)."
+            )
         if not metin:
-            logger.error(f"Yanıt boş. Bitiş sebebi: {adaylar[0].get('finishReason')}")
+            kullanim = veri.get("usageMetadata", {})
+            logger.error(f"Yanıt boş. Bitiş sebebi: {bitis}, kullanım: {kullanim}")
             return None
-        return _json_ayikla(metin)
+
+        cozulen = _json_ayikla(metin)
+        if cozulen is None:
+            logger.warning(
+                f"JSON çözülemedi (bitiş: {bitis}, {len(metin)} karakter). "
+                f"Son 120 karakter: {metin[-120:]!r}"
+            )
+        return cozulen
     except Exception as e:
         logger.error(f"Gemini yanıtı çözümlenemedi: {e}")
         return None
@@ -704,6 +767,9 @@ def pdf_indir(url: str, hedef: Path) -> bool:
 # Taranmış PDF'lerde sayfa puanlaması çalışmadığı için daha geniş
 # pencere kullanılır; kapsama alanı doğruluktan daha kritik.
 TARANMIS_PENCERE = int(os.environ.get("TARANMIS_PENCERE", "8"))
+# Keşif turu: taranmış PDF'lerde önce modele "hangi sayfada finansal
+# tablo var?" diye sorulur. Kapatmak için KESIF_AKTIF=0.
+KESIF_AKTIF = os.environ.get("KESIF_AKTIF", "1") not in ("0", "false", "False")
 
 
 def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list[int]]:
@@ -735,10 +801,28 @@ def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list
 
     # ── Taranmış PDF: birden çok oran denenir ──
     pencere = max(pencere, TARANMIS_PENCERE)
-    logger.info(
-        f"PDF taranmış ({ortalama:.0f} kr/sayfa); {toplam} sayfada "
-        f"{pencere}'er sayfalık bitişik bloklar denenecek."
-    )
+    logger.info(f"PDF taranmış ({ortalama:.0f} kr/sayfa), {toplam} sayfa.")
+
+    # Önce modele sor: hangi sayfada finansal tablo var?
+    # Kör tahminden çok daha isabetli.
+    if KESIF_AKTIF:
+        bulunan = kesif_turu(pdf_yolu, toplam)
+        if bulunan:
+            # Bulunan sayfaların etrafını da al (tablolar birden fazla
+            # sayfaya yayılabiliyor)
+            genis: set[int] = set()
+            for b in bulunan:
+                for k in range(b - 1, b + 3):
+                    if 0 <= k < toplam:
+                        genis.add(k)
+            sirali = sorted(genis)[:max(pencere, len(bulunan) + 4)]
+            return [sirali] + _kor_pencereler(toplam, pencere)[:2]
+
+    return _kor_pencereler(toplam, pencere)
+
+
+def _kor_pencereler(toplam: int, pencere: int) -> list[list[int]]:
+    """Keşif turu sonuç vermezse kullanılan konum tahmini pencereleri."""
     # Pencereler BİTİŞİK olmalı. Seyrek örnekleme yapılırsa aradaki
     # sayfalar hiç görülmez: Quick Sigorta'nın bilançosu 185. sayfadaydı
     # ve seyrek pencereler onu tamamen atlıyordu.
@@ -760,6 +844,99 @@ def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list
         list(range(b, min(toplam, b + pencere))) for b in baslangiclar
     ]
     return [p for p in pencereler if p]
+
+
+KESIF_ISTEMI = """Bu görüntüler bir halka arz izahnamesinin ardışık sayfalarıdır.
+Sana verilen sayfa numaraları sırayla: %s
+
+GÖREV: Hangi sayfalarda FİNANSAL TABLO var, onu bul.
+
+Finansal tablo = Bilanço (Finansal Durum Tablosu), Gelir Tablosu
+(Kar veya Zarar Tablosu) veya Nakit Akış Tablosu.
+Bunlar rakam dolu, satırları "Hasılat / Dönem Karı / Toplam Varlıklar /
+Özkaynaklar" gibi kalemlerden oluşan tablolardır.
+
+DİKKAT:
+- İçindekiler sayfası finansal tablo DEĞİLDİR.
+- Düz metin, risk faktörleri, şirket tanıtımı finansal tablo DEĞİLDİR.
+- Sadece GERÇEK tabloları işaretle.
+
+Sadece JSON döndür:
+{"finansal_sayfalar": [185, 186, 187], "aciklama": "185 bilanço, 186 gelir tablosu"}
+
+Hiç finansal tablo yoksa: {"finansal_sayfalar": [], "aciklama": "yok"}
+"""
+
+
+def kesif_turu(pdf_yolu: str, toplam: int) -> list[int]:
+    """
+    KEŞİF TURU — taranmış PDF'lerde doğru sayfayı bulmanın anahtarı.
+
+    NEDEN: Taranmış PDF'te metin olmadığı için sayfa puanlaması
+    çalışmıyordu; kör konum tahmini (%50) çoğu izahnamede tutmuyor ve
+    "0 kalem" ile sonuçlanıyordu.
+
+    NASIL: İzahnamenin orta-son bölümü DÜŞÜK çözünürlükte (küçük ve
+    ucuz görüntüler) modele gösterilip "hangi sayfada finansal tablo
+    var?" diye soruluyor. Model sayfaları söyleyince o sayfalar TAM
+    çözünürlükte tekrar gönderilip okunuyor.
+
+    Maliyet: keşif görüntüleri çok küçük (60 DPI), ek yük düşük.
+    """
+    import warnings
+    warnings.filterwarnings("ignore")
+    import pdfplumber
+
+    # Taranacak bölge: izahnamelerin %35-%80 aralığı. Finansal tablolar
+    # neredeyse her zaman bu bantta yer alır.
+    bas = int(toplam * 0.35)
+    bit = int(toplam * 0.80)
+    adim = max(1, (bit - bas) // 24)          # en fazla ~24 sayfa örnekle
+    ornek = list(range(bas, bit, adim))[:24]
+    if not ornek:
+        return []
+
+    logger.info(
+        f"  Keşif turu: {ornek[0]+1}-{ornek[-1]+1} arası {len(ornek)} sayfa "
+        f"düşük çözünürlükte taranıyor..."
+    )
+    goruntuler: list[bytes] = []
+    with pdfplumber.open(pdf_yolu) as pdf:
+        for i in ornek:
+            try:
+                im = pdf.pages[i].to_image(resolution=60).original
+                tampon = io.BytesIO()
+                im.save(tampon, format="JPEG", quality=55, optimize=True)
+                goruntuler.append(tampon.getvalue())
+            except Exception:
+                continue
+    if not goruntuler:
+        return []
+
+    mb = sum(len(g) for g in goruntuler) / 1e6
+    logger.info(f"  {len(goruntuler)} keşif görüntüsü ({mb:.1f} MB)")
+
+    istem = KESIF_ISTEMI % ", ".join(str(i + 1) for i in ornek)
+    ham = llm_cagir(goruntuler, istem=istem, jpeg=True)
+    if not ham:
+        logger.info("  Keşif turu sonuç vermedi.")
+        return []
+
+    sayfalar = ham.get("finansal_sayfalar") or []
+    aciklama = ham.get("aciklama", "")
+    temiz: list[int] = []
+    for s in sayfalar:
+        try:
+            n = int(s) - 1                      # 1-tabanlıdan 0-tabanlıya
+        except (TypeError, ValueError):
+            continue
+        if 0 <= n < toplam:
+            temiz.append(n)
+    if temiz:
+        logger.info(
+            f"  Keşif sonucu: sayfa {[t+1 for t in temiz]} — {aciklama}"
+        )
+    return sorted(set(temiz))
 
 
 def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",

@@ -64,6 +64,7 @@ jobs:
           LLM_SAGLAYICI: ${{ vars.LLM_SAGLAYICI || 'gemini' }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
           MAX_SAYFA_GONDER: "5"
+          KESIF_AKTIF: "1"
           TARANMIS_PENCERE: "8"
         run: |
           python Izahnameisle.py \
