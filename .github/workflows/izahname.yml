@@ -103,11 +103,14 @@ jobs:
         run: |
           git config user.name  "izahname-bot"
           git config user.email "actions@github.com"
-          mkdir -p veri/finansallar
-          git add veri/finansallar
+          
+          # Dosya yoksa veya klasör boşsa hata vermemesi için "|| true" ekledik
+          git add veri/finansallar || true
+          
           if git diff --staged --quiet; then
             echo "Değişiklik yok, commit atlanıyor."
           else
             git commit -m "izahname finansal verileri güncellendi [skip ci]"
             git push
           fi
+
