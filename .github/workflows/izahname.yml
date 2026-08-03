@@ -1,40 +1,100 @@
 name: İzahname Finansal Veri Çıkarımı
 
+# NE YAPAR
+#   Yeni halka arzların izahname PDF'lerini indirir, finansal tablo
+#   sayfalarını bulur, yapay zekaya okutur ve sonucu depoya kaydeder.
+#   Render'daki uygulama bu hazır JSON'ları okur; PDF'e hiç dokunmaz.
+
 on:
+  # Her gün sabah 07:00 (TR saati 10:00) otomatik çalışır
+  schedule:
+    - cron: "0 7 * * *"
+  # Panelden elle de çalıştırılabilir
   workflow_dispatch:
     inputs:
-      limit:
-        description: 'İşlenecek şirket sayısı'
-        required: false
-        default: '1'
+      zorla:
+        description: "Daha önce işlenmişleri yeniden işle"
+        type: boolean
+        default: false
+      sirket:
+        description: "Sadece bu şirket (boş bırakılırsa hepsi)"
         type: string
+        default: ""
+      limit:
+        description: "Bir çalıştırmada en fazla kaç şirket"
+        type: string
+        default: "5"
+
+# Depoya commit atabilmek için yazma izni gerekiyor
+permissions:
+  contents: write
 
 jobs:
-  finansal_okuma:
+  izahname:
     runs-on: ubuntu-latest
+    # Bir izahname ~2-4 dakika; 5 şirket için 30 dk fazlasıyla yeter
+    timeout-minutes: 45
+
     steps:
-      - name: Depoyu Çek
+      - name: Depoyu indir
         uses: actions/checkout@v4
 
-      - name: Python Kur
+      - name: Python kur
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
+          cache: pip
 
-      - name: Bağımlılıkları Kur
+      - name: Kütüphaneleri kur
         run: |
           python -m pip install --upgrade pip
           pip install pdfplumber beautifulsoup4 curl_cffi Pillow
 
-      - name: İzahnameleri İşle (AI Hattı)
+      - name: Kullanılabilir modelleri göster (tanı)
+        continue-on-error: true
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: |
-          python Izahnameisle.py --limit ${{ github.event.inputs.limit }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
+        run: python araclar/izahname_isle.py --modelleri-listele
 
-      - name: Üretilen JSON'ları Depoya Kaydet
+      - name: İzahnameleri işle
+        env:
+          # GitHub -> Settings -> Secrets and variables -> Actions
+          # bölümünden LLM_API_KEY olarak eklenmeli. Koda YAZILMAZ.
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_SAGLAYICI: ${{ vars.LLM_SAGLAYICI || 'gemini' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
+          MAX_SAYFA_GONDER: "5"
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 Finansal veriler güncellendi" && git push)
+          python araclar/izahname_isle.py \
+            --limit "${{ github.event.inputs.limit || '5' }}" \
+            ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
+            ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
+
+      - name: Sonuçları özetle
+        run: |
+          echo "### İşlenen izahnameler" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Şirket | Güvenilir | Kalem | Not |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          python - <<'PY' >> $GITHUB_STEP_SUMMARY
+          import json, pathlib
+          d = pathlib.Path("veri/finansallar")
+          for f in sorted(d.glob("*.json")) if d.exists() else []:
+              v = json.loads(f.read_text(encoding="utf-8"))
+              isaret = "✅" if v.get("guvenilir") else "❌"
+              print(f"| {v.get('sirket_adi') or v.get('slug')} | {isaret} | "
+                    f"{len(v.get('guncel', {}))} | {v.get('not','')[:60]} |")
+          PY
+
+      - name: Değişiklikleri depoya kaydet
+        run: |
+          git config user.name  "izahname-bot"
+          git config user.email "actions@github.com"
+          git add veri/finansallar
+          if git diff --staged --quiet; then
+            echo "Değişiklik yok, commit atlanıyor."
+          else
+            git commit -m "izahname finansal verileri güncellendi [skip ci]"
+            git push
+          fi

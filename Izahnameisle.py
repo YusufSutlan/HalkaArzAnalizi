@@ -58,10 +58,10 @@ HALKARZ_URL = "https://halkarz.com/"
 
 # Yapay zeka ayarları
 LLM_SAGLAYICI = os.environ.get("LLM_SAGLAYICI", "gemini")   # gemini | anthropic
-LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-flash-latest")
 LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 # Tek istekte gönderilecek en fazla sayfa. Maliyeti sınırlar.
-MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "10"))
+MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "5"))
 # Görüntü çözünürlüğü. 150 DPI okunabilir ve makul boyutta.
 GORUNTU_DPI = int(os.environ.get("GORUNTU_DPI", "150"))
 
@@ -272,7 +272,81 @@ def _json_ayikla(ham: str) -> Optional[dict]:
         return None
 
 
-def _gemini_cagir(goruntuler: list[bytes]) -> Optional[dict]:
+def _http_hata_detayi(e) -> str:
+    """
+    urllib'in HTTPError'u varsayılan olarak sadece "HTTP Error 404" der.
+    Asıl sebep yanıt gövdesinde yazar; onu okumak sorunu anında çözer.
+    """
+    try:
+        govde = e.read().decode("utf-8", "replace")
+        try:
+            j = json.loads(govde)
+            mesaj = j.get("error", {}).get("message", "")
+            if mesaj:
+                return mesaj
+        except Exception:
+            pass
+        return govde[:600]
+    except Exception:
+        return str(e)
+
+
+def gemini_modelleri_listele() -> list[str]:
+    """
+    API anahtarının ERİŞEBİLDİĞİ modelleri sorar.
+
+    404 hatasının sebebi neredeyse her zaman budur: model adı doğru
+    görünse bile o anahtar/proje için mevcut olmayabilir. Model adı
+    tahmin etmek yerine kaynağa sormak gerekir.
+    """
+    import urllib.request
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models"
+           f"?key={LLM_ANAHTAR}&pageSize=200")
+    try:
+        with urllib.request.urlopen(url, timeout=60) as y:
+            veri = json.loads(y.read().decode("utf-8"))
+    except Exception as e:
+        detay = _http_hata_detayi(e) if hasattr(e, "read") else str(e)
+        logger.error(f"Model listesi alınamadı: {detay}")
+        return []
+
+    uygun: list[str] = []
+    for m in veri.get("models", []):
+        ad = m.get("name", "").replace("models/", "")
+        yontemler = m.get("supportedGenerationMethods", [])
+        if "generateContent" in yontemler:
+            uygun.append(ad)
+    return uygun
+
+
+def gemini_model_sec() -> Optional[str]:
+    """
+    Ayarlanan model çalışmıyorsa, erişilebilir modeller arasından
+    görüntü okuyabilecek bir tane seçer.
+    """
+    modeller = gemini_modelleri_listele()
+    if not modeller:
+        return None
+    if LLM_MODEL in modeller:
+        return LLM_MODEL
+    # Tercih sırası: flash (ucuz ve hızlı) -> pro -> kalan her şey.
+    # Görüntü desteği olmayan (embedding vb.) modeller elenir.
+    def puan(ad: str) -> tuple:
+        a = ad.lower()
+        if "embedding" in a or "aqa" in a or "imagen" in a or "veo" in a:
+            return (-1, ad)
+        p = 0
+        if "flash" in a: p += 3
+        if "pro" in a: p += 2
+        if "latest" in a: p += 1
+        if "lite" in a: p -= 1
+        return (p, ad)
+    siralanmis = sorted((m for m in modeller if puan(m)[0] >= 0),
+                        key=puan, reverse=True)
+    return siralanmis[0] if siralanmis else None
+
+
+def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optional[dict]:
     import urllib.request
 
     parcalar: list[dict] = [{"text": ISTEM}]
@@ -289,17 +363,52 @@ def _gemini_cagir(goruntuler: list[bytes]) -> Optional[dict]:
         "generationConfig": {"temperature": 0, "maxOutputTokens": 4096},
     }).encode("utf-8")
 
+    kullanilan = model or LLM_MODEL
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{LLM_MODEL}:generateContent?key={LLM_ANAHTAR}")
+           f"{kullanilan}:generateContent?key={LLM_ANAHTAR}")
     istek = urllib.request.Request(
         url, data=govde, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(istek, timeout=180) as yanit:
+        with urllib.request.urlopen(istek, timeout=300) as yanit:
             veri = json.loads(yanit.read().decode("utf-8"))
-        metin = veri["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        detay = _http_hata_detayi(e) if hasattr(e, "read") else str(e)
+        kod = getattr(e, "code", None)
+
+        # 404 = model bu anahtar için yok. Otomatik olarak erişilebilir
+        # bir model seç ve BİR KEZ yeniden dene.
+        if kod == 404 and model is None:
+            logger.warning(f"Model '{kullanilan}' bulunamadı. Detay: {detay}")
+            logger.info("Anahtarınızın erişebildiği modeller sorgulanıyor...")
+            yedek = gemini_model_sec()
+            if yedek and yedek != kullanilan:
+                logger.info(f"Yedek model deneniyor: {yedek}")
+                return _gemini_cagir(goruntuler, model=yedek)
+            logger.error(
+                "Erişilebilir bir model bulunamadı. "
+                "'python araclar/izahname_isle.py --modelleri-listele' "
+                "komutuyla listeyi görebilirsiniz."
+            )
+            return None
+
+        logger.error(f"Gemini isteği başarısız ({kod}): {detay}")
+        return None
+
+    try:
+        adaylar = veri.get("candidates") or []
+        if not adaylar:
+            # Güvenlik filtresi veya boş yanıt
+            geri = veri.get("promptFeedback", {})
+            logger.error(f"Model yanıt vermedi. promptFeedback: {geri}")
+            return None
+        parcalar = adaylar[0].get("content", {}).get("parts", [])
+        metin = "".join(p.get("text", "") for p in parcalar)
+        if not metin:
+            logger.error(f"Yanıt boş. Bitiş sebebi: {adaylar[0].get('finishReason')}")
+            return None
         return _json_ayikla(metin)
     except Exception as e:
-        logger.error(f"Gemini isteği başarısız: {e}")
+        logger.error(f"Gemini yanıtı çözümlenemedi: {e}")
         return None
 
 
@@ -578,7 +687,29 @@ def main() -> int:
     ap.add_argument("--slug", help="--pdf ile kullanılacak dosya adı")
     ap.add_argument("--limit", type=int, default=5,
                     help="Bir çalıştırmada en fazla kaç şirket işlensin")
+    ap.add_argument("--modelleri-listele", action="store_true",
+                    help="API anahtarının erişebildiği modelleri göster")
     args = ap.parse_args()
+
+    # ── Tanı modu: hangi modeller kullanılabilir? ──
+    if args.modelleri_listele:
+        if not LLM_ANAHTAR:
+            print("HATA: LLM_API_KEY tanımlı değil.")
+            return 1
+        modeller = gemini_modelleri_listele()
+        if not modeller:
+            print("Hiç model listelenemedi. API anahtarı geçersiz olabilir.")
+            return 1
+        print(f"\nAnahtarınızın erişebildiği {len(modeller)} model:\n")
+        for m in modeller:
+            isaret = "  <-- şu an ayarlı" if m == LLM_MODEL else ""
+            print(f"  {m}{isaret}")
+        secilen = gemini_model_sec()
+        print(f"\nOtomatik seçilecek model: {secilen}")
+        print("\nBunu sabitlemek icin GitHub -> Settings -> "
+              "Secrets and variables -> Actions -> Variables kismina:")
+        print(f"  LLM_MODEL = {secilen}\n")
+        return 0
 
     CIKTI_DIZINI.mkdir(parents=True, exist_ok=True)
 
