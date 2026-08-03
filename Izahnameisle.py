@@ -81,8 +81,7 @@ HALKARZ_URL = "https://halkarz.com/"
 
 # Yapay zeka ayarları
 LLM_SAGLAYICI = os.environ.get("LLM_SAGLAYICI", "gemini")   # gemini | anthropic
-# Analitik ve okuma becerisi çok daha yüksek olan Pro modelini varsayılan yap
-LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-1.5-pro")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-flash-latest")
 LLM_ANAHTAR = os.environ.get("LLM_API_KEY", "")
 # Tek istekte gönderilecek en fazla sayfa. Maliyeti sınırlar.
 MAX_SAYFA_GONDER = int(os.environ.get("MAX_SAYFA_GONDER", "5"))
@@ -383,11 +382,8 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None) -> Optio
         })
     govde = json.dumps({
         "contents": [{"parts": parcalar}],
-        "generationConfig": {
-            "temperature": 0, 
-            "maxOutputTokens": 4096,
-            "responseMimeType": "application/json" # <-- BU SATIRI EKLE
-        },
+        # Sıcaklık 0: finansal veride yaratıcılık istemiyoruz
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 4096},
     }).encode("utf-8")
 
     kullanilan = model or LLM_MODEL
@@ -659,18 +655,50 @@ def izahname_linki_al(detay_url: str) -> Optional[str]:
 
 
 def pdf_indir(url: str, hedef: Path) -> bool:
+    """
+    PDF indirir ve GERÇEKTEN PDF olduğunu doğrular.
+
+    DÜZELTME: Bazı sunucular (Cloudflare koruması, 404 sayfası, oturum
+    yönlendirmesi) PDF yerine küçük bir HTML sayfası döndürüyor. Önceki
+    sürüm yalnızca boyuta bakıyordu; 10-50 KB'lik bir HTML hata sayfası
+    bu kontrolü geçip .pdf olarak kaydediliyor, pdfplumber açmaya
+    çalışınca "No /Root object! - Is this really a PDF?" hatasıyla
+    TÜM ÇALIŞMA çöküyordu.
+
+    Artık dosyanın imzası kontrol ediliyor: geçerli her PDF "%PDF-"
+    bayt dizisiyle başlar.
+    """
     from curl_cffi import requests as cr
     try:
         r = cr.get(url, impersonate="chrome", timeout=180)
-        if r.status_code != 200 or len(r.content) < 10_000:
-            logger.error(f"PDF indirilemedi ({r.status_code}): {url}")
-            return False
-        hedef.write_bytes(r.content)
-        logger.info(f"PDF indirildi: {len(r.content)/1e6:.1f} MB")
-        return True
     except Exception as e:
         logger.error(f"PDF indirme hatası: {e}")
         return False
+
+    if r.status_code != 200:
+        logger.error(f"PDF indirilemedi (HTTP {r.status_code}): {url}")
+        return False
+
+    icerik = r.content or b""
+    if len(icerik) < 10_000:
+        logger.error(
+            f"Dosya çok küçük ({len(icerik):,} bayt), PDF değil: {url}"
+        )
+        return False
+
+    # Kimlik kontrolü: her geçerli PDF "%PDF-" ile başlar.
+    # Bazı sunucular başa boşluk/BOM koyabildiği için ilk 1 KB taranıyor.
+    if not icerik.lstrip()[:5].startswith(b"%PDF-") and b"%PDF-" not in icerik[:1024]:
+        onizleme = icerik[:120].decode("utf-8", "replace").replace("\n", " ")
+        logger.error(
+            f"İndirilen dosya PDF değil ({len(icerik):,} bayt). "
+            f"Muhtemelen HTML hata sayfası. Başlangıç: {onizleme!r}"
+        )
+        return False
+
+    hedef.write_bytes(icerik)
+    logger.info(f"PDF indirildi: {len(icerik)/1e6:.2f} MB ({len(icerik):,} bayt)")
+    return True
 
 
 # Taranmış PDF'lerde sayfa puanlaması çalışmadığı için daha geniş
@@ -848,6 +876,7 @@ def main() -> int:
     logger.info(f"{len(sirketler)} şirket bulundu.")
 
     islenen = 0
+    hatalar = 0
     for s in sirketler:
         if islenen >= args.limit:
             logger.info(f"Limit ({args.limit}) doldu, duruluyor.")
@@ -871,8 +900,12 @@ def main() -> int:
 
         gecici = Path(f"/tmp/{slug}.pdf")
         if not pdf_indir(url, gecici):
+            hatalar += 1
             continue
         try:
+            # DÜZELTME: Bozuk bir PDF (veya beklenmedik bir hata) tüm
+            # çalışmayı çökertiyordu. Artık her şirket kendi içinde
+            # yalıtılmış; biri patlarsa diğerleri işlenmeye devam eder.
             sonuc = pdf_isle(str(gecici), slug, s["ad"], url)
             yol = kaydet(sonuc)
             durum = "✓ GÜVENİLİR" if sonuc.guvenilir else "✗ GÜVENİLMEZ"
@@ -880,10 +913,16 @@ def main() -> int:
             if not sonuc.guvenilir:
                 logger.warning(f"  Sebep: {sonuc.not_}")
             islenen += 1
+        except Exception as e:
+            hatalar += 1
+            logger.error(f"  {s['ad']} işlenemedi, atlanıyor: {type(e).__name__}: {e}")
         finally:
             gecici.unlink(missing_ok=True)
 
-    logger.info(f"Bitti. {islenen} şirket işlendi.")
+    logger.info(f"Bitti. {islenen} şirket işlendi, {hatalar} şirket atlandı.")
+    # Bazı şirketler atlanmış olsa bile çalışma BAŞARILI sayılır;
+    # aksi halde tek bozuk PDF yüzünden commit adımı hiç çalışmaz ve
+    # başarıyla üretilmiş JSON'lar kaybolur.
     return 0
 
 

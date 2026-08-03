@@ -55,7 +55,7 @@ jobs:
         continue-on-error: true
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-1.5-pro' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
         run: python Izahnameisle.py --modelleri-listele
 
       - name: İzahnameleri işle
