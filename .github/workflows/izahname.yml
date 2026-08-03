@@ -98,3 +98,15 @@ jobs:
             git commit -m "izahname finansal verileri güncellendi [skip ci]"
             git push
           fi
+      - name: Değişiklikleri depoya kaydet
+        run: |
+          git config user.name  "izahname-bot"
+          git config user.email "actions@github.com"
+          mkdir -p veri/finansallar
+          git add veri/finansallar
+          if git diff --staged --quiet; then
+            echo "Değişiklik yok, commit atlanıyor."
+          else
+            git commit -m "izahname finansal verileri güncellendi [skip ci]"
+            git push
+          fi
