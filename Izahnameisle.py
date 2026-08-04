@@ -492,16 +492,21 @@ def _gemini_cagir(goruntuler: list[bytes], model: Optional[str] = None,
     # DÜZELTME 2: responseMimeType ile modelden GEÇERLİ JSON dönmesi
     # garanti altına alınıyor. Böylece ``` sarmalı, önsöz, yarım küme
     # parantezi gibi ayrıştırma sorunları tamamen ortadan kalkıyor.
+    # SIRALAMA NOTU: Canlı loglarda thinkingConfig'in reddedildiği,
+    # responseMimeType'ın kabul edildiği görüldü. Bu yüzden çalışan
+    # kademe başa alındı — aksi halde HER istekte bir çağrı boşa gidiyor
+    # (2 şirket = 6 gereksiz istek). thinkingConfig'i destekleyen bir
+    # modele geçilirse diye en sona yedek olarak bırakıldı.
     kademeler: list[dict] = [
-        # 1) En zengin: JSON modu + düşünme kapalı
+        # 1) JSON modu (canlıda çalıştığı doğrulandı)
+        {"temperature": 0, "maxOutputTokens": 16384,
+         "responseMimeType": "application/json"},
+        # 2) Sade: her modelde çalışır
+        {"temperature": 0, "maxOutputTokens": 8192},
+        # 3) Düşünme kapalı (destekleyen modeller için)
         {"temperature": 0, "maxOutputTokens": 16384,
          "responseMimeType": "application/json",
          "thinkingConfig": {"thinkingBudget": 0}},
-        # 2) JSON modu var, düşünme ayarı yok
-        {"temperature": 0, "maxOutputTokens": 16384,
-         "responseMimeType": "application/json"},
-        # 3) Sade: hiçbir özel alan yok (her modelde çalışır)
-        {"temperature": 0, "maxOutputTokens": 8192},
     ]
 
     # Boyut koruması: base64 kodlama veriyi ~%33 şişirir. Çok büyük
@@ -898,10 +903,23 @@ def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list
 
     ortalama = sum(len(m) for m in metinler) / max(toplam, 1)
 
-    # ── Metin tabanlı PDF: puanlama güvenilir, tek pencere yeter ──
+    # ── Metin tabanlı PDF ──
+    # DÜZELTME: Eskiden tek pencere üretiliyordu. Kardemir'de puanlama
+    # dağınık sayfalar seçti (39, 168, 174, 179, 180) ve bilanço
+    # kalemleri bulundu ama gelir tablosu kaçtı. Artık en iyi sayfaların
+    # ETRAFI da ayrı pencereler olarak deneniyor — finansal tablolar
+    # birbirini izleyen sayfalarda yer alır.
     if ortalama >= 200:
         secilen = finansal_sayfalari_bul(pdf_yolu, pencere)
-        return [secilen] if secilen else []
+        if not secilen:
+            return []
+        pencereler = [secilen]
+        # En yüksek puanlı sayfanın etrafındaki bitişik blok
+        odak = secilen[len(secilen) // 2]
+        komsu = [k for k in range(max(0, odak - 2), min(toplam, odak + 6))]
+        if komsu and komsu != secilen:
+            pencereler.append(komsu)
+        return pencereler
 
     # ── Taranmış PDF: birden çok oran denenir ──
     pencere = max(pencere, TARANMIS_PENCERE)
@@ -1045,6 +1063,49 @@ def kesif_turu(pdf_yolu: str, toplam: int) -> list[int]:
     return sorted(set(temiz))
 
 
+def _sonuclari_birlestir(a: Optional[FinansalSonuc],
+                         b: FinansalSonuc) -> FinansalSonuc:
+    """
+    İki denemenin sonuçlarını birleştirir ve yeniden doğrular.
+
+    Finansal tablolar izahnamede dağınık: bilanço bir sayfada, gelir
+    tablosu birkaç sayfa sonra. Her denemeyi ayrı ayrı değerlendirmek
+    yerine üst üste koymak, tabloların tamamını yakalamayı sağlıyor.
+
+    Çakışma durumunda DAHA ÇOK DÖNEMİ olan seri tercih edilir.
+    """
+    if a is None:
+        return b
+
+    birlesik = FinansalSonuc(
+        slug=b.slug, sirket_adi=b.sirket_adi or a.sirket_adi,
+        izahname_url=b.izahname_url or a.izahname_url,
+        model=b.model or a.model, islenme_zamani=b.islenme_zamani,
+        olcek=b.olcek if b.seriler else a.olcek,
+    )
+    birlesik.islenen_sayfalar = sorted(set(a.islenen_sayfalar) |
+                                       set(b.islenen_sayfalar))
+
+    seriler: dict[str, dict[str, float]] = {}
+    for kaynak in (a.seriler, b.seriler):
+        for alan, seri in (kaynak or {}).items():
+            mevcut = seriler.get(alan)
+            if mevcut is None or len(seri) > len(mevcut):
+                seriler[alan] = dict(seri)
+    birlesik.seriler = seriler
+
+    tum = sorted({d for s in seriler.values() for d in s})
+    birlesik.donemler = tum
+    if tum:
+        son = tum[-1]
+        birlesik.guncel = {al: s[son] for al, s in seriler.items() if son in s}
+
+    birlesik.dogrulama = dogrula(birlesik.guncel)
+    birlesik.guvenilir, birlesik.not_ = guvenilir_mi(
+        birlesik.guncel, birlesik.dogrulama)
+    return birlesik
+
+
 def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
              izahname_url: str = "", max_deneme: int = 3) -> FinansalSonuc:
     """
@@ -1088,10 +1149,20 @@ def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
             return sonuc
 
         logger.info(f"  Yetersiz ({len(sonuc.guncel)} kalem): {sonuc.not_}")
-        # En çok kalem bulan denemeyi sakla; hepsi başarısız olursa
-        # en azından bunu kaydedip neyin bulunduğunu görebilelim.
-        if en_iyi is None or len(sonuc.guncel) > len(en_iyi.guncel):
-            en_iyi = sonuc
+
+        # DENEMELERİ BİRLEŞTİR — en önemli iyileştirme.
+        # Finansal tablolar tek sayfada değil: bilanço bir sayfada,
+        # gelir tablosu diğerinde, nakit akışı bir başkasında.
+        # Kardemir'de 14 kalem bulunmuş ama Net Kâr/Özkaynak farklı
+        # sayfada kaldığı için hepsi çöpe gidiyordu. Artık her deneme
+        # bir öncekinin üstüne ekleniyor.
+        en_iyi = _sonuclari_birlestir(en_iyi, sonuc)
+        if en_iyi.guvenilir:
+            logger.info(
+                f"  ✓ Denemeler birleştirilince güvenilir oldu "
+                f"({len(en_iyi.guncel)} kalem)"
+            )
+            return en_iyi
 
     if en_iyi is not None:
         return en_iyi
