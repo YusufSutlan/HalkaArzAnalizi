@@ -4,22 +4,87 @@
   "izahname_url": "https://metgunenerji.com.tr/Content/files/halka-arz/MetgunEnerji-izahname.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-03T20:35:15Z",
+  "islenme_zamani": "2026-08-04T09:51:21Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-03",
+    "2025-12",
+    "2026-03"
+  ],
+  "guncel": {
+    "Hasilat": 286254010.0,
+    "FinansmanGideri": 200658917.0,
+    "NetKar": 42311369.0,
+    "KisaVadeliYukumluluk": 2054295918.0,
+    "UzunVadeliYukumluluk": 6201819678.0,
+    "ToplamBorc": 8256115596.0,
+    "Ozkaynak": 13678490348.0,
+    "OdenmisSermaye": 544421000.0,
+    "ToplamKaynak": 21934605944.0,
+    "Nakit": 40829.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 1447521408.0,
+      "2024-12": 2168871279.0,
+      "2025-03": 467312617.0,
+      "2025-12": 2070260432.0,
+      "2026-03": 286254010.0
+    },
+    "FinansmanGideri": {
+      "2023-12": 1129742983.0,
+      "2024-12": 911339148.0,
+      "2025-03": 217957431.0,
+      "2025-12": 601447106.0,
+      "2026-03": 200658917.0
+    },
+    "NetKar": {
+      "2025-12": 359014189.0,
+      "2026-03": 42311369.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2025-12": 2068607463.0,
+      "2026-03": 2054295918.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2025-12": 6605999842.0,
+      "2026-03": 6201819678.0
+    },
+    "ToplamBorc": {
+      "2026-03": 8256115596.0
+    },
+    "Ozkaynak": {
+      "2025-12": 13578781318.0,
+      "2026-03": 13678490348.0
+    },
+    "OdenmisSermaye": {
+      "2025-12": 544421000.0,
+      "2026-03": 544421000.0
+    },
+    "ToplamKaynak": {
+      "2025-12": 22253388623.0,
+      "2026-03": 21934605944.0
+    },
+    "Nakit": {
+      "2026-03": 40829.0
+    }
+  },
+  "dogrulama": {
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true
+  },
+  "guvenilir": true,
+  "not": "",
   "islenen_sayfalar": [
-    161,
-    162,
-    163,
-    164,
-    165,
-    166,
-    167,
-    168
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152
   ]
 }

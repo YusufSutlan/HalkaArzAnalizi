@@ -4,7 +4,7 @@
   "izahname_url": "https://www.kar-demir.com.tr/wp-content/uploads/2026/07/Onayli-Izahname-1.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-03T21:02:33Z",
+  "islenme_zamani": "2026-08-04T09:43:28Z",
   "olcek": 1.0,
   "donemler": [
     "2023-12",
@@ -17,6 +17,7 @@
     "Hasilat": 6617483449.0,
     "BrutKar": 864133570.0,
     "FaaliyetKari": 505788448.0,
+    "NetKar": 35218633.0,
     "Ozkaynak": 11686748615.0,
     "ToplamVarlik": 30870783634.0,
     "ToplamKaynak": 30870783634.0,
@@ -52,7 +53,10 @@
       "2026-03": 505788448.0
     },
     "NetKar": {
-      "2024-12": 1428579987.0
+      "2023-12": 1449698122.0,
+      "2024-12": 1428579987.0,
+      "2025-12": 1032787892.0,
+      "2026-03": 35218633.0
     },
     "Ozkaynak": {
       "2023-12": 6889816981.0,
@@ -99,7 +103,6 @@
     "Nakit": {
       "2023-12": 108700171.0,
       "2024-12": 253550452.0,
-      "2025-03": 159980444.0,
       "2025-12": 175816816.0,
       "2026-03": 46182467.0
     },
@@ -127,10 +130,11 @@
   "dogrulama": {
     "bilanco_denkligi": true,
     "brut_kar_makul": true,
+    "kar_tutarliligi": true,
     "ozkaynak_makul": true
   },
-  "guvenilir": false,
-  "not": "Temel kalemler (Net Kâr / Özkaynak) bulunamadı.",
+  "guvenilir": true,
+  "not": "",
   "islenen_sayfalar": [
     39,
     168,
