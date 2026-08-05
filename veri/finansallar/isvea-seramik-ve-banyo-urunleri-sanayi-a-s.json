@@ -4,7 +4,7 @@
   "izahname_url": "https://www.isvea.com.tr/_files/ugd/85510a_b03a0c4461de4bffb967ae1b8b436255.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-04T18:10:46Z",
+  "islenme_zamani": "2026-08-05T09:39:34Z",
   "olcek": 1.0,
   "donemler": [
     "2023-12",
@@ -23,7 +23,6 @@
     "DuranVarlik": 1207738848.0,
     "Nakit": 132693793.0,
     "FinansmanGideri": -113053191.0,
-    "Amortisman": 1010969.0,
     "FinansalBorc": 2055225379.0
   },
   "seriler": {
@@ -85,13 +84,6 @@
       "2025-12": -627675017.0,
       "2025-03": -165151744.0,
       "2026-03": -113053191.0
-    },
-    "Amortisman": {
-      "2023-12": 10060258.0,
-      "2024-12": 6617875.0,
-      "2025-12": 4731167.0,
-      "2025-03": 1795620.0,
-      "2026-03": 1010969.0
     },
     "FinansalBorc": {
       "2023-12": 896073167.0,
