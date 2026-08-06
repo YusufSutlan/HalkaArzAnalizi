@@ -106,7 +106,14 @@ class ArzDurumu(str, Enum):
     # "Hazırlanıyor" ve "SPK Onaylı" kartları listeden çıkarıldı; bu
     # aşamadaki şirketlerin izahnamesi henüz yayınlanmadığı için zaten
     # fiyat/pay/finansal verileri boş geliyordu ve boş kart gösteriyorduk.
-    HAZIRLANIYOR = "Hazırlanıyor"                    # listede gösterilmiyor
+    # DEĞİŞİKLİK: "Hazırlanıyor" artık GÖSTERİLİYOR. Kaynak sitede
+    # yeni duyurulan arzlar "Yeni!" rozetiyle ama "Hazırlanıyor..."
+    # metniyle listeleniyor (Teknika Plast, Türker Vangölü, Kapeks
+    # Kimya bu durumdaydı ve uygulamada hiç görünmüyorlardı).
+    HAZIRLANIYOR = "Hazırlanıyor"
+    # YENİ: Kaynak sitede "Ertelendi" rozetiyle işaretlenen arzlar
+    # vardı (Bewen Enerji) ve bunlar normal bir arz gibi gösteriliyordu.
+    ERTELENDI = "Ertelendi"
     # DÜZELTME: SPK onayı almış ama talep toplama tarihi henüz
     # açıklanmamış arzlar gizleniyordu. Yeni duyurulan halka arzların
     # çoğu ilk günlerde tam olarak bu durumda oluyor ve uygulamada
@@ -120,9 +127,28 @@ class ArzDurumu(str, Enum):
     ISLEM_GORMEYE_BASLADI = "Borsada İşlem Görüyor"
 
 
+# Listede sıralama önceliği: yatırımcıyı en çok ilgilendiren durum
+# en üstte. Kaynak sitenin DOM sırası güvenilir değil.
+DURUM_SIRASI: dict[str, int] = {
+    "Talep Toplanıyor": 0,
+    "Talep Toplama Yaklaşıyor": 1,
+    "Talep Toplama Tarihi Bekleniyor": 2,
+    "Hazırlanıyor": 3,
+    "Dağıtım Bekleniyor": 4,
+    "İşleme Girmesi Bekleniyor": 5,
+    "Borsada İşlem Görüyor": 6,
+    "Ertelendi": 7,
+}
+
+# Borsada işlem görmeye başlayan arzlar bu kadar gün sonra listeden
+# düşer; aksi halde liste eski arzlarla dolup taşıyor.
+ISLEM_GOREN_GOSTERIM_GUNU = int(os.environ.get("ISLEM_GOREN_GOSTERIM_GUNU", "21"))
+
 # Ana ekranda gösterilecek durumlar. Buradan çıkarılan bir durum
 # API yanıtına hiç girmez.
 GOSTERILEN_DURUMLAR: set[str] = {
+    ArzDurumu.HAZIRLANIYOR.value,
+    ArzDurumu.ERTELENDI.value,
     ArzDurumu.SPK_ONAYLI.value,
     ArzDurumu.TALEP_YAKLASIYOR.value,
     ArzDurumu.TALEP_TOPLANIYOR.value,
@@ -1445,7 +1471,20 @@ class ScoreAnalyzer:
                 f"{gun} gün önceki verilere dayanıyor; değerleme yorumunu bu kısıtla okuyun."
             )
 
-        if durum == ArzDurumu.HAZIRLANIYOR:
+        # Hazırlık ve ertelenme aşamasındaki arzlarda izahname henüz
+        # yayınlanmadığı (veya süreç durduğu) için puanlama yapılmıyor.
+        # Kart listede görünüyor ama sahte bir skor gösterilmiyor.
+        if durum in (ArzDurumu.HAZIRLANIYOR, ArzDurumu.ERTELENDI):
+            if durum == ArzDurumu.ERTELENDI:
+                uyarilar.append(
+                    "⚠️ Bu halka arz ERTELENDİ. Yeni tarih açıklanana kadar "
+                    "değerlendirme yapılamaz."
+                )
+            else:
+                uyarilar.append(
+                    "ℹ️ Bu arz henüz hazırlık aşamasında; izahname "
+                    "yayınlanmadığı için finansal değerlendirme yapılamıyor."
+                )
             return {
                 "temel_kalite": 0.0, "tavan_potansiyeli": 0.0, "risk": 0.0,
                 "guclu": [], "risk_listesi": [], "kirmizi_bayraklar": [],
@@ -2301,9 +2340,15 @@ class DataExtractor:
         doğru işleniyor.
         """
         rt = TextUtils.kucult(raw_text)
+        kart = TextUtils.kucult(kart_metni)
         bugun = datetime.now().date()
 
-        if "işlem görmeye başlamıştır" in rt or "gong!" in TextUtils.kucult(kart_metni):
+        # YENİ: Ertelenen arzlar. Kaynak sitede "Ertelendi" rozetiyle
+        # işaretleniyor; normal arz gibi göstermek yanıltıcı olur.
+        if "ertelendi" in kart or "ertelenmiştir" in rt or "iptal edildi" in kart:
+            return ArzDurumu.ERTELENDI
+
+        if "işlem görmeye başlamıştır" in rt or "gong!" in kart:
             return ArzDurumu.ISLEM_GORMEYE_BASLADI
 
         islem_aralik = TextUtils.tarih_araligi_coz(islem_tarihi_metni)
@@ -2321,7 +2366,7 @@ class DataExtractor:
         if not talep_aralik:
             return (
                 ArzDurumu.HAZIRLANIYOR
-                if ("taslak" in kart_metni or "hazırlanıyor" in kart_metni)
+                if ("taslak" in kart or "hazırlanıyor" in kart)
                 else ArzDurumu.SPK_ONAYLI
             )
 
@@ -2541,10 +2586,21 @@ class DataExtractor:
             else "Halka Arz Menüsü"
         )
 
-        if durum == ArzDurumu.HAZIRLANIYOR:
+        if durum in (ArzDurumu.HAZIRLANIYOR, ArzDurumu.ERTELENDI):
             gorunum = Gorunum.HAZIRLIK
-            degerlendirme = "Şirket taslak sürecinde olduğu için finansal değerlemesi yapılamamıştır."
-            rating = "Hazırlanıyor"
+            if durum == ArzDurumu.ERTELENDI:
+                degerlendirme = (
+                    "Bu halka arz ertelendi. Yeni bir tarih açıklanana kadar "
+                    "değerlendirme yapılmayacaktır."
+                )
+                rating = "Ertelendi"
+            else:
+                degerlendirme = (
+                    "Şirket hazırlık aşamasında. İzahname henüz yayınlanmadığı "
+                    "için finansal değerlendirme yapılamıyor; tarih ve fiyat "
+                    "açıklandığında burada görünecek."
+                )
+                rating = "Hazırlanıyor"
         else:
             gorunum = (Gorunum.COK_GUCLU if t_kalite >= 80
                        else Gorunum.DENGELI if t_kalite >= 45
@@ -2758,6 +2814,29 @@ class DataExtractor:
         # daha puanlamaya girmeden eleniyor. Hem gereksiz iş yapılmıyor
         # hem de aynı hafta rakip arz sayımı, gerçekten talep toplayacak
         # arzlar üzerinden hesaplanıyor.
+        # YENİ: Borsada işlem görmeye başlayalı çok olmuş arzlar listeden
+        # düşürülüyor. Aksi halde liste aylar önceki arzlarla doluyor ve
+        # kullanıcı güncel arzları göremiyor.
+        def _eski_mi(p) -> bool:
+            if p["durum"] != ArzDurumu.ISLEM_GORMEYE_BASLADI:
+                return False
+            aralik = TextUtils.tarih_araligi_coz(
+                p["veri"].get(InfoKey.ISLEM_TARIHI, "")
+            ) or p.get("talep_aralik")
+            if not aralik:
+                return False
+            gun = (datetime.now().date() - aralik[1]).days
+            return gun > ISLEM_GOREN_GOSTERIM_GUNU
+
+        eskiler = [p for p in parsed_list if _eski_mi(p)]
+        if eskiler:
+            logger.info(
+                f"{len(eskiler)} arz {ISLEM_GOREN_GOSTERIM_GUNU} günden eski, "
+                f"listeden düşürüldü: "
+                + ", ".join(p["sirket_adi"] for p in eskiler[:8])
+            )
+        parsed_list = [p for p in parsed_list if not _eski_mi(p)]
+
         elenen = [p for p in parsed_list if p["durum"].value not in GOSTERILEN_DURUMLAR]
         if elenen:
             logger.info(
@@ -2777,6 +2856,13 @@ class DataExtractor:
             except Exception as e:
                 logger.exception(f"{p['sirket_adi']} puanlanırken hata: {e}")
 
+        # YENİ: Duruma göre sırala — talep toplanan en üstte, ertelenen
+        # en altta. Kaynak sitenin DOM sırasına güvenmek yerine
+        # yatırımcı için anlamlı bir sıra kuruluyor.
+        sirket_listesi.sort(
+            key=lambda s: (DURUM_SIRASI.get(s.get("durum"), 99),
+                           -(s.get("temel_kalite_skoru") or 0))
+        )
         return sirket_listesi
 
     async def close(self):
