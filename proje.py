@@ -153,7 +153,10 @@ ESKI_ARZ_GUNU = int(os.environ.get("ESKI_ARZ_GUNU", "14"))
 # API yanıtına hiç girmez.
 GOSTERILEN_DURUMLAR: set[str] = {
     ArzDurumu.HAZIRLANIYOR.value,
-    ArzDurumu.ERTELENDI.value,
+    # ERTELENDI listede GÖSTERİLMİYOR: kaynak sitede yıllar öncesine
+    # ait ertelenmiş arzlar birikmiş (Dünya Varlık, Zorlu Yenilenebilir,
+    # Koray Holding, Biteks...) ve bunlar listeyi dolduruyordu.
+    # Durum yine tespit ediliyor; sadece listeye girmiyor.
     ArzDurumu.SPK_ONAYLI.value,
     ArzDurumu.TALEP_YAKLASIYOR.value,
     ArzDurumu.TALEP_TOPLANIYOR.value,
@@ -1462,10 +1465,24 @@ class ScoreAnalyzer:
             else TextUtils.tutar_coz(veri.get(InfoKey.BUYUKLUK, ""))
         )
 
-        # Baskı analizi, hazırlık aşamasında bile bilgi verici olabilir
-        baski = self.ilk_gun_satis_baskisi(
-            veri, arz_buyuklugu, pay, fiyat, baglam, raw_text, olasi_lot
-        )
+        # DÜZELTME: Hazırlık/erteleme aşamasında fiyat, pay miktarı,
+        # tahsisat gibi hiçbir veri yok. Buna rağmen baskı hesaplanınca
+        # Türker Vangölü'nde olduğu gibi dayanaksız bir "İlk gün satış
+        # baskısı" rozeti çıkıyordu. Bu aşamalarda baskı hesaplanmıyor.
+        if durum in (ArzDurumu.HAZIRLANIYOR, ArzDurumu.ERTELENDI):
+            baski = {
+                "skor": 0.0, "seviye": "Belirsiz", "uyari": "",
+                "gerekceler": [], "esit_dagitim": False,
+                "tamamen_bireysel": False, "kisi_basi_tutar_kaynagi": None,
+                "bireysel_tahsisat_yuzdesi": None,
+                "kisi_basi_tahmini_tutar": None,
+                "kisi_basi_tahmini_lot": None,
+                "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
+            }
+        else:
+            baski = self.ilk_gun_satis_baskisi(
+                veri, arz_buyuklugu, pay, fiyat, baglam, raw_text, olasi_lot
+            )
         if baski["uyari"]:
             uyarilar.append(baski["uyari"])
 
