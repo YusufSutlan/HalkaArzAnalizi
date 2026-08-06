@@ -1006,6 +1006,142 @@ class ScoreAnalyzer:
 
     # ───────────────────────── DEĞERLEME ─────────────────────────
 
+    def degerleme_carpanlari(self, market_cap: Optional[float], fin: dict,
+                             sektor: str) -> dict:
+        """
+        YENİ: F/K, PD/DD ve FD/FAVÖK oranlarını sektör ortalamasıyla
+        birlikte, KULLANICIYA GÖSTERİLECEK biçimde döndürür.
+
+        Puanlama zaten bu oranları hesaplıyordu ama sonuç sadece skora
+        gömülüyordu. Yatırımcının "bu fiyat pahalı mı ucuz mu?"
+        sorusuna doğrudan cevap görmesi gerekir.
+        """
+        prof = self._profil(sektor)
+        bayat, _ = TextUtils.sektor_verisi_bayat_mi()
+        sonuc: dict = {
+            "sektor": sektor,
+            "sektor_verisi_bayat": bayat,
+            "carpanlar": [],
+            "genel_yorum": "",
+        }
+        if not market_cap:
+            sonuc["genel_yorum"] = (
+                "Piyasa değeri hesaplanamadığı için değerleme yapılamadı "
+                "(fiyat veya pay sayısı eksik)."
+            )
+            return sonuc
+
+        sonuc["piyasa_degeri"] = round(market_cap, 0)
+        sonuc["piyasa_degeri_notu"] = (
+            "Şirketin tamamının değeri (halka arz edilen kısım değil)."
+        )
+        net_kar = fin.get(FinKey.NET_KAR)
+        ozk = fin.get(FinKey.OZKAYNAK)
+        favok = self._favok_hesapla(fin)
+        fin_borc = fin.get(FinKey.FINANSAL_BORC)
+        nakit = fin.get(FinKey.NAKIT)
+
+        def _yorumla(deger: float, ortalama: float, ters: bool = False) -> tuple[str, float]:
+            """Sektör ortalamasına göre ucuz/pahalı yorumu ve fark yüzdesi."""
+            if ortalama <= 0:
+                return ("Karşılaştırma yapılamadı", 0.0)
+            fark = ((ortalama - deger) / ortalama) * 100
+            if fark >= 30:
+                return ("Belirgin iskontolu", fark)
+            if fark >= 10:
+                return ("Sektör altında (ucuz)", fark)
+            if fark >= -10:
+                return ("Sektör ortalamasında", fark)
+            if fark >= -30:
+                return ("Sektör üzerinde (primli)", fark)
+            return ("Belirgin primli (pahalı)", fark)
+
+        if net_kar and net_kar > 0:
+            fk = market_cap / net_kar
+            if 0.5 <= fk <= 300:
+                yorum, fark = _yorumla(fk, prof["fk"])
+                sonuc["carpanlar"].append({
+                    "ad": "F/K", "tam_ad": "Fiyat / Kazanç",
+                    "deger": round(fk, 1), "sektor_ortalamasi": prof["fk"],
+                    "yorum": yorum, "fark_yuzde": round(fark, 0),
+                    "aciklama": (
+                        f"Şirketin piyasa değeri, yıllık net kârının "
+                        f"{fk:.1f} katı. Sektör ortalaması ~{prof['fk']:.0f}."
+                    ),
+                })
+        elif net_kar is not None and net_kar <= 0:
+            sonuc["carpanlar"].append({
+                "ad": "F/K", "tam_ad": "Fiyat / Kazanç",
+                "deger": None, "sektor_ortalamasi": prof["fk"],
+                "yorum": "Hesaplanamaz (şirket zararda)",
+                "fark_yuzde": None,
+                "aciklama": "Şirket zarar ettiği için F/K oranı anlamlı değil.",
+            })
+
+        if ozk and ozk > 0:
+            pddd = market_cap / ozk
+            if 0.05 <= pddd <= 100:
+                yorum, fark = _yorumla(pddd, prof["pddd"])
+                sonuc["carpanlar"].append({
+                    "ad": "PD/DD", "tam_ad": "Piyasa Değeri / Defter Değeri",
+                    "deger": round(pddd, 2), "sektor_ortalamasi": prof["pddd"],
+                    "yorum": yorum, "fark_yuzde": round(fark, 0),
+                    "aciklama": (
+                        f"Şirkete özkaynağının {pddd:.2f} katı değer biçilmiş. "
+                        f"Sektör ortalaması ~{prof['pddd']:.1f}."
+                    ),
+                })
+
+        if favok and favok > 0 and prof["fd_favok"] > 0:
+            fd = market_cap + (fin_borc or 0) - (nakit or 0)
+            fd_favok = fd / favok
+            if 0.5 <= fd_favok <= 100:
+                yorum, fark = _yorumla(fd_favok, prof["fd_favok"])
+                sonuc["carpanlar"].append({
+                    "ad": "FD/FAVÖK", "tam_ad": "Firma Değeri / FAVÖK",
+                    "deger": round(fd_favok, 1),
+                    "sektor_ortalamasi": prof["fd_favok"],
+                    "yorum": yorum, "fark_yuzde": round(fark, 0),
+                    "aciklama": (
+                        f"Borç dahil firma değeri, faaliyet nakit üretiminin "
+                        f"{fd_favok:.1f} katı. Sektör ortalaması ~{prof['fd_favok']:.0f}."
+                    ),
+                })
+
+        olculen = [c for c in sonuc["carpanlar"] if c.get("fark_yuzde") is not None]
+        if not olculen:
+            sonuc["genel_yorum"] = (
+                "Değerleme oranları hesaplanamadı; izahnamede yeterli "
+                "finansal veri bulunamadı."
+            )
+        else:
+            ort_fark = sum(c["fark_yuzde"] for c in olculen) / len(olculen)
+            if ort_fark >= 25:
+                sonuc["genel_yorum"] = (
+                    "Halka arz fiyatı, sektör benzerlerine göre İSKONTOLU görünüyor."
+                )
+            elif ort_fark >= 8:
+                sonuc["genel_yorum"] = (
+                    "Halka arz fiyatı, sektör ortalamasının bir miktar ALTINDA."
+                )
+            elif ort_fark >= -8:
+                sonuc["genel_yorum"] = (
+                    "Halka arz fiyatı, sektör ortalamasına YAKIN."
+                )
+            elif ort_fark >= -25:
+                sonuc["genel_yorum"] = (
+                    "Halka arz fiyatı, sektör ortalamasının ÜZERİNDE (primli)."
+                )
+            else:
+                sonuc["genel_yorum"] = (
+                    "Halka arz fiyatı, sektör benzerlerine göre PAHALI görünüyor."
+                )
+            if bayat:
+                sonuc["genel_yorum"] += (
+                    " (Sektör ortalamaları güncel olmayabilir.)"
+                )
+        return sonuc
+
     def degerleme_puanla(self, market_cap: Optional[float], fin: dict, sektor: str,
                          kirmizi_bayraklar: list) -> ScoreResult:
         """
@@ -1459,10 +1595,31 @@ class ScoreAnalyzer:
         sektor = self._get_sektor(raw_text, sirket_adi)
         fiyat = TextUtils.sayi_bul(veri.get(InfoKey.FIYAT, ""))
         pay = TextUtils.sayi_bul(veri.get(InfoKey.PAY_SAYISI, ""))
-        market_cap = (fiyat * pay) if (fiyat and pay) else None
-        arz_buyuklugu = (
-            (fiyat * pay) if (fiyat and pay)
-            else TextUtils.tutar_coz(veri.get(InfoKey.BUYUKLUK, ""))
+
+        # ═══ KRİTİK DÜZELTME: PİYASA DEĞERİ ═══
+        # Önceki hesap "fiyat x halka arz edilen pay" idi. Bu ARZIN
+        # BÜYÜKLÜĞÜ, şirketin piyasa değeri DEĞİL.
+        #
+        # Quick Sigorta örneği: 3,7 milyar TL'lik arz, şirketin yalnızca
+        # %10,03'ü. Şirketin tam piyasa değeri 36,9 milyar TL.
+        # Yanlış hesapla PD/DD 0,14 çıkıyor ve "belirgin iskontolu"
+        # deniyordu; doğrusu 1,43 yani sektör ortalamasının biraz
+        # ÜZERİNDE. Bu hata değerleme puanını şişiriyor, dolayısıyla
+        # toplam skoru olduğundan yüksek gösteriyordu.
+        arz_degeri = (fiyat * pay) if (fiyat and pay) else None
+        aciklik_orani = TextUtils.yuzde_bul(veri.get(InfoKey.ACIKLIK, ""))
+        market_cap = None
+        if arz_degeri and aciklik_orani and 1.0 <= aciklik_orani <= 100.0:
+            market_cap = arz_degeri / (aciklik_orani / 100.0)
+        elif arz_degeri:
+            # Halka açıklık oranı bilinmiyorsa değerleme YAPILMAZ.
+            # Arz büyüklüğünü piyasa değeri sanmak, şirketi olduğundan
+            # çok daha ucuz göstermek demektir.
+            market_cap = None
+        # Arz büyüklüğü ≠ piyasa değeri. Satış baskısı modeli arzın
+        # kendi büyüklüğüne bakar, değerleme ise şirketin tamamına.
+        arz_buyuklugu = arz_degeri or TextUtils.tutar_coz(
+            veri.get(InfoKey.BUYUKLUK, "")
         )
 
         # DÜZELTME: Hazırlık/erteleme aşamasında fiyat, pay miktarı,
@@ -1699,6 +1856,7 @@ class ScoreAnalyzer:
             "baski": baski,
             "uyarilar": uyarilar,
             "finansal_veri_var": finansal_veri_var,
+            "degerleme": self.degerleme_carpanlari(market_cap, fin, sektor),
         }
 
 
@@ -2706,6 +2864,9 @@ class DataExtractor:
             "islem_menusu": islem_menusu,
             "veri_guvenilirligi": s["veri_guvenilirligi"],
             "finansal_veri_var": s.get("finansal_veri_var", False),
+            # YENİ: F/K, PD/DD, FD/FAVÖK oranları ve "pahalı mı ucuz mu"
+            # yorumu. Daha önce sadece skora gömülüydü.
+            "degerleme": s.get("degerleme", {}),
             # İzahname PDF'i işlendi mi? "isleniyor" ise finansal veri
             # bir sonraki istekte hazır olacak.
             "izahname_durumu": parsed.get("izahname_durumu", "kapali"),
