@@ -687,21 +687,49 @@ def dogrula(kalemler: dict[str, float]) -> dict[str, bool]:
     return d
 
 
+# Puanlamada gerçekten işe yarayan kalemler. Bunlardan yeterince
+# varsa veri kullanılabilir sayılır.
+DEGERLI_KALEMLER = {
+    "NetKar", "Ozkaynak", "Hasilat", "FaaliyetKari", "BrutKar",
+    "ToplamVarlik", "ToplamBorc", "DonenVarlik", "KisaVadeliYukumluluk",
+    "IsletmeNakitAkisi",
+}
+
+
 def guvenilir_mi(kalemler: dict, dogrulamalar: dict) -> tuple[bool, str]:
     """
     Veri kullanılabilir mi?
-    - Hiçbir doğrulama başarısız olmamalı
-    - En az temel kalemler bulunmuş olmalı
-    - En az bir doğrulama gerçekten YAPILMIŞ olmalı (hiç kontrol
-      edilememiş veri "geçti" sayılmaz)
+
+    DEĞİŞİKLİK: Önceki kural "NetKar VE Ozkaynak olmak zorunda" idi ve
+    fazla katıydı. İsvea'da 11, Intercity'de 10 kalem bulunmuştu ama bu
+    ikisi eksik olduğu için HEPSİ çöpe gidiyordu. Oysa proje.py zaten
+    kısmi veriyle çalışacak şekilde tasarlandı: her boyut kendi
+    verisi yoksa o boyutu hiç puanlamıyor, veri güvenilirliği yüzdesi
+    de buna göre düşüyor.
+
+    Yeni kural:
+      - Hiçbir tutarlılık kontrolü BAŞARISIZ olmamalı (bu değişmedi;
+        uydurma veriyi engelleyen asıl koruma budur)
+      - En az 1 kontrol gerçekten yapılmış olmalı
+      - Puanlamada işe yarayan en az 4 kalem bulunmuş olmalı
     """
     basarisiz = [k for k, v in dogrulamalar.items() if v is False]
     if basarisiz:
         return False, "Tutarlılık kontrolü başarısız: " + ", ".join(basarisiz)
     if not dogrulamalar:
         return False, "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem)."
-    if "NetKar" not in kalemler or "Ozkaynak" not in kalemler:
-        return False, "Temel kalemler (Net Kâr / Özkaynak) bulunamadı."
+
+    degerli = [k for k in kalemler if k in DEGERLI_KALEMLER]
+    if len(degerli) < 4:
+        return False, (
+            f"Yetersiz kalem ({len(degerli)} adet): puanlama için "
+            f"en az 4 anlamlı finansal kalem gerekli."
+        )
+
+    # Bilgilendirme: hangi ana kalemler eksik?
+    eksikler = [k for k in ("NetKar", "Ozkaynak", "Hasilat") if k not in kalemler]
+    if eksikler:
+        return True, f"Kullanılabilir ancak şu kalemler eksik: {', '.join(eksikler)}"
     return True, ""
 
 
@@ -938,7 +966,18 @@ def aday_pencereler(pdf_yolu: str, pencere: int = MAX_SAYFA_GONDER) -> list[list
                     if 0 <= k < toplam:
                         genis.add(k)
             sirali = sorted(genis)[:max(pencere, len(bulunan) + 4)]
-            return [sirali] + _kor_pencereler(toplam, pencere)[:2]
+            # DÜZELTME: Yedek pencereler belgenin ortasına göre değil,
+            # KEŞFİN BULDUĞU sayfaya göre üretilmeli. Intercity'de keşif
+            # 122. sayfayı buldu ama yedekler 88-95 ve 80-87'ye gitti —
+            # yani doğru bölgeden UZAKLAŞTI. Bilançonun aktif ve pasif
+            # tarafları ardışık sayfalarda olduğu için, kaçan kalemler
+            # neredeyse her zaman bulunan sayfanın hemen yanındadır.
+            merkez = bulunan[0]
+            yedekler = [
+                [k for k in range(merkez + 2, min(toplam, merkez + 2 + pencere))],
+                [k for k in range(max(0, merkez - pencere - 1), max(1, merkez - 1))],
+            ]
+            return [sirali] + [y for y in yedekler if y]
 
     return _kor_pencereler(toplam, pencere)
 

@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
 
@@ -49,7 +50,9 @@ class AppSettings:
     TIMEOUT: int = int(os.environ.get("TIMEOUT", "15"))
     CACHE_TTL: int = int(os.environ.get("CACHE_TTL", "300"))
     MAX_RETRY: int = int(os.environ.get("MAX_RETRY", "3"))
-    MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "15"))
+    # 15 çok düşüktü: kaynak sitede 200+ şirket listeleniyor ve yeni
+    # duyurulan arzlar bu sınırın dışında kalabiliyordu.
+    MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "40"))
     ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
     ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
@@ -103,8 +106,13 @@ class ArzDurumu(str, Enum):
     # aşamadaki şirketlerin izahnamesi henüz yayınlanmadığı için zaten
     # fiyat/pay/finansal verileri boş geliyordu ve boş kart gösteriyorduk.
     HAZIRLANIYOR = "Hazırlanıyor"                    # listede gösterilmiyor
-    SPK_ONAYLI = "SPK Onaylı (Tarih Bekleniyor)"     # listede gösterilmiyor
-    TALEP_YAKLASIYOR = "Talep Toplama Tarihi Bekleniyor"
+    # DÜZELTME: SPK onayı almış ama talep toplama tarihi henüz
+    # açıklanmamış arzlar gizleniyordu. Yeni duyurulan halka arzların
+    # çoğu ilk günlerde tam olarak bu durumda oluyor ve uygulamada
+    # hiç görünmüyorlardı. Artık gösteriliyor.
+    SPK_ONAYLI = "Talep Toplama Tarihi Bekleniyor"
+    # Tarihi açıklanmış, başlamasına gün kalmış olanlar
+    TALEP_YAKLASIYOR = "Talep Toplama Yaklaşıyor"
     TALEP_TOPLANIYOR = "Talep Toplanıyor"
     DAGITIM_BEKLENIYOR = "Dağıtım Bekleniyor"
     ISLEME_BEKLENIYOR = "İşleme Girmesi Bekleniyor"
@@ -114,6 +122,7 @@ class ArzDurumu(str, Enum):
 # Ana ekranda gösterilecek durumlar. Buradan çıkarılan bir durum
 # API yanıtına hiç girmez.
 GOSTERILEN_DURUMLAR: set[str] = {
+    ArzDurumu.SPK_ONAYLI.value,
     ArzDurumu.TALEP_YAKLASIYOR.value,
     ArzDurumu.TALEP_TOPLANIYOR.value,
     ArzDurumu.DAGITIM_BEKLENIYOR.value,
@@ -1648,7 +1657,7 @@ class DataExtractor:
         # Bu sayede Render'da Docker/tesseract/API anahtarı GEREKMEZ.
         self.finansal_depo = None
         try:
-            from Finansaldepo import FinansalDepo
+            from finansal_depo import FinansalDepo
             self.finansal_depo = FinansalDepo()
             self.finansal_depo.yukle()
         except ImportError as e:
@@ -1746,7 +1755,7 @@ class DataExtractor:
             try:
                 res = await session.get(url, timeout=SETTINGS.TIMEOUT)
                 if res.status_code == 200:
-                    return res.content.decode("utf-8")
+                    return res.text
                 logger.warning(f"Bağlantı hatası ({url}), durum kodu: {res.status_code}")
             except Exception as e:
                 logger.warning(f"Timeout/hata ({url}): {e}")
@@ -2374,7 +2383,7 @@ class DataExtractor:
         izahname_url = None
         if self.finansal_depo is not None:
             try:
-                from Finansaldepo import kayittan_finansal_uret
+                from finansal_depo import kayittan_finansal_uret
                 kayit = self.finansal_depo.bul(
                     sirket_adi, str(veri.get(InfoKey.BIST_KODU, ""))
                 )
@@ -2638,6 +2647,7 @@ class DataExtractor:
         soup = BeautifulSoup(html, "html.parser")
         gorulen: set[str] = set()
         meta_list: list[tuple[str, str, str]] = []
+        atlanan = 0
 
         for etiket in soup.find_all("h3"):
             link = etiket.find("a") or etiket.find_parent("a")
@@ -2652,16 +2662,41 @@ class DataExtractor:
                 parent_li.get_text(strip=True) if parent_li else sirket_adi
             )
 
-            if not any(b in kart_metni for b in [
-                "yeni!", "talep toplan", "taslak", "onaylı", "yaklaşan",
-                "hazırlanıyor", "işlem görüyor", "gong!"
-            ]):
+            # DÜZELTME: Bu filtre yalnızca sabit bir kelime listesine
+            # bakıyordu. Kaynak site kart etiketlerini değiştirdiğinde
+            # veya yeni bir arz farklı bir rozetle yayınlandığında
+            # şirket tamamen atlanıyordu — "bugün 4 arz geldi ama
+            # görünmüyor" şikayetinin sebeplerinden biri buydu.
+            #
+            # Artık kelime eşleşmesine ek olarak, kartta GÜNCEL YIL
+            # geçiyorsa da şirket alınıyor. Yeni bir arzın kartında
+            # neredeyse her zaman tarihi yer alır.
+            anahtar_var = any(b in kart_metni for b in [
+                "yeni!", "yeni !", "talep toplan", "taslak", "onaylı",
+                "onayli", "yaklaşan", "hazırlanıyor", "işlem görüyor",
+                "gong!", "spk", "dağıtım", "sonuç"
+            ])
+            bu_yil = str(datetime.now().year)
+            gelecek_yil = str(datetime.now().year + 1)
+            tarih_var = bu_yil in kart_metni or gelecek_yil in kart_metni
+
+            if not anahtar_var and not tarih_var:
+                atlanan += 1
                 continue
 
             gorulen.add(sirket_adi)
             meta_list.append((sirket_adi, link["href"], kart_metni))
             if len(meta_list) >= SETTINGS.MAX_SIRKET:
+                logger.info(
+                    f"MAX_SIRKET sınırına ({SETTINGS.MAX_SIRKET}) ulaşıldı; "
+                    f"listede daha fazla şirket olabilir."
+                )
                 break
+
+        logger.info(
+            f"Kaynak sayfada {len(gorulen) + atlanan} aday; "
+            f"{len(meta_list)} şirket işlenecek, {atlanan} kart filtrelendi."
+        )
 
         semaphore = asyncio.Semaphore(SETTINGS.ESZAMANLI_ISTEK_LIMITI)
 
@@ -2690,8 +2725,9 @@ class DataExtractor:
         elenen = [p for p in parsed_list if p["durum"].value not in GOSTERILEN_DURUMLAR]
         if elenen:
             logger.info(
-                "Listede gösterilmeyen (izahname aşaması) şirketler: "
-                + ", ".join(f"{p['sirket_adi']} [{p['durum'].value}]" for p in elenen)
+                f"Durum filtresiyle gizlenen {len(elenen)} şirket: "
+                + ", ".join(f"{p['sirket_adi']} [{p['durum'].value}]"
+                            for p in elenen[:10])
             )
         parsed_list = [p for p in parsed_list if p["durum"].value in GOSTERILEN_DURUMLAR]
 
@@ -2764,11 +2800,22 @@ async def lifespan(app: FastAPI):
     logger.info("Uygulama kapatıldı.")
 
 
+class UTF8JSONResponse(JSONResponse):
+    """
+    DÜZELTME: Tarayıcıda Türkçe karakterler bozuk görünüyordu
+    ("İlk gün satış" -> "Ä°lk gÃ¼n satÄ±ÅŸ"). Sebep, yanıtın
+    Content-Type başlığında karakter kümesinin belirtilmemesi;
+    tarayıcı da latin-1 varsayıyordu.
+    """
+    media_type = "application/json; charset=utf-8"
+
+
 app = FastAPI(
     title="Halka Arz Asistanı Pro",
     description="Halka arz analiz ve puanlama API'si",
     version=MODEL_SURUMU,
     lifespan=lifespan,
+    default_response_class=UTF8JSONResponse,
 )
 
 app.add_middleware(
