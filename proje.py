@@ -142,7 +142,12 @@ DURUM_SIRASI: dict[str, int] = {
 
 # Borsada işlem görmeye başlayan arzlar bu kadar gün sonra listeden
 # düşer; aksi halde liste eski arzlarla dolup taşıyor.
-ISLEM_GOREN_GOSTERIM_GUNU = int(os.environ.get("ISLEM_GOREN_GOSTERIM_GUNU", "21"))
+# Borsada işlem görmeye başlayan arz kaç gün listede kalsın?
+# 0 = SADECE işlem gününde görünür, ertesi gün listeden düşer.
+ISLEM_GOREN_GOSTERIM_GUNU = int(os.environ.get("ISLEM_GOREN_GOSTERIM_GUNU", "0"))
+# Talep toplaması bitmiş arzlar kaç gün sonra listeden düşsün?
+# (Dağıtım/işleme girme süreci genelde 1-2 hafta sürer.)
+ESKI_ARZ_GUNU = int(os.environ.get("ESKI_ARZ_GUNU", "14"))
 
 # Ana ekranda gösterilecek durumlar. Buradan çıkarılan bir durum
 # API yanıtına hiç girmez.
@@ -2763,16 +2768,20 @@ class DataExtractor:
             # Artık kelime eşleşmesine ek olarak, kartta GÜNCEL YIL
             # geçiyorsa da şirket alınıyor. Yeni bir arzın kartında
             # neredeyse her zaman tarihi yer alır.
-            anahtar_var = any(b in kart_metni for b in [
-                "yeni!", "yeni !", "talep toplan", "taslak", "onaylı",
-                "onayli", "yaklaşan", "hazırlanıyor", "işlem görüyor",
-                "gong!", "spk", "dağıtım", "sonuç"
+            # DÜZELTME: Önceki sürüm "kartta güncel yıl geçiyorsa al"
+            # diyordu ve bu ÇOK GEVŞEKTİ — GDZ Elektrik, Sakarya
+            # Elektrik, Tredaş, Aras Elektrik gibi yıllar önceki arzlar
+            # listeye sızıyordu.
+            #
+            # Artık yalnızca kaynak sitenin GÜNCELLİK ROZETİ taşıyan
+            # kartları alınıyor. Site yeni arzları "Yeni!", işleme
+            # gireni "Gong!", ertelenmiş olanı "Ertelendi" ile
+            # işaretliyor; eski arzlarda bu rozetler yok.
+            guncel_rozet = any(b in kart_metni for b in [
+                "yeni!", "yeni !", "gong!", "gong !", "ertelendi",
+                "talep toplan", "hazırlanıyor", "dağıtım bekleniyor",
             ])
-            bu_yil = str(datetime.now().year)
-            gelecek_yil = str(datetime.now().year + 1)
-            tarih_var = bu_yil in kart_metni or gelecek_yil in kart_metni
-
-            if not anahtar_var and not tarih_var:
+            if not guncel_rozet:
                 atlanan += 1
                 continue
 
@@ -2818,15 +2827,35 @@ class DataExtractor:
         # düşürülüyor. Aksi halde liste aylar önceki arzlarla doluyor ve
         # kullanıcı güncel arzları göremiyor.
         def _eski_mi(p) -> bool:
-            if p["durum"] != ArzDurumu.ISLEM_GORMEYE_BASLADI:
+            """
+            İki kademeli eskime kontrolü:
+
+            1) Borsada işlem görmeye başlayan arz, ISLEM_GOREN_GOSTERIM_GUNU
+               gün sonra listeden düşer (varsayılan 1 gün — kullanıcı
+               "işlem günü girsin, ertesi gün silinsin" istedi).
+            2) Talep toplaması ESKİDEN bitmiş ama hâlâ bir ara durumda
+               görünen arzlar da düşer. Rozet filtresini aşan eski
+               kayıtlara karşı ikinci savunma hattı.
+            """
+            bugun = datetime.now().date()
+
+            if p["durum"] == ArzDurumu.ISLEM_GORMEYE_BASLADI:
+                aralik = TextUtils.tarih_araligi_coz(
+                    p["veri"].get(InfoKey.ISLEM_TARIHI, "")
+                ) or p.get("talep_aralik")
+                if not aralik:
+                    return False
+                return (bugun - aralik[1]).days > ISLEM_GOREN_GOSTERIM_GUNU
+
+            # Hazırlık/erteleme aşamasında tarih olmaz; bunlar elenmez
+            if p["durum"] in (ArzDurumu.HAZIRLANIYOR, ArzDurumu.ERTELENDI,
+                              ArzDurumu.SPK_ONAYLI):
                 return False
-            aralik = TextUtils.tarih_araligi_coz(
-                p["veri"].get(InfoKey.ISLEM_TARIHI, "")
-            ) or p.get("talep_aralik")
+
+            aralik = p.get("talep_aralik")
             if not aralik:
                 return False
-            gun = (datetime.now().date() - aralik[1]).days
-            return gun > ISLEM_GOREN_GOSTERIM_GUNU
+            return (bugun - aralik[1]).days > ESKI_ARZ_GUNU
 
         eskiler = [p for p in parsed_list if _eski_mi(p)]
         if eskiler:
