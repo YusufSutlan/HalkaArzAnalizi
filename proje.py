@@ -2,6 +2,7 @@ import os
 import re
 import time
 import asyncio
+import json
 import logging
 from datetime import datetime, date
 from enum import Enum
@@ -1649,6 +1650,9 @@ class DataExtractor:
         self.analyzer = analyzer or ScoreAnalyzer()
         self.session: Optional[AsyncSession] = None
         self._session_lock = asyncio.Lock()
+        # Tabloda görülüp seriye alınmayan ara dönemler (ör. 2026/3).
+        # Yalnızca tanı amaçlı; büyüme hesabına girmezler.
+        self._atlanan_ara_donemler: set[int] = set()
 
         # DEĞİŞİKLİK (mimari): Sunucu artık PDF indirmiyor, OCR yapmıyor,
         # yapay zekaya istek atmıyor. Tüm bu ağır iş GitHub Actions'ta
@@ -2178,6 +2182,28 @@ class DataExtractor:
                 veri[InfoKey.FINANSAL_TABLO] = "\n".join(ham)
                 break
 
+    @staticmethod
+    def _donem_coz_basligi(metin: str) -> Optional[tuple[int, bool]]:
+        """
+        Bir tablo kolon başlığından (yıl, tam_yil_mi) çıkarır.
+
+        DÜZELTME: Kaynak sitede kolonlar "2026/3", "2025", "2024"
+        şeklinde. "2026/3" ilk ÜÇ AYLIK dönemdir; bunu yıllık verilerle
+        karşılaştırmak sahte daralma üretiyordu. Çitlekçi'de hasılat
+        2024: 6,2 mlr -> 2025: 9,0 mlr (büyüme) iken, 2026/3'ün
+        2,6 mlr'lik çeyrek rakamı yıllık sanılıp "%35 daralma" kırmızı
+        bayrağı basılmıştı.
+        """
+        m = re.search(r"(20\d{2})\s*[/\-]\s*(\d{1,2})", str(metin))
+        if m:
+            ay = int(m.group(2))
+            return int(m.group(1)), ay == 12
+        m = re.search(r"(20\d{2})", str(metin))
+        if m:
+            # Sadece yıl yazıyorsa tam yıl kabul edilir
+            return int(m.group(1)), True
+        return None
+
     def _tablo_yil_haritasi(self, tablo) -> dict[int, int]:
         """
         YENİ: Bir finansal tablonun başlık satırından kolon -> yıl
@@ -2191,10 +2217,17 @@ class DataExtractor:
             hucreler = tr.find_all(["th", "td"])
             gecici: dict[int, int] = {}
             for idx, h in enumerate(hucreler):
-                metin = h.get_text(strip=True)
-                yil_match = re.search(r"(20\d{2})", metin)
-                if yil_match:
-                    gecici[idx] = int(yil_match.group(1))
+                cozum = self._donem_coz_basligi(h.get_text(strip=True))
+                if cozum is None:
+                    continue
+                yil, tam_yil = cozum
+                # DÜZELTME: Ara dönem kolonları (2026/3 gibi) seriye
+                # ALINMIYOR. Çeyrek rakamını yıllıkla karşılaştırmak
+                # sahte daralma üretiyordu.
+                if not tam_yil:
+                    self._atlanan_ara_donemler.add(yil)
+                    continue
+                gecici[idx] = yil
             if len(gecici) >= 2:
                 harita = gecici
                 break
@@ -2222,10 +2255,13 @@ class DataExtractor:
                         continue
                     # Kolon kolon ilerle, yıl haritası varsa seriye yaz
                     for idx in range(1, len(tds)):
-                        sayilar = TextUtils.tum_sayilari_bul(tds[idx].get_text(strip=True))
-                        if not sayilar:
+                        # DÜZELTME: tum_sayilari_bul "9,0 Milyar TL"yi
+                        # 9.0 olarak okuyordu. tutar_coz birim ekini
+                        # (milyar/milyon/bin) doğru çarpanla uyguluyor.
+                        hucre = tds[idx].get_text(strip=True)
+                        deger = TextUtils.tutar_coz(hucre)
+                        if deger is None:
                             continue
-                        deger = sayilar[0]
                         yil = yil_haritasi.get(idx)
                         if yil:
                             seriler.setdefault(alan, {})[yil] = deger
@@ -2241,11 +2277,11 @@ class DataExtractor:
                 if alan in fin:
                     continue
                 if any(nl == e or nl.startswith(e) for e in etiketler):
-                    sayilar = TextUtils.tum_sayilari_bul(line)
-                    if not sayilar and i + 1 < len(lines):
-                        sayilar = TextUtils.tum_sayilari_bul(lines[i + 1])
-                    if sayilar:
-                        fin[alan] = sayilar[0]
+                    deger = TextUtils.tutar_coz(line)
+                    if deger is None and i + 1 < len(lines):
+                        deger = TextUtils.tutar_coz(lines[i + 1])
+                    if deger is not None:
+                        fin[alan] = deger
 
         # Serilerde en güncel yılın değerini "fin" için tercih et
         for alan, seri in seriler.items():
@@ -2802,12 +2838,33 @@ async def lifespan(app: FastAPI):
 
 class UTF8JSONResponse(JSONResponse):
     """
-    DÜZELTME: Tarayıcıda Türkçe karakterler bozuk görünüyordu
-    ("İlk gün satış" -> "Ä°lk gÃ¼n satÄ±ÅŸ"). Sebep, yanıtın
-    Content-Type başlığında karakter kümesinin belirtilmemesi;
-    tarayıcı da latin-1 varsayıyordu.
+    Tarayıcıda Türkçe karakterler bozuk görünüyordu
+    ("İlk gün satış" -> "Ä°lk gÃ¼n satÄ±ÅŸ").
+
+    Sebep: yanıt UTF-8 kodlanıyor ama Content-Type başlığında karakter
+    kümesi belirtilmediği için tarayıcı latin-1 varsayıyordu.
+
+    media_type sınıf değişkenini ayarlamak bazı Starlette sürümlerinde
+    yeterli olmuyor; init_headers charset'i ayrıca ekliyor. Bu yüzden
+    başlık render sırasında doğrudan yazılıyor.
     """
-    media_type = "application/json; charset=utf-8"
+    media_type = "application/json"
+
+    def render(self, content) -> bytes:
+        # ensure_ascii=False: Türkçe karakterler \uXXXX kaçışına
+        # dönüşmeden, okunabilir biçimde gönderilir.
+        return json.dumps(
+            content, ensure_ascii=False, allow_nan=False,
+            indent=None, separators=(",", ":"),
+        ).encode("utf-8")
+
+    def init_headers(self, headers=None) -> None:
+        super().init_headers(headers)
+        self.raw_headers = [
+            (k, b"application/json; charset=utf-8")
+            if k.lower() == b"content-type" else (k, v)
+            for k, v in self.raw_headers
+        ]
 
 
 app = FastAPI(
