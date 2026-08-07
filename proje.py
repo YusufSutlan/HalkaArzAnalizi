@@ -1763,6 +1763,31 @@ class ScoreAnalyzer:
 
         temel_kalite = round(max(0.0, min(100.0, base_score + bonuslar - toplam_ceza)), 1)
 
+        # ═══ YENİ: SKOR GÜVENİLİRLİĞİ ═══
+        # Skor, "ölçülebilen ağırlığa" göre normalize ediliyor. Yani
+        # modelin %30'u ölçülebildiyse skor o %30'un içinden hesaplanıyor
+        # ve 100 üzerinden sunuluyor. Bu, kullanıcıya tam bir
+        # değerlendirme yapılmış izlenimi veriyor — oysa değil.
+        #
+        # Teknika Plast örneği: kârlılık, borç, likidite, nakit akışı ve
+        # değerlemenin HİÇBİRİ ölçülemedi (ağırlığın %67'si). Kalan
+        # %33'ten çıkan 32 puan, "şirket kötü" demek değil; "yeterli
+        # veri yok" demek. Bu ayrım açıkça bildirilmeli.
+        SKOR_GUVENILIR_ESIK = 55
+        skor_guvenilir = veri_guvenilirligi >= SKOR_GUVENILIR_ESIK
+        if not skor_guvenilir:
+            olculemeyen = [
+                kat.value for kat, res in hesaplamalar
+                if not res.has_data and self.weights.MAX[kat] >= 10
+            ]
+            uyarilar.append(
+                f"⚠️ SKOR EKSİK VERİYLE HESAPLANDI (%{veri_guvenilirligi} kapsam). "
+                f"Şu boyutlar hiç ölçülemedi: {', '.join(olculemeyen)}. "
+                f"Bu puan şirketin kötü olduğunu DEĞİL, izahname verisinin "
+                f"henüz işlenmediğini gösterir. Diğer şirketlerle "
+                f"karşılaştırmak için kullanmayın."
+            )
+
         risk = 10.0 + (toplam_ceza * kritik_carpani)
         if veri_guvenilirligi < 70:
             risk += (70 - veri_guvenilirligi) * 0.4
@@ -1856,6 +1881,10 @@ class ScoreAnalyzer:
             "baski": baski,
             "uyarilar": uyarilar,
             "finansal_veri_var": finansal_veri_var,
+            "skor_guvenilir": skor_guvenilir,
+            "olculemeyen_boyutlar": [
+                kat.value for kat, res in hesaplamalar if not res.has_data
+            ],
             "degerleme": self.degerleme_carpanlari(market_cap, fin, sektor),
         }
 
@@ -2873,6 +2902,10 @@ class DataExtractor:
             "islem_menusu": islem_menusu,
             "veri_guvenilirligi": s["veri_guvenilirligi"],
             "finansal_veri_var": s.get("finansal_veri_var", False),
+            # Skor yeterli veriyle mi hesaplandı? False ise uygulamada
+            # kesin bir puan gibi gösterilmemeli.
+            "skor_guvenilir": s.get("skor_guvenilir", False),
+            "olculemeyen_boyutlar": s.get("olculemeyen_boyutlar", []),
             # YENİ: F/K, PD/DD, FD/FAVÖK oranları ve "pahalı mı ucuz mu"
             # yorumu. Daha önce sadece skora gömülüydü.
             "degerleme": s.get("degerleme", {}),
