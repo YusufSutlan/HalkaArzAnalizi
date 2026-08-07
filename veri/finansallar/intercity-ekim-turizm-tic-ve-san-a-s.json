@@ -4,12 +4,11 @@
   "izahname_url": "https://www.vakifyatirim.com.tr/assets/file/news_26_06_2026_146.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-06T09:41:27Z",
+  "islenme_zamani": "2026-08-07T08:16:41Z",
   "olcek": 1.0,
   "donemler": [
     "2023-12",
     "2024-12",
-    "2025-03",
     "2025-12",
     "2026-03"
   ],
@@ -22,8 +21,7 @@
     "UzunVadeliYukumluluk": 10838993268.0,
     "ToplamBorc": 18062363183.0,
     "OdenmisSermaye": 700000000.0,
-    "NetKar": 81589060.0,
-    "Hasilat": 2891487512.0
+    "NetKar": 81589060.0
   },
   "seriler": {
     "Nakit": {
@@ -79,38 +77,18 @@
       "2024-12": -2363631620.0,
       "2025-12": -2177623491.0,
       "2026-03": 81589060.0
-    },
-    "Hasilat": {
-      "2023-12": 16058546333.0,
-      "2024-12": 15903465377.0,
-      "2025-12": 15361882723.0,
-      "2025-03": 2641919404.0,
-      "2026-03": 2891487512.0
     }
   },
   "dogrulama": {
     "varlik_toplami": true,
     "yukumluluk_toplami": true
   },
-  "guvenilir": false,
-  "not": "Temel kalemler (Net Kâr / Özkaynak) bulunamadı.",
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Ozkaynak, Hasilat",
   "islenen_sayfalar": [
-    80,
-    81,
-    82,
-    83,
-    84,
-    85,
-    86,
-    87,
-    88,
-    89,
-    90,
-    91,
-    92,
-    93,
-    94,
-    95,
+    118,
+    119,
+    120,
     121,
     122,
     123,
