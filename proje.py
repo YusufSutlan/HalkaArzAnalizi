@@ -2789,20 +2789,29 @@ class DataExtractor:
                 f"Şirketin temel finansal kalitesi {t_kalite}/100 olarak ölçüldü "
                 f"(sektör: {s['sektor']}). Risk seviyesi {s['risk']}/100."
             ]
-            # DEĞİŞİKLİK: Artık "tavan yapar" ima eden bir dil kullanılmıyor.
-            # Kısa vadeli beklenti, satış baskısıyla birlikte ifade ediliyor.
-            if baski["skor"] >= 40:
+            # DÜZELTME: Metin ayrı bir eşik (>=40) kullanıyordu, panel ise
+            # baskı seviyesini (>=20 "Orta") gösteriyordu. Sonuçta aynı
+            # ekranda "satış baskısı düşük" yazarken panelde "Orta · 36"
+            # görünüyordu. Artık ikisi de AYNI seviye etiketini kullanıyor.
+            seviye = baski.get("seviye", "Belirsiz")
+            if baski["skor"] >= 20:
                 parcalar.append(
-                    f"Kısa vadeli fiyat davranışı açısından ilk gün satış baskısı "
-                    f"{baski['seviye'].lower()} ({baski['skor']}/100) görünüyor; bu nedenle "
-                    f"ilk günlerde yukarı yönlü hareket beklentisi zayıflatılmıştır "
-                    f"(potansiyel skoru {s['tavan_potansiyeli']}/100)."
+                    f"İlk gün satış baskısı {seviye.lower()} seviyede "
+                    f"({baski['skor']:.0f}/100); kısa vadeli yukarı yönlü hareket "
+                    f"potansiyeli {s['tavan_potansiyeli']}/100 olarak hesaplandı."
                 )
             else:
                 parcalar.append(
-                    f"Kısa vadeli yukarı yönlü hareket potansiyeli {s['tavan_potansiyeli']}/100 "
-                    f"olarak hesaplandı; ilk gün satış baskısı düşük görünüyor."
+                    f"İlk gün satış baskısı düşük ({baski['skor']:.0f}/100); "
+                    f"kısa vadeli yukarı yönlü hareket potansiyeli "
+                    f"{s['tavan_potansiyeli']}/100 olarak hesaplandı."
                 )
+
+            # YENİ: Değerleme yorumu da özete giriyor — kullanıcının
+            # "fiyat pahalı mı?" sorusu en temel sorulardan biri.
+            deg = s.get("degerleme") or {}
+            if deg.get("genel_yorum") and deg.get("carpanlar"):
+                parcalar.append(deg["genel_yorum"])
             if s["veri_guvenilirligi"] < 60:
                 parcalar.append(
                     f"Bu analiz, izahnamede bulunabilen sınırlı veriyle (%{s['veri_guvenilirligi']} "
