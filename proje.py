@@ -527,9 +527,21 @@ class ScoreAnalyzer:
         # DEĞİŞİKLİK: incelemede "AR-GE, kapasite artırımı, satın alma
         # hepsi aynı puanı alıyor" denmişti. Artık fon kullanım
         # kalemleri etkilerine göre ağırlıklandırılıyor.
+        # DÜZELTME: Liste eksikti. Çitlekçi'nin "%35 yeni şube yatırımı"
+        # ve "%15 yeni depo yatırımı" kalemleri hiçbir anahtarla
+        # eşleşmediği için SIFIR sayılıyordu — oysa bunlar doğrudan
+        # büyüme yatırımı. Perakende/lojistik terimleri eklendi.
         self.FON_AGIRLIKLARI: list[tuple[list[str], float, str]] = [
             (["kapasite artırım", "yeni tesis", "yeni fabrika", "makine", "teçhizat",
-              "üretim hattı"], 1.0, "kapasite/üretim yatırımı"),
+              "üretim hattı", "tesis yatırım", "fabrika yatırım",
+              "üretim tesisi", "yeni tesis", "ilave tesis",
+              "otomasyon", "modernizasyon"], 1.0, "kapasite/üretim yatırımı"),
+            (["yeni şube", "şube yatırım", "yeni mağaza", "mağaza yatırım",
+              "şube aç", "mağaza aç", "yeni depo", "depo yatırım",
+              "lojistik yatırım", "dağıtım ağı"], 0.95,
+             "şube/depo yatırımı (organik büyüme)"),
+            (["büyüme yatırım", "yatırımların finansmanı", "devam eden yatırım",
+              "yeni yatırım"], 0.9, "büyüme yatırımı"),
             (["ar-ge", "arge", "ar ge", "patent", "yazılım geliştirme",
               "dijitalleşme", "teknoloji yatırımı"], 0.9, "Ar-Ge/teknoloji"),
             (["yurt dışı", "yurtdışı", "ihracat", "yeni pazar", "global"], 0.85,
@@ -538,8 +550,9 @@ class ScoreAnalyzer:
              0.85, "enerji yatırımı"),
             (["satın alma", "şirket alımı", "iştirak", "birleşme", "hisse alımı"],
              0.6, "satın alma (entegrasyon riski)"),
-            (["işletme sermayesi", "çalışma sermayesi", "stok", "hammadde"], 0.45,
-             "işletme sermayesi"),
+            (["işletme sermayesi", "çalışma sermayesi", "stok",
+              "hammadde tedarik", "hammadde alım", "hammadde"], 0.5,
+             "işletme sermayesi/hammadde"),
             (["gayrimenkul alım", "arsa", "bina alım", "ofis"], 0.35,
              "gayrimenkul alımı"),
         ]
@@ -1280,13 +1293,42 @@ class ScoreAnalyzer:
                 f"🚨 Halka arz gelirinin ~%{borc_toplam:.0f}'i borç ödemeye gidiyor, büyümeye değil."
             )
 
-        buyume_katki = (min(agirlikli_buyume, 100) / 70.0) * mx
-        borc_ceza = (min(borc_toplam, 100) / 45.0) * mx
-        puan = max(0.0, min(mx, buyume_katki - borc_ceza))
+        # ═══ DÜZELTME: CEZA YERİNE AĞIRLIKLI ORTALAMA ═══
+        #
+        # Eski formül borç ödemesini büyüme katkısından ÇIKARIYORDU ve
+        # ceza katsayısı çok dikti. Teknika Plast örneği: %30 büyüme
+        # yatırımı + %40 işletme sermayesi + %30 borç ödeme kombinasyonu
+        # 0,19/10 puan alıyordu. Yani makul bir dağılım, sıfır sayılıyordu.
+        #
+        # Oysa borç azaltmak da şirketi güçlendirir: faiz yükünü düşürür,
+        # özkaynak kârlılığını artırır. Büyüme yatırımı kadar değerli
+        # değildir ama CEZA da değildir.
+        #
+        # Artık her kalem kendi katsayısıyla ağırlıklı ortalamaya giriyor.
+        # Borç ödemesi 0,40 katsayı alıyor (işletme sermayesine yakın,
+        # kapasite yatırımının altında). Ceza yalnızca borç ödemesi
+        # BASKIN hale geldiğinde (>%50) uygulanıyor — o zaman gerçekten
+        # "halka arz parası büyümeye değil borca gidiyor" demektir.
+        BORC_KATSAYISI = 0.40
+        toplam_agirlikli = agirlikli_buyume + (borc_toplam * BORC_KATSAYISI)
+        toplam_oran = sum(
+            TextUtils.yuzde_bul(s) or 0 for s in satirlar
+            if TextUtils.yuzde_bul(s) is not None
+        ) or 100.0
+
+        # Kalemlerin ortalama kalitesi (0-1 arası)
+        kalite = toplam_agirlikli / max(toplam_oran, 1.0)
+        puan = min(mx, kalite * mx)
+
+        # Borç ödemesi baskınsa ek ceza
+        if borc_toplam > 50:
+            asim = (borc_toplam - 50) / 50.0
+            puan = max(0.0, puan - asim * mx * 0.5)
+
         return ScoreResult(
             round(puan, 1), mx,
             f"Kalemler: {', '.join(kalem_notlari[:5])}. "
-            f"Ağırlıklı büyüme katkısı ~%{min(agirlikli_buyume, 100):.0f}, "
+            f"Büyüme/yatırım ~%{min(agirlikli_buyume, 100):.0f} ağırlıklı katkı, "
             f"borç ödeme ~%{min(borc_toplam, 100):.0f}.",
             True
         )
