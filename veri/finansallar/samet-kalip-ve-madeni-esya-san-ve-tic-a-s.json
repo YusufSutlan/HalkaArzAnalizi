@@ -1,0 +1,99 @@
+{
+  "slug": "samet-kalip-ve-madeni-esya-san-ve-tic-a-s",
+  "sirket_adi": "Samet Kalıp ve Madeni Eşya San. ve Tic. A.Ş.",
+  "izahname_url": "https://sametglobal.com/pdf/taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-08T07:55:11Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 8419100744.0,
+    "BrutKar": 3025299324.0,
+    "FaaliyetKari": 829620878.0,
+    "NetKar": 202069646.0,
+    "FinansmanGideri": -1075825156.0,
+    "Ozkaynak": 3597387786.0,
+    "OdenmisSermaye": 250000000.0,
+    "ToplamKaynak": 8850698295.0,
+    "ToplamVarlik": 8850698295.0,
+    "IsletmeNakitAkisi": 2049069872.0,
+    "Nakit": 322005902.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 8317521828.0,
+      "2024-12": 8485672124.0,
+      "2025-12": 8419100744.0
+    },
+    "BrutKar": {
+      "2023-12": 2711022945.0,
+      "2024-12": 2929509793.0,
+      "2025-12": 3025299324.0
+    },
+    "FaaliyetKari": {
+      "2023-12": 23207495.0,
+      "2024-12": 612754126.0,
+      "2025-12": 829620878.0
+    },
+    "NetKar": {
+      "2023-12": 684500391.0,
+      "2024-12": 174273671.0,
+      "2025-12": 202069646.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -423281779.0,
+      "2024-12": -956605768.0,
+      "2025-12": -1075825156.0
+    },
+    "Ozkaynak": {
+      "2023-12": 3292730365.0,
+      "2024-12": 3611178032.0,
+      "2025-12": 3597387786.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 250000000.0,
+      "2024-12": 250000000.0,
+      "2025-12": 250000000.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 7681958125.0,
+      "2024-12": 8163686359.0,
+      "2025-12": 8850698295.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 7681958125.0,
+      "2024-12": 8163686359.0,
+      "2025-12": 8850698295.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 2268058175.0,
+      "2024-12": 1575741901.0,
+      "2025-12": 2049069872.0
+    },
+    "Nakit": {
+      "2023-12": 609039386.0,
+      "2024-12": 517559380.0,
+      "2025-12": 322005902.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    20,
+    37,
+    170,
+    183,
+    201
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "slug": "peak-pv-solar-teknolojileri-a-s",
+  "sirket_adi": "Peak Pv Solar Teknolojileri A.Ş.",
+  "izahname_url": "https://www.peakpvsolar.com/yatirimci-raporlar/peak-pv-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-08T07:56:13Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 1797346042.0,
+    "Nakit": 22218864.0,
+    "KisaVadeliYukumluluk": 1015990603.0,
+    "UzunVadeliYukumluluk": 245078142.0,
+    "Ozkaynak": 1816554346.0,
+    "OdenmisSermaye": 175000000.0,
+    "NetKar": 492316184.0,
+    "ToplamKaynak": 3088056346.0,
+    "ToplamBorc": 1261068745.0,
+    "IsletmeNakitAkisi": -109285821.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 1895505177.0,
+      "2024-12": 1054924692.0,
+      "2025-12": 1797346042.0
+    },
+    "Nakit": {
+      "2023-12": 49688264.0,
+      "2024-12": 12532167.0,
+      "2025-12": 22218864.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 1790824483.0,
+      "2024-12": 823671970.0,
+      "2025-12": 1015990603.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 324492839.0,
+      "2024-12": 137952075.0,
+      "2025-12": 245078142.0
+    },
+    "Ozkaynak": {
+      "2023-12": 1050962688.0,
+      "2024-12": 1320520486.0,
+      "2025-12": 1816554346.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 110000.0,
+      "2024-12": 175000000.0,
+      "2025-12": 175000000.0
+    },
+    "NetKar": {
+      "2023-12": 674371109.0,
+      "2024-12": 320899835.0,
+      "2025-12": 492316184.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 3166280010.0,
+      "2024-12": 2282144531.0,
+      "2025-12": 3088056346.0
+    },
+    "ToplamBorc": {
+      "2023-12": 2115317322.0,
+      "2024-12": 961624045.0,
+      "2025-12": 1261068745.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 191450104.0,
+      "2024-12": 587589078.0,
+      "2025-12": -109285821.0
+    }
+  },
+  "dogrulama": {
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    109,
+    110,
+    111,
+    112,
+    129,
+    130,
+    131,
+    132
+  ]
+}
