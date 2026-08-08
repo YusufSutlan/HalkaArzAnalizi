@@ -389,6 +389,44 @@ class TextUtils:
         return False
 
     @staticmethod
+    def bireysel_tahsisat_coz(tahsisat_metni: Optional[str]
+                              ) -> tuple[Optional[float], Optional[float]]:
+        """
+        YENİ: Tahsisat metninden YURT İÇİ BİREYSEL yatırımcıya ayrılan
+        lot miktarını ve yüzdesini çıkarır.
+
+        NEDEN GEREKLİ: Lot hesaplayıcı toplam pay sayısını katılımcıya
+        bölüyordu. Ama bireysel yatırımcılar arasında yalnızca BİREYSEL
+        TAHSİSAT dağıtılır; kurumsal ve yurt dışı paylar ayrı gruplara
+        gider. Çitlekçi örneği: toplam 36,5 milyon lot, ama bireysele
+        ayrılan 14.600.000 lot (%40). Toplamla hesaplamak kişi başı lotu
+        2,5 kat fazla gösteriyordu.
+
+        Kaynak sitedeki biçim:
+            "14.600.000 Lot (%40) Yurt İçi Bireysel Yatırımcı"
+            "3.650.000 Lot (%10) Yüksek Başvurulu Yatırımcı"
+
+        Dönüş: (lot_miktari, yuzde)
+        """
+        if not tahsisat_metni:
+            return (None, None)
+        for satir in str(tahsisat_metni).split("\n"):
+            n = TextUtils.kucult(satir)
+            if "bireysel" not in n:
+                continue
+            # "yüksek başvurulu" ayrı bir gruptur, bireysel sayılmaz
+            if "yüksek başvurulu" in n or "yuksek basvurulu" in n:
+                continue
+            lot = None
+            m_lot = re.search(r"([\d.]+)\s*lot", n)
+            if m_lot:
+                lot = TextUtils.sayi_bul(m_lot.group(1))
+            yuzde = TextUtils.yuzde_bul(satir)
+            if lot or yuzde:
+                return (lot, yuzde)
+        return (None, None)
+
+    @staticmethod
     def tutar_coz(metin: Optional[str]) -> Optional[float]:
         """
         YENİ: "4,5 Milyar TL", "450 Milyon TL", "4.500.000.000 TL" gibi
@@ -2739,6 +2777,16 @@ class DataExtractor:
 
         # YENİ: Hangi alanların çekilemediğini her yanıtta bildir.
         # Böylece debug anahtarı olmadan da eksik alan görülebiliyor.
+        # YENİ: Bireysel yatırımcıya ayrılan lot. Lot hesaplayıcı bunu
+        # kullanmalı; toplam pay sayısını kullanmak kişi başı lotu
+        # 2-2,5 kat fazla gösteriyordu.
+        bireysel_lot, bireysel_oran = TextUtils.bireysel_tahsisat_coz(
+            veri.get(InfoKey.TAHSISAT, "")
+        )
+        # Lot açıkça yazılmamışsa yüzdeden türet
+        if not bireysel_lot and bireysel_oran and pay:
+            bireysel_lot = pay * (bireysel_oran / 100.0)
+
         eksik_alanlar = [
             a.value for a in self.FIELD_LABELS
             if veri.get(a) == self.DEFAULTS.get(a)
@@ -2757,6 +2805,8 @@ class DataExtractor:
             "pay": pay,
             "pay_kaynagi": pay_kaynagi,
             "eksik_alanlar": eksik_alanlar,
+            "bireysel_lot": bireysel_lot,
+            "bireysel_oran": bireysel_oran,
             "olasi_lot_tablosu": olasi_lot,
             "kurulus_yili": kurulus_yili,
             "izahname_url": izahname_url,
@@ -2967,6 +3017,9 @@ class DataExtractor:
             "arz_buyuklugu_sayi": parsed.get("arz_buyuklugu"),
             # Pay miktarı izahnameden mi okundu, yoksa türetildi mi?
             "pay_sayisi_kaynagi": parsed.get("pay_kaynagi"),
+            # Lot hesaplayıcı için: bireysel yatırımcıya ayrılan miktar
+            "bireysel_pay_sayisi": parsed.get("bireysel_lot"),
+            "bireysel_tahsisat_orani": parsed.get("bireysel_oran"),
             # İzahnameden çekilemeyen alanlar (tanı amaçlı)
             "eksik_alanlar": parsed.get("eksik_alanlar", []),
             # ── YENİ: Yapısal finansal tablo ──
