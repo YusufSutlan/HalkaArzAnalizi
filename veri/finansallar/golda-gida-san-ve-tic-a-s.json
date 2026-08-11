@@ -1,0 +1,70 @@
+{
+  "slug": "golda-gida-san-ve-tic-a-s",
+  "sirket_adi": "Golda Gıda San. ve Tic. A.Ş.",
+  "izahname_url": "https://golda.com.tr/storage/investor/files/spk-onayli-izahname-706170125.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-11T08:13:49Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12",
+    "2026-03"
+  ],
+  "guncel": {
+    "DonenVarlik": 1229642408.0,
+    "DuranVarlik": 3761123426.0,
+    "ToplamVarlik": 4990765834.0,
+    "KisaVadeliYukumluluk": 239991465.0,
+    "UzunVadeliYukumluluk": 751749829.0,
+    "Ozkaynak": 3999024540.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 1908219154.0,
+      "2024-12": 1298364791.0,
+      "2025-12": 1313985480.0,
+      "2026-03": 1229642408.0
+    },
+    "DuranVarlik": {
+      "2023-12": 3492400861.0,
+      "2024-12": 3395911849.0,
+      "2025-12": 3817516321.0,
+      "2026-03": 3761123426.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 5400620015.0,
+      "2024-12": 4694276640.0,
+      "2025-12": 5131501801.0,
+      "2026-03": 4990765834.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 975647801.0,
+      "2024-12": 458630125.0,
+      "2025-12": 297902730.0,
+      "2026-03": 239991465.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 644595748.0,
+      "2024-12": 569675439.0,
+      "2025-12": 743400970.0,
+      "2026-03": 751749829.0
+    },
+    "Ozkaynak": {
+      "2023-12": 3780376466.0,
+      "2024-12": 3665971076.0,
+      "2025-12": 4090198101.0,
+      "2026-03": 3999024540.0
+    }
+  },
+  "dogrulama": {
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: NetKar, Hasilat",
+  "islenen_sayfalar": [
+    20
+  ]
+}
