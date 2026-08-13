@@ -1,0 +1,89 @@
+{
+  "slug": "ankara-sigorta-ankara-anonim-turk-sigorta-sirketi",
+  "sirket_adi": "(Ankara Sigorta) Ankara Anonim Türk Sigorta Şirketi",
+  "izahname_url": "https://www.ankarasigorta.com.tr/assets/files/AnkaraSigorta%C4%B0zahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-13T08:37:16Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "NetKar": 4352177218.0,
+    "Ozkaynak": 7197746060.0,
+    "ToplamVarlik": 26015478100.0,
+    "ToplamKaynak": 26015478100.0,
+    "DonenVarlik": 24176626713.0,
+    "DuranVarlik": 1838851387.0,
+    "UzunVadeliYukumluluk": 244147188.0,
+    "Nakit": 17550490492.0,
+    "OdenmisSermaye": 350000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2023-12": 375832432.0,
+      "2024-12": 2172135732.0,
+      "2025-12": 4352177218.0
+    },
+    "Ozkaynak": {
+      "2023-12": 913375502.0,
+      "2024-12": 3084058397.0,
+      "2025-12": 7197746060.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 6734567369.0,
+      "2024-12": 14075643812.0,
+      "2025-12": 26015478100.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 6734567369.0,
+      "2024-12": 14075643812.0,
+      "2025-12": 26015478100.0
+    },
+    "DonenVarlik": {
+      "2023-12": 6076694052.0,
+      "2024-12": 13225791733.0,
+      "2025-12": 24176626713.0
+    },
+    "DuranVarlik": {
+      "2023-12": 657873316.0,
+      "2024-12": 849852079.0,
+      "2025-12": 1838851387.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 125799364.0,
+      "2024-12": 117299939.0,
+      "2025-12": 244147188.0
+    },
+    "Nakit": {
+      "2023-12": 3464242425.0,
+      "2024-12": 7686242455.0,
+      "2025-12": 17550490492.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 148500000.0,
+      "2024-12": 148500000.0,
+      "2025-12": 350000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    131,
+    132,
+    133,
+    134,
+    136,
+    137,
+    138,
+    139
+  ]
+}
