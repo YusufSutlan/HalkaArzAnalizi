@@ -1,0 +1,91 @@
+{
+  "slug": "cms-jant-ve-makina-sanayii-a-s",
+  "sirket_adi": "Cms Jant ve Makina Sanayii A.Ş.",
+  "izahname_url": "https://www.cms.com.tr/upload/docs/cms-taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-14T08:18:15Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 10629696773.0,
+    "Nakit": 1474567726.0,
+    "DuranVarlik": 14327697970.0,
+    "ToplamVarlik": 24957394743.0,
+    "KisaVadeliYukumluluk": 11160512618.0,
+    "UzunVadeliYukumluluk": 2287319988.0,
+    "Ozkaynak": 11509562137.0,
+    "OdenmisSermaye": 133950000.0,
+    "NetKar": 100067100.0,
+    "ToplamKaynak": 24957394743.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 6292165375.0,
+      "2024-12": 7385896751.0,
+      "2025-12": 10629696773.0
+    },
+    "Nakit": {
+      "2023-12": 860510450.0,
+      "2024-12": 1860170526.0,
+      "2025-12": 1474567726.0
+    },
+    "DuranVarlik": {
+      "2023-12": 8915295811.0,
+      "2024-12": 10598434023.0,
+      "2025-12": 14327697970.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 15207461186.0,
+      "2024-12": 17984330774.0,
+      "2025-12": 24957394743.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 6630058024.0,
+      "2024-12": 8108629961.0,
+      "2025-12": 11160512618.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 847755585.0,
+      "2024-12": 1619625966.0,
+      "2025-12": 2287319988.0
+    },
+    "Ozkaynak": {
+      "2023-12": 7729647577.0,
+      "2024-12": 8256074847.0,
+      "2025-12": 11509562137.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 141000000.0,
+      "2024-12": 133950000.0,
+      "2025-12": 133950000.0
+    },
+    "NetKar": {
+      "2023-12": 49194092.0,
+      "2024-12": 98897026.0,
+      "2025-12": 100067100.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 15207461186.0,
+      "2024-12": 17984330774.0,
+      "2025-12": 24957394743.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    111,
+    112,
+    113,
+    114
+  ]
+}
