@@ -1,0 +1,68 @@
+{
+  "slug": "termo-termopet-akaryakit-nakliyat-ve-tic-a-s",
+  "sirket_adi": "(termo) Termopet Akaryakıt Nakliyat ve Tic. A.Ş.",
+  "izahname_url": "https://termopet.com.tr/assets/upload/ipo/Ba%C5%9Fvuru%20%C4%B0zahnamesi.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-15T07:37:00Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 17450646867.0,
+    "BrutKar": 694195579.0,
+    "FaaliyetKari": 116934888.0,
+    "NetKar": 30938974.0,
+    "FinansmanGideri": -204099977.0,
+    "KisaVadeliYukumluluk": 1475416942.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 21822357890.0,
+      "2024-12": 18382465828.0,
+      "2025-12": 17450646867.0
+    },
+    "BrutKar": {
+      "2023-12": 558452592.0,
+      "2024-12": 476504617.0,
+      "2025-12": 694195579.0
+    },
+    "FaaliyetKari": {
+      "2023-12": -111064105.0,
+      "2024-12": -314031721.0,
+      "2025-12": 116934888.0
+    },
+    "NetKar": {
+      "2023-12": 893035623.0,
+      "2024-12": 297112205.0,
+      "2025-12": 30938974.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -366132713.0,
+      "2024-12": -124600756.0,
+      "2025-12": -204099977.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2025-12": 1475416942.0
+    }
+  },
+  "dogrulama": {
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Ozkaynak",
+  "islenen_sayfalar": [
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105
+  ]
+}

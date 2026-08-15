@@ -1,0 +1,45 @@
+{
+  "slug": "adm-energy-elektrik-yatirimlari-a-s",
+  "sirket_adi": "Adm Energy Elektrik Yatırımları A.Ş.",
+  "izahname_url": "https://www.admelektrik.com.tr/storage/kurumsal/halka-arz-basvurusu/%C4%B0zahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-15T07:41:21Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 68668977331.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 81500072757.0,
+      "2024-12": 63299760468.0,
+      "2025-12": 68668977331.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139
+  ]
+}
