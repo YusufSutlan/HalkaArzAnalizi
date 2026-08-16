@@ -4,42 +4,94 @@
   "izahname_url": "https://www.admelektrik.com.tr/storage/kurumsal/halka-arz-basvurusu/%C4%B0zahname.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-15T07:41:21Z",
-  "olcek": 1.0,
+  "islenme_zamani": "2026-08-16T07:36:33Z",
+  "olcek": 1000.0,
   "donemler": [
     "2023-12",
     "2024-12",
     "2025-12"
   ],
   "guncel": {
-    "Hasilat": 68668977331.0
+    "DonenVarlik": 18780015000.0,
+    "Nakit": 203936000.0,
+    "DuranVarlik": 25199040000.0,
+    "ToplamVarlik": 43979055000.0,
+    "KisaVadeliYukumluluk": 23394357000.0,
+    "UzunVadeliYukumluluk": 7247524000.0,
+    "ToplamBorc": 30641881000.0,
+    "OdenmisSermaye": 691740000.0,
+    "Ozkaynak": 13337175000.0,
+    "ToplamKaynak": 43979055000.0
   },
   "seriler": {
-    "Hasilat": {
-      "2023-12": 81500072757.0,
-      "2024-12": 63299760468.0,
-      "2025-12": 68668977331.0
+    "DonenVarlik": {
+      "2023-12": 25040620000.0,
+      "2024-12": 19483070000.0,
+      "2025-12": 18780015000.0
+    },
+    "Nakit": {
+      "2023-12": 462640000.0,
+      "2024-12": 350414000.0,
+      "2025-12": 203936000.0
+    },
+    "DuranVarlik": {
+      "2023-12": 25032638000.0,
+      "2024-12": 23530845000.0,
+      "2025-12": 25199040000.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 50073258000.0,
+      "2024-12": 43013915000.0,
+      "2025-12": 43979055000.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 30828158000.0,
+      "2024-12": 23349621000.0,
+      "2025-12": 23394357000.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 9682542000.0,
+      "2024-12": 9216699000.0,
+      "2025-12": 7247524000.0
+    },
+    "ToplamBorc": {
+      "2023-12": 40510700000.0,
+      "2024-12": 32566320000.0,
+      "2025-12": 30641881000.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 547742000.0,
+      "2024-12": 691740000.0,
+      "2025-12": 691740000.0
+    },
+    "Ozkaynak": {
+      "2023-12": 9562559000.0,
+      "2024-12": 10447595000.0,
+      "2025-12": 13337175000.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 50073258000.0,
+      "2024-12": 43013915000.0,
+      "2025-12": 43979055000.0
     }
   },
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: NetKar, Hasilat",
   "islenen_sayfalar": [
-    124,
-    125,
-    126,
-    127,
-    128,
-    129,
-    130,
-    131,
-    132,
-    133,
-    134,
-    135,
-    136,
-    137,
-    138,
-    139
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147
   ]
 }

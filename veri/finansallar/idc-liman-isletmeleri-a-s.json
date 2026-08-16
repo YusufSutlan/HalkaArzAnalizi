@@ -1,0 +1,63 @@
+{
+  "slug": "idc-liman-isletmeleri-a-s",
+  "sirket_adi": "İdç Liman İşletmeleri A.Ş.",
+  "izahname_url": "https://bullsyatirim.com/upload/files/idc/taslak_izahname_idc.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-16T07:38:05Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 2969737605.0,
+    "DonenVarlik": 147993716.0,
+    "DuranVarlik": 5464818245.0,
+    "FinansalBorc": 73360677.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 1028438033.0,
+      "2024-12": 882646467.0,
+      "2025-12": 2969737605.0
+    },
+    "DonenVarlik": {
+      "2023-12": 163603493.0,
+      "2024-12": 47872634.0,
+      "2025-12": 147993716.0
+    },
+    "DuranVarlik": {
+      "2023-12": 6275502671.0,
+      "2024-12": 5256770510.0,
+      "2025-12": 5464818245.0
+    },
+    "FinansalBorc": {
+      "2023-12": 117083664.0,
+      "2024-12": 84858818.0,
+      "2025-12": 73360677.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131
+  ]
+}

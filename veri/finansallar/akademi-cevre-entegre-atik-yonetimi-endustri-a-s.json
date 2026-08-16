@@ -1,0 +1,72 @@
+{
+  "slug": "akademi-cevre-entegre-atik-yonetimi-endustri-a-s",
+  "sirket_adi": "Akademi Çevre Entegre Atık Yönetimi Endüstri A.Ş.",
+  "izahname_url": "https://cdn.infoyatirim.com/Content/Finance/92b7c17b-b4fb-4dc8-9815-ea25b30489b1.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-16T07:39:42Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 2616007986.0,
+    "BrutKar": 872860494.0,
+    "FaaliyetKari": 668041206.0,
+    "NetKar": 43522675.0,
+    "Ozkaynak": 1975146094.0,
+    "FinansmanGideri": -727570969.0,
+    "OdenmisSermaye": 201200000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 2229602713.0,
+      "2024-12": 2587708991.0,
+      "2025-12": 2616007986.0
+    },
+    "BrutKar": {
+      "2023-12": 241248623.0,
+      "2024-12": 712690637.0,
+      "2025-12": 872860494.0
+    },
+    "FaaliyetKari": {
+      "2023-12": 60306316.0,
+      "2024-12": 508552002.0,
+      "2025-12": 668041206.0
+    },
+    "NetKar": {
+      "2023-12": 98642914.0,
+      "2024-12": 102039279.0,
+      "2025-12": 43522675.0
+    },
+    "Ozkaynak": {
+      "2023-12": 1832214833.0,
+      "2024-12": 1933255398.0,
+      "2025-12": 1975146094.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -181010893.0,
+      "2024-12": -510459635.0,
+      "2025-12": -727570969.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 201200000.0,
+      "2024-12": 201200000.0,
+      "2025-12": 201200000.0
+    }
+  },
+  "dogrulama": {
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    148,
+    149,
+    150,
+    151
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "slug": "ekol-girisim-sermayesi-yatirim-ortakligi-a-s",
+  "sirket_adi": "Ekol Girişim Sermayesi Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://www.ekolgsyo.com.tr/pdf/Ekol%20GSYO%20-%20%C4%B0zahname%20-%20Eimza%20%C4%B0mzal%C4%B1.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-16T07:44:22Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 1265717848.0,
+    "BrutKar": 1265717848.0,
+    "FaaliyetKari": 2312769182.0,
+    "NetKar": 2134184210.0,
+    "Ozkaynak": 2887081645.0,
+    "ToplamKaynak": 2889139214.0,
+    "ToplamBorc": 2057569.0,
+    "DonenVarlik": 1220641754.0,
+    "KisaVadeliYukumluluk": 1966937.0,
+    "UzunVadeliYukumluluk": 90632.0,
+    "Nakit": 792966.0,
+    "IsletmeNakitAkisi": -336739849.0,
+    "FinansmanGideri": -24580.0,
+    "OdenmisSermaye": 350000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2024-12": 75925796.0,
+      "2025-12": 1265717848.0
+    },
+    "BrutKar": {
+      "2024-12": 75925796.0,
+      "2025-12": 1265717848.0
+    },
+    "FaaliyetKari": {
+      "2023-12": 119794808.0,
+      "2024-12": 185928606.0,
+      "2025-12": 2312769182.0
+    },
+    "NetKar": {
+      "2023-12": 33568323.0,
+      "2024-12": 125459604.0,
+      "2025-12": 2134184210.0
+    },
+    "Ozkaynak": {
+      "2023-12": 304255665.0,
+      "2024-12": 429715269.0,
+      "2025-12": 2887081645.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 306792029.0,
+      "2024-12": 431490943.0,
+      "2025-12": 2889139214.0
+    },
+    "ToplamBorc": {
+      "2023-12": 2536364.0,
+      "2024-12": 1775674.0,
+      "2025-12": 2057569.0
+    },
+    "DonenVarlik": {
+      "2023-12": 300826947.0,
+      "2024-12": 269599539.0,
+      "2025-12": 1220641754.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 2536364.0,
+      "2024-12": 1775674.0,
+      "2025-12": 1966937.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2025-12": 90632.0
+    },
+    "Nakit": {
+      "2023-12": 162858.0,
+      "2024-12": 264414.0,
+      "2025-12": 792966.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": -27023486.0,
+      "2024-12": -43358048.0,
+      "2025-12": -336739849.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -20312.0,
+      "2024-12": -222486.0,
+      "2025-12": -24580.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 50000000.0,
+      "2024-12": 50000000.0,
+      "2025-12": 350000000.0
+    }
+  },
+  "dogrulama": {
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    30,
+    48,
+    153,
+    159,
+    174
+  ]
+}
