@@ -4,7 +4,7 @@
   "izahname_url": "https://masfen.com.tr/wp-content/uploads/MASFEN-IZAHNAME.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-16T07:29:27Z",
+  "islenme_zamani": "2026-08-17T07:51:06Z",
   "olcek": 1.0,
   "donemler": [],
   "guncel": {},
@@ -13,14 +13,6 @@
   "guvenilir": false,
   "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
   "islenen_sayfalar": [
-    206,
-    207,
-    208,
-    209,
-    210,
-    211,
-    212,
-    213,
     214,
     215,
     216,
@@ -28,14 +20,6 @@
     218,
     219,
     220,
-    221,
-    222,
-    223,
-    224,
-    225,
-    226,
-    227,
-    228,
-    229
+    221
   ]
 }

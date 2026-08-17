@@ -1,0 +1,77 @@
+{
+  "slug": "turkiye-emlak-katilim-bankasi-a-s",
+  "sirket_adi": "Türkiye Emlak Katılım Bankası A.Ş.",
+  "izahname_url": "https://asset.emlakkatilim.com.tr/documents/yatirimci-iliskileri/finansal-bilgiler/Halka%20Arz/izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-17T07:58:13Z",
+  "olcek": 1000.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "BrutKar": 40744638000.0,
+    "FaaliyetKari": 22320824000.0,
+    "NetKar": 15545565000.0,
+    "Ozkaynak": 33709651000.0,
+    "OdenmisSermaye": 1026915000.0,
+    "ToplamVarlik": 417901356000.0,
+    "ToplamKaynak": 417901356000.0
+  },
+  "seriler": {
+    "BrutKar": {
+      "2023-12": 13962110000.0,
+      "2024-12": 25313973000.0,
+      "2025-12": 40744638000.0
+    },
+    "FaaliyetKari": {
+      "2023-12": 7600388000.0,
+      "2024-12": 12139844000.0,
+      "2025-12": 22320824000.0
+    },
+    "NetKar": {
+      "2023-12": 5143855000.0,
+      "2024-12": 8727481000.0,
+      "2025-12": 15545565000.0
+    },
+    "Ozkaynak": {
+      "2023-12": 10432245000.0,
+      "2024-12": 18230076000.0,
+      "2025-12": 33709651000.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 1026915000.0,
+      "2024-12": 1026915000.0,
+      "2025-12": 1026915000.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 187686793000.0,
+      "2024-12": 227445448000.0,
+      "2025-12": 417901356000.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 187686793000.0,
+      "2024-12": 227445448000.0,
+      "2025-12": 417901356000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    205,
+    206,
+    207,
+    208,
+    217,
+    218,
+    219,
+    220
+  ]
+}
