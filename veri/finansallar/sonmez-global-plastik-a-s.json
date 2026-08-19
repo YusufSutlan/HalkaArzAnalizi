@@ -3,14 +3,23 @@
   "sirket_adi": "Sönmez Global Plastik A.Ş.",
   "izahname_url": "https://sonmezplast.com.tr/yonetim-paneli/upload/ipo_69b2c49c3aba74.62810068-8._S__nmez___zahname.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-19T07:48:42Z",
   "olcek": 1.0,
   "donemler": [],
   "guncel": {},
   "seriler": {},
   "dogrulama": {},
   "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166
+  ]
 }

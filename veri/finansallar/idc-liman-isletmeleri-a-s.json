@@ -3,35 +3,14 @@
   "sirket_adi": "İdç Liman İşletmeleri A.Ş.",
   "izahname_url": "https://bullsyatirim.com/upload/files/idc/taslak_izahname_idc.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-18T07:41:41Z",
+  "model": "",
+  "islenme_zamani": "",
   "olcek": 1.0,
-  "donemler": [
-    "2023-12",
-    "2024-12",
-    "2025-12"
-  ],
-  "guncel": {
-    "Hasilat": 2969737605.0
-  },
-  "seriler": {
-    "Hasilat": {
-      "2023-12": 1028438033.0,
-      "2024-12": 882646467.0,
-      "2025-12": 2969737605.0
-    }
-  },
+  "donemler": [],
+  "guncel": {},
+  "seriler": {},
   "dogrulama": {},
   "guvenilir": false,
-  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
-  "islenen_sayfalar": [
-    108,
-    109,
-    110,
-    111,
-    112,
-    113,
-    114,
-    115
-  ]
+  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
+  "islenen_sayfalar": []
 }
