@@ -3,14 +3,110 @@
   "sirket_adi": "İon Kentsel Gayrimenkul Yatırım Ortaklığı A.Ş.",
   "izahname_url": "https://iongyo.com/documents/izahname-tr.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-20T07:45:44Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-09",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "FaaliyetKari": -481445585.0,
+    "FinansmanGideri": -1804370.0,
+    "NetKar": -230026828.0,
+    "Ozkaynak": 903289436.0,
+    "ToplamKaynak": 5637403361.0,
+    "ToplamVarlik": 5637403361.0,
+    "FinansalBorc": 540893.0,
+    "KisaVadeliYukumluluk": 552535527.0,
+    "UzunVadeliYukumluluk": 4181578398.0,
+    "OdenmisSermaye": 500000000.0,
+    "IsletmeNakitAkisi": -49423136.0
+  },
+  "seriler": {
+    "FaaliyetKari": {
+      "2022-12": -263816.0,
+      "2023-12": -114519562.0,
+      "2024-09": -176023917.0,
+      "2024-12": -312227858.0,
+      "2025-09": -481445585.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -6780305.0,
+      "2024-09": -12559699.0,
+      "2024-12": -14261069.0,
+      "2025-09": -1804370.0
+    },
+    "NetKar": {
+      "2022-12": -1280187.0,
+      "2023-12": -104675020.0,
+      "2024-09": -412834173.0,
+      "2024-12": -186381819.0,
+      "2025-09": -230026828.0
+    },
+    "Ozkaynak": {
+      "2022-12": 775880939.0,
+      "2023-12": 671205919.0,
+      "2024-12": 1133316264.0,
+      "2025-09": 903289436.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 776001820.0,
+      "2023-12": 1388172819.0,
+      "2024-12": 5690167578.0,
+      "2025-09": 5637403361.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 776001820.0,
+      "2023-12": 1388172819.0,
+      "2024-12": 5690167578.0,
+      "2025-09": 5637403361.0
+    },
+    "FinansalBorc": {
+      "2022-12": 0.0,
+      "2023-12": 0.0,
+      "2024-12": 0.0,
+      "2025-09": 540893.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 120881.0,
+      "2023-12": 108238756.0,
+      "2024-12": 573463950.0,
+      "2025-09": 552535527.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 608728144.0,
+      "2024-12": 3983387364.0,
+      "2025-09": 4181578398.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 60540000.0,
+      "2023-12": 60540000.0,
+      "2024-12": 500000000.0,
+      "2025-09": 500000000.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": -172120.0,
+      "2023-12": 75652214.0,
+      "2024-09": -228845190.0,
+      "2024-12": -580716915.0,
+      "2025-09": -49423136.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    41,
+    42,
+    102,
+    104,
+    105
+  ]
 }

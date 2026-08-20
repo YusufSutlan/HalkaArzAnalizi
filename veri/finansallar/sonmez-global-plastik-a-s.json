@@ -4,22 +4,98 @@
   "izahname_url": "https://sonmezplast.com.tr/yonetim-paneli/upload/ipo_69b2c49c3aba74.62810068-8._S__nmez___zahname.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-19T07:48:42Z",
+  "islenme_zamani": "2026-08-20T07:45:00Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 4340332841.0,
+    "Nakit": 374861553.0,
+    "DuranVarlik": 6376641876.0,
+    "ToplamVarlik": 10716974717.0,
+    "KisaVadeliYukumluluk": 3476941697.0,
+    "UzunVadeliYukumluluk": 1730458163.0,
+    "Ozkaynak": 5509574857.0,
+    "OdenmisSermaye": 210000000.0,
+    "NetKar": 162202253.0,
+    "ToplamKaynak": 10716974717.0,
+    "IsletmeNakitAkisi": -507490135.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 1964167558.0,
+      "2024-12": 2776413735.0,
+      "2025-12": 4340332841.0
+    },
+    "Nakit": {
+      "2023-12": 181409539.0,
+      "2024-12": 198635444.0,
+      "2025-12": 374861553.0
+    },
+    "DuranVarlik": {
+      "2023-12": 3739833683.0,
+      "2024-12": 4756756834.0,
+      "2025-12": 6376641876.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 5704001241.0,
+      "2024-12": 7533170569.0,
+      "2025-12": 10716974717.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 2167585234.0,
+      "2024-12": 2020413562.0,
+      "2025-12": 3476941697.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 270917013.0,
+      "2024-12": 1281493935.0,
+      "2025-12": 1730458163.0
+    },
+    "Ozkaynak": {
+      "2023-12": 3265498994.0,
+      "2024-12": 4231263072.0,
+      "2025-12": 5509574857.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 210000000.0,
+      "2024-12": 210000000.0,
+      "2025-12": 210000000.0
+    },
+    "NetKar": {
+      "2023-12": 600735259.0,
+      "2024-12": 395846902.0,
+      "2025-12": 162202253.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 5704001241.0,
+      "2024-12": 7533170569.0,
+      "2025-12": 10716974717.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 590495990.0,
+      "2024-12": -59960064.0,
+      "2025-12": -507490135.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
   "islenen_sayfalar": [
-    159,
-    160,
-    161,
-    162,
-    163,
-    164,
-    165,
-    166
+    212,
+    213,
+    214,
+    215,
+    230,
+    231,
+    232,
+    233
   ]
 }
