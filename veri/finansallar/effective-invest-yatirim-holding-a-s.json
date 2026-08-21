@@ -1,0 +1,83 @@
+{
+  "slug": "effective-invest-yatirim-holding-a-s",
+  "sirket_adi": "Effective Invest Yatırım Holding A.Ş.",
+  "izahname_url": "https://effectiveinvestholding.com/wp-content/uploads/2026/01/Effective-IPO-Izahname-21012026.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-21T07:52:53Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2024-04",
+    "2024-09",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "NetKar": 1497557747.0,
+    "Ozkaynak": 3505447387.0,
+    "ToplamKaynak": 4797249144.0,
+    "DonenVarlik": 858775.0,
+    "KisaVadeliYukumluluk": 194677171.0,
+    "UzunVadeliYukumluluk": 1097124586.0,
+    "Nakit": 581487.0,
+    "IsletmeNakitAkisi": 73202069.0,
+    "OdenmisSermaye": 200000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2024-12": 1702818745.0,
+      "2025-09": 1497557747.0
+    },
+    "Ozkaynak": {
+      "2024-04": 76267724.0,
+      "2024-12": 2007889640.0,
+      "2025-09": 3505447387.0
+    },
+    "ToplamKaynak": {
+      "2024-04": 76267724.0,
+      "2024-12": 2737713159.0,
+      "2025-09": 4797249144.0
+    },
+    "DonenVarlik": {
+      "2024-12": 2297059.0,
+      "2025-09": 858775.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2024-12": 150603492.0,
+      "2025-09": 194677171.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2024-12": 579220027.0,
+      "2025-09": 1097124586.0
+    },
+    "Nakit": {
+      "2024-04": 76267724.0,
+      "2024-09": 59974804.0,
+      "2024-12": 1993600.0,
+      "2025-09": 581487.0
+    },
+    "IsletmeNakitAkisi": {
+      "2024-09": 136843441.0,
+      "2024-12": 101162826.0,
+      "2025-09": 73202069.0
+    },
+    "OdenmisSermaye": {
+      "2024-04": 50000000.0,
+      "2024-12": 200000000.0,
+      "2025-09": 200000000.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108
+  ]
+}
