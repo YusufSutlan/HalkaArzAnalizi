@@ -4,7 +4,7 @@
   "izahname_url": "https://www.pilsan.com.tr/pilsan/dosyalar/albumler/10/119.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-21T07:57:08Z",
+  "islenme_zamani": "2026-08-22T07:49:48Z",
   "olcek": 1.0,
   "donemler": [],
   "guncel": {},
@@ -13,13 +13,13 @@
   "guvenilir": false,
   "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
   "islenen_sayfalar": [
-    126,
-    127,
-    128,
-    129,
-    130,
-    131,
-    132,
-    133
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162
   ]
 }

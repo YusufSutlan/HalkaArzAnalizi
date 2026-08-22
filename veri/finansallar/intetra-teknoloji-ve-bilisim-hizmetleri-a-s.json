@@ -1,47 +1,16 @@
 {
   "slug": "intetra-teknoloji-ve-bilisim-hizmetleri-a-s",
   "sirket_adi": "İntetra Teknoloji ve Bilişim Hizmetleri A.Ş.",
-  "izahname_url": "https://intetra.com.tr/blogs/%C4%B0ntetra%20Teknoloji%20ve%20Bili%C5%9Fim%20Hizmetleri%20A.%C5%9E.%20%C4%B0zahname.pdf",
+  "izahname_url": "https://www.kap.org.tr/tr/api/file/download/4028328c9f52dc3f01a0258b515a7062",
   "kaynak": "izahname-pdf+llm",
-  "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-08-21T07:40:53Z",
+  "model": "",
+  "islenme_zamani": "",
   "olcek": 1.0,
-  "donemler": [
-    "2021-12",
-    "2022-12",
-    "2023-12",
-    "2024-09"
-  ],
-  "guncel": {
-    "DuranVarlik": 663295248.0
-  },
-  "seriler": {
-    "DuranVarlik": {
-      "2021-12": 353982687.0,
-      "2022-12": 464808879.0,
-      "2023-12": 658341317.0,
-      "2024-09": 663295248.0
-    }
-  },
+  "donemler": [],
+  "guncel": {},
+  "seriler": {},
   "dogrulama": {},
   "guvenilir": false,
-  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
-  "islenen_sayfalar": [
-    140,
-    141,
-    142,
-    143,
-    144,
-    145,
-    146,
-    147,
-    148,
-    149,
-    150,
-    151,
-    152,
-    153,
-    154,
-    155
-  ]
+  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
+  "islenen_sayfalar": []
 }
