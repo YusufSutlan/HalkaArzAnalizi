@@ -1,0 +1,25 @@
+{
+  "slug": "bakirci-gayrimenkul-yatirim-ortakligi-a-s",
+  "sirket_adi": "Bakırcı Gayrimenkul Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://www.kap.org.tr/tr/api/file/download/4028328c9f52dc4001a024f731955d59",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-23T07:36:12Z",
+  "olcek": 1.0,
+  "donemler": [],
+  "guncel": {},
+  "seriler": {},
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130
+  ]
+}
