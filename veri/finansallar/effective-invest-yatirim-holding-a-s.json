@@ -3,14 +3,110 @@
   "sirket_adi": "Effective Invest Yatırım Holding A.Ş.",
   "izahname_url": "https://effectiveinvestholding.com/wp-content/uploads/2026/01/Effective-IPO-Izahname-21012026.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-24T08:02:20Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2024-04",
+    "2024-09",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "Hasilat": 3220386000.0,
+    "BrutKar": 1986764269.0,
+    "FaaliyetKari": 1985445540.0,
+    "NetKar": 1497557747.0,
+    "Ozkaynak": 3505447387.0,
+    "ToplamVarlik": 4797249144.0,
+    "ToplamKaynak": 4797249144.0,
+    "DonenVarlik": 858775.0,
+    "DuranVarlik": 4796390369.0,
+    "KisaVadeliYukumluluk": 194677171.0,
+    "UzunVadeliYukumluluk": 1097124586.0,
+    "FinansmanGideri": -132598.0,
+    "OdenmisSermaye": 200000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2024-09": 2713586652.0,
+      "2024-12": 2390336083.0,
+      "2025-09": 3220386000.0
+    },
+    "BrutKar": {
+      "2024-09": 2713586652.0,
+      "2024-12": 2390336083.0,
+      "2025-09": 1986764269.0
+    },
+    "FaaliyetKari": {
+      "2024-09": 2724596945.0,
+      "2024-12": 2402807286.0,
+      "2025-09": 1985445540.0
+    },
+    "NetKar": {
+      "2024-09": 2034065296.0,
+      "2024-12": 1702818745.0,
+      "2025-09": 1497557747.0
+    },
+    "Ozkaynak": {
+      "2024-04": 76267724.0,
+      "2024-12": 2007889640.0,
+      "2025-09": 3505447387.0
+    },
+    "ToplamVarlik": {
+      "2024-04": 76267724.0,
+      "2024-12": 2737713159.0,
+      "2025-09": 4797249144.0
+    },
+    "ToplamKaynak": {
+      "2024-04": 76267724.0,
+      "2024-12": 2737713159.0,
+      "2025-09": 4797249144.0
+    },
+    "DonenVarlik": {
+      "2024-12": 2297059.0,
+      "2025-09": 858775.0
+    },
+    "DuranVarlik": {
+      "2024-12": 2735416100.0,
+      "2025-09": 4796390369.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2024-12": 150603492.0,
+      "2025-09": 194677171.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2024-12": 579220027.0,
+      "2025-09": 1097124586.0
+    },
+    "FinansmanGideri": {
+      "2024-09": -8354.0,
+      "2024-12": -18088.0,
+      "2025-09": -132598.0
+    },
+    "OdenmisSermaye": {
+      "2024-04": 50000000.0,
+      "2024-12": 200000000.0,
+      "2025-09": 200000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    92,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    99
+  ]
 }
