@@ -1989,7 +1989,7 @@ class DataExtractor:
         # Bu sayede Render'da Docker/tesseract/API anahtarı GEREKMEZ.
         self.finansal_depo = None
         try:
-            from finansal_depo import FinansalDepo
+            from Finansaldepo import FinansalDepo
             self.finansal_depo = FinansalDepo()
             self.finansal_depo.yukle()
         except ImportError as e:
@@ -2748,12 +2748,12 @@ class DataExtractor:
         arz_buyuklugu = (fiyat * pay) if (fiyat and pay) else buyukluk_ham
 
         # ── İzahname finansallarını birleştir ──
-        # Kaynak: GitHub Actions'ın hazırladığı JSON (bkz. finansal_depo.py)
+        # Kaynak: GitHub Actions'ın hazırladığı JSON (bkz. Finansaldepo.py)
         izahname_durumu = "kapali"
         izahname_url = None
         if self.finansal_depo is not None:
             try:
-                from finansal_depo import kayittan_finansal_uret
+                from Finansaldepo import kayittan_finansal_uret
                 kayit = self.finansal_depo.bul(
                     sirket_adi, str(veri.get(InfoKey.BIST_KODU, ""))
                 )
