@@ -1841,7 +1841,17 @@ class ScoreAnalyzer:
         kritik_sayisi = sum(1 for k in ceza_sozlugu if k in KRITIK_CEZALAR)
         kritik_carpani = 1.0 + 0.3 * max(0, kritik_sayisi - 1)
 
-        temel_kalite = round(max(0.0, min(100.0, base_score + bonuslar - toplam_ceza)), 1)
+        # DÜZELTME: toplam_ceza burada AYRICA düşülüyordu ("çifte ceza").
+        # Her ceza_sozlugu kalemi zaten ilgili kategorinin kendi puanını
+        # (base_score'un payını) sıfıra indiriyor — örn. zarar eden şirket
+        # karlılık kategorisinden zaten 0 alıyor. toplam_ceza'yı burada bir
+        # kez daha düşmek aynı sinyali iki kez cezalandırıyor ve birden
+        # fazla risk bir araya geldiğinde skoru haksız yere 0'a kırpıyordu
+        # (örn. Bakırcı GYO: olumlu kalemleri olmasına rağmen skor 0
+        # çıkıyordu). toplam_ceza, risk_skoru'nda (aşağıda) ayrı ve doğru
+        # bir şekilde kullanılmaya devam ediyor; kırmızı bayraklar da
+        # kullanıcıya ayrıca gösteriliyor, sinyal kaybolmuyor.
+        temel_kalite = round(max(0.0, min(100.0, base_score + bonuslar)), 1)
 
         # ═══ YENİ: SKOR GÜVENİLİRLİĞİ ═══
         # Skor, "ölçülebilen ağırlığa" göre normalize ediliyor. Yani
