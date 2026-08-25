@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+.env
+.env.*
+
+.DS_Store
+
+mobil_app/build/
+mobil_app/.dart_tool/

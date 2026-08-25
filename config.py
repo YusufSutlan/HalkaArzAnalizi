@@ -14,7 +14,7 @@ class AppSettings:
     MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "15"))
     ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
     ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
-    DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY") if 'Optional' in globals() else os.environ.get("DEBUG_API_KEY")
+    DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
     MIN_SKOR: float = float(os.environ.get("MIN_SKOR", "0.0"))
     ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
     PORT: int = int(os.environ.get("PORT", "8000"))

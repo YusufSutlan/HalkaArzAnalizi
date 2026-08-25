@@ -42,6 +42,22 @@ class TextUtils:
         return sonuclar
 
     @staticmethod
+    def yildiz_uret(skor: float, max_skor: float) -> str:
+        yuzde = (skor / max_skor * 100) if max_skor else 0
+        if yuzde >= 85:
+            return "★★★★★"
+        elif yuzde >= 70:
+            return "★★★★☆"
+        elif yuzde >= 55:
+            return "★★★☆☆"
+        elif yuzde >= 40:
+            return "★★☆☆☆"
+        elif yuzde >= 20:
+            return "★☆☆☆☆"
+        else:
+            return "☆☆☆☆☆"
+
+    @staticmethod
     def etiket_eslesir(baslik_norm: str, etiketler: list[str]) -> bool:
         if not baslik_norm:
             return False
