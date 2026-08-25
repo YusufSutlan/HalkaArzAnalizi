@@ -18,15 +18,9 @@ sunulur.
 
 ## Mimari
 
-Depoda aynı işi gören iki farklı uygulama gövdesi bulunuyor:
-
-- **`proje.py`** — Şu an **kullanımda olan**, tek dosyaya yazılmış monolitik
-  sürüm. `Dockerfile` bu dosyayı (`proje:app`) çalıştırır ve Render'a bu
-  şekilde deploy edilir.
-- **`main.py` + `config.py` + `scraper.py` + `scoring.py` + `utils.py`** —
-  `proje.py`'nin modüllere ayrılmış "V3" yeniden yazımı. Mantık olarak
-  `proje.py` ile aynı işi hedefler ancak henüz Dockerfile/deploy sürecine
-  bağlanmadı; geliştirme/refaktör aşamasında.
+- **`proje.py`** — API'nin tamamı: FastAPI uygulaması, tarayıcı ve
+  skorlama mantığı tek dosyada. `Dockerfile` bu dosyayı (`proje:app`)
+  çalıştırır ve Render'a bu şekilde deploy edilir.
 
 Finansal veri tarafında ise ayrı ve daha ağır bir hat var:
 
@@ -45,8 +39,10 @@ Finansal veri tarafında ise ayrı ve daha ağır bir hat var:
   Aydınlatma Platformu) üzerinden finansal veri tamamlama; test'leri
   `test_kap.py` içinde.
 
-Bir Flutter mobil istemcisi (`mobil_app/`, bu depoda takip edilmiyor) API'nin
-`/api/halkarzlar` uç noktasına doğrudan bağlanacak şekilde tasarlandı.
+**`mobil_app/`** — API'nin `/api/halkarzlar` uç noktasına doğrudan bağlanan
+Flutter mobil istemcisi (`lib/main.dart`). `ApiConfig.baseUrl` production
+adresine (Render) işaret eder; yerel geliştirmede `pubspec.yaml` bulunan
+klasörde `flutter run` yeterlidir, ayrı bir backend kurmaya gerek yoktur.
 
 ## API Uçları
 
@@ -64,11 +60,7 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Deploy edilen sürüm:
 uvicorn proje:app --reload
-
-# Geliştirme aşamasındaki modüler V3 sürümü:
-uvicorn main:app --reload
 ```
 
 ### Docker
@@ -103,4 +95,4 @@ python test_kap.py
 
 - `veri/finansallar/` — GitHub Actions tarafından üretilen, izahnamelerden
   çıkarılan finansal veri JSON'ları. Sunucu bunları doğrudan okur.
-- `mobil_app/` — Flutter istemcisi (bu depoda izlenmiyor).
+- `mobil_app/` — Flutter istemcisi. Çalıştırmak için: `cd mobil_app && flutter pub get && flutter run`.
