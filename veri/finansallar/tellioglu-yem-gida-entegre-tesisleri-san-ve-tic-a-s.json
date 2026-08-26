@@ -3,14 +3,37 @@
   "sirket_adi": "Tellioğlu Yem-Gıda Entegre Tesisleri San. ve Tic. A.Ş.",
   "izahname_url": "https://tellioglu.com.tr/images/index/pdf/taslak-izahname.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-26T07:59:59Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "Hasilat": 2344743217.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 3658110865.0,
+      "2023-12": 3276203002.0,
+      "2024-12": 3431457099.0,
+      "2025-09": 2344743217.0
+    }
+  },
   "dogrulama": {},
   "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136
+  ]
 }
