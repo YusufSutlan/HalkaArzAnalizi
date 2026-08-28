@@ -1413,9 +1413,9 @@ class ScoreAnalyzer:
         if a < 10:
             p, notu = 0.0, "çok dar hacim"
         elif a <= 25:
-            p, notu = 0.8, "ideal aralık"
+            p, notu = 0.8, "dengeli"
         elif a <= 35:
-            p, notu = 1.0, "dengeli"
+            p, notu = 1.0, "ideal aralık"
         elif a <= 45:
             p, notu = 0.3, "yüksek"
         else:

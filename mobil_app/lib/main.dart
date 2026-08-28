@@ -65,6 +65,30 @@ String _sadeceYildiz(dynamic ham) {
   return metin.isEmpty ? "☆☆☆☆☆" : metin;
 }
 
+/// Backend metinleri baştan 🚨/⚠️/ℹ️ emojisiyle geliyor. Bu emojiler zaten
+/// panelin kendi ikonuyla (renkli başlık ikonu) veriliyor; metinde de
+/// tekrarlanması "ikon + emoji + madde imi" kalabalığı yaratıp amatörce
+/// görünmesine yol açıyordu. Görüntülemeden önce temizleniyor.
+String _onEkTemizle(String s) {
+  return s
+      .replaceFirst(RegExp(r'^[\u{1F6A8}⚠ℹ]️?\s*', unicode: true), '')
+      .trim();
+}
+
+/// İlk gün satış baskısı metinleri "İLK GÜN SATIŞ BASKISI ÇOK YÜKSEK:" gibi
+/// panelin kendi başlığını ve rozetini tekrarlayan bir önek taşıyor. Bu önek
+/// (iki noktaya kadar tamamı büyük harf ise) atılıp yalnızca asıl açıklama
+/// bırakılıyor.
+String _baskiMetniSadelestir(String s) {
+  final String t = _onEkTemizle(s);
+  final int ikiNokta = t.indexOf(':');
+  if (ikiNokta > 0 && ikiNokta < 50 &&
+      t.substring(0, ikiNokta) == t.substring(0, ikiNokta).toUpperCase()) {
+    return t.substring(ikiNokta + 1).trim();
+  }
+  return t;
+}
+
 class HalkaArzApp extends StatelessWidget {
   const HalkaArzApp({super.key});
 
@@ -358,9 +382,24 @@ class _AnaEkranState extends State<AnaEkran> {
                   horizontal: 20,
                   vertical: 10,
                 ),
-                itemCount: halkaArzlar.length,
+                // +1: listenin başındaki "X aktif halka arz" özet satırı.
+                itemCount: halkaArzlar.length + 1,
                 itemBuilder: (context, index) {
-                  final arz = halkaArzlar[index];
+                  if (index == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
+                      child: Text(
+                        "${halkaArzlar.length} aktif halka arz izleniyor",
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textTertiary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    );
+                  }
+                  final arz = halkaArzlar[index - 1];
                   final double skor = (arz['skor'] ?? 0).toDouble();
                   final String durum = arz['durum'] ?? "Bilinmiyor";
                   final String sirketAdi =
@@ -768,7 +807,7 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          u.toString(),
+                          _onEkTemizle(u.toString()),
                           style: const TextStyle(
                             fontSize: 13,
                             height: 1.5,
@@ -1254,7 +1293,7 @@ class _BaskiPaneli extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            uyari,
+            _baskiMetniSadelestir(uyari),
             style: const TextStyle(
               fontSize: 13.5,
               height: 1.55,
@@ -1365,7 +1404,9 @@ class _BaskiPaneli extends StatelessWidget {
           const SizedBox(height: 10),
           const Text(
             "Bu değerlendirme dağıtım yapısı ve arz büyüklüğüne dayalı bir "
-            "risk uyarısıdır; fiyat tahmini değildir.",
+            "risk uyarısıdır; fiyat tahmini değildir. Model henüz geçmiş "
+            "halka arzlarla geriye dönük test edilmemiştir, deneysel kabul "
+            "edin.",
             style: TextStyle(
               fontSize: 11,
               fontStyle: FontStyle.italic,
@@ -1610,7 +1651,7 @@ class _NitelikPaneli extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           ...maddeler.map((madde) {
-            String yazi = madde.toString();
+            String yazi = _onEkTemizle(madde.toString());
             String puan = "";
             final match = RegExp(
               r'\(([-+0-9.]+\s*Puan)\)',
