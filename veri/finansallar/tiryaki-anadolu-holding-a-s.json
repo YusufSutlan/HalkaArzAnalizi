@@ -3,14 +3,93 @@
   "sirket_adi": "Tiryaki Anadolu Holding A.Ş.",
   "izahname_url": "https://tiryakianadolu.com.tr/Content/files/uploads/24/Tiryaki_Anadolu_Holding_Basvuru_Izahnamesi.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-28T19:39:40Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2023-06",
+    "2024-06",
+    "2025-06"
+  ],
+  "guncel": {
+    "Nakit": 598691267.0,
+    "DonenVarlik": 13517894924.0,
+    "DuranVarlik": 2683946610.0,
+    "ToplamVarlik": 16201841534.0,
+    "KisaVadeliYukumluluk": 12762524635.0,
+    "UzunVadeliYukumluluk": 622016719.0,
+    "OdenmisSermaye": 898750000.0,
+    "NetKar": 841126058.0,
+    "Ozkaynak": 2817300180.0,
+    "ToplamKaynak": 16201841534.0
+  },
+  "seriler": {
+    "Nakit": {
+      "2023-06": 143510883.0,
+      "2024-06": 281669423.0,
+      "2025-06": 598691267.0
+    },
+    "DonenVarlik": {
+      "2023-06": 6318429792.0,
+      "2024-06": 9266496511.0,
+      "2025-06": 13517894924.0
+    },
+    "DuranVarlik": {
+      "2023-06": 701870138.0,
+      "2024-06": 1738438233.0,
+      "2025-06": 2683946610.0
+    },
+    "ToplamVarlik": {
+      "2023-06": 7020299930.0,
+      "2024-06": 11004934744.0,
+      "2025-06": 16201841534.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-06": 5148039982.0,
+      "2024-06": 7059601439.0,
+      "2025-06": 12762524635.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-06": 458122679.0,
+      "2024-06": 539058666.0,
+      "2025-06": 622016719.0
+    },
+    "OdenmisSermaye": {
+      "2023-06": 50000.0,
+      "2024-06": 179750000.0,
+      "2025-06": 898750000.0
+    },
+    "NetKar": {
+      "2023-06": 519547224.0,
+      "2024-06": 1061909058.0,
+      "2025-06": 841126058.0
+    },
+    "Ozkaynak": {
+      "2023-06": 1414137269.0,
+      "2024-06": 3406274639.0,
+      "2025-06": 2817300180.0
+    },
+    "ToplamKaynak": {
+      "2023-06": 7020299930.0,
+      "2024-06": 11004934744.0,
+      "2025-06": 16201841534.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166
+  ]
 }

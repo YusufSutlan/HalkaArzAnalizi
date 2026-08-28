@@ -3,14 +3,104 @@
   "sirket_adi": "Inavıtas Enerji A.Ş.",
   "izahname_url": "https://www.denizyatirim.com/asset/AnnouncementsPdf/1765200360.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-08-28T19:37:39Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "DonenVarlik": 1567283181.0,
+    "Nakit": 568268392.0,
+    "DuranVarlik": 1428747714.0,
+    "ToplamVarlik": 2996030895.0,
+    "KisaVadeliYukumluluk": 916815082.0,
+    "UzunVadeliYukumluluk": 285350701.0,
+    "Ozkaynak": 1765286712.0,
+    "OdenmisSermaye": 200000000.0,
+    "NetKar": 207778483.0,
+    "ToplamKaynak": 2996030895.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2022-12": 328703815.0,
+      "2023-12": 874437071.0,
+      "2024-12": 980408645.0,
+      "2025-09": 1567283181.0
+    },
+    "Nakit": {
+      "2022-12": 13402687.0,
+      "2023-12": 168115549.0,
+      "2024-12": 404663881.0,
+      "2025-09": 568268392.0
+    },
+    "DuranVarlik": {
+      "2022-12": 201232473.0,
+      "2023-12": 279867290.0,
+      "2024-12": 1310308375.0,
+      "2025-09": 1428747714.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 529936288.0,
+      "2023-12": 1154304361.0,
+      "2024-12": 2290717020.0,
+      "2025-09": 2996030895.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 210558362.0,
+      "2023-12": 241431730.0,
+      "2024-12": 369954284.0,
+      "2025-09": 916815082.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 69627080.0,
+      "2023-12": 47054662.0,
+      "2024-12": 247365603.0,
+      "2025-09": 285350701.0
+    },
+    "Ozkaynak": {
+      "2022-12": 249151416.0,
+      "2023-12": 859177597.0,
+      "2024-12": 1665131130.0,
+      "2025-09": 1765286712.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 1000000.0,
+      "2023-12": 1000000.0,
+      "2024-12": 200000000.0,
+      "2025-09": 200000000.0
+    },
+    "NetKar": {
+      "2022-12": -30278873.0,
+      "2023-12": 293919090.0,
+      "2024-12": 262964656.0,
+      "2025-09": 207778483.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 529936288.0,
+      "2023-12": 1154304361.0,
+      "2024-12": 2290717020.0,
+      "2025-09": 2996030895.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139
+  ]
 }
