@@ -3,14 +3,109 @@
   "sirket_adi": "Özel İskenderun Gelişim Hastanesi San. ve Tic. A.Ş.",
   "izahname_url": "https://www.halkyatirim.com.tr/pdf/KurumsalFinansman/2025/11/%C4%B0SKENDERUN%20GEL%C4%B0%C5%9E%C4%B0M%20-%20EK%209%20-%20%C4%B0ZAHNAME.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-01T12:41:00Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-06"
+  ],
+  "guncel": {
+    "NetKar": 47320257.0,
+    "Ozkaynak": 2530171232.0,
+    "ToplamVarlik": 3440597038.0,
+    "ToplamKaynak": 3440597038.0,
+    "DonenVarlik": 697675934.0,
+    "DuranVarlik": 2742921104.0,
+    "KisaVadeliYukumluluk": 436225010.0,
+    "UzunVadeliYukumluluk": 474200796.0,
+    "Nakit": 23635114.0,
+    "IsletmeNakitAkisi": -21635903.0,
+    "Amortisman": 46763766.0,
+    "OdenmisSermaye": 100000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2024-12": 379158316.0,
+      "2025-06": 47320257.0
+    },
+    "Ozkaynak": {
+      "2022-12": 988411153.0,
+      "2023-12": 1911098719.0,
+      "2024-12": 2456449090.0,
+      "2025-06": 2530171232.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 1526860024.0,
+      "2023-12": 2969651446.0,
+      "2024-12": 3589836499.0,
+      "2025-06": 3440597038.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1526860024.0,
+      "2023-12": 2969651446.0,
+      "2024-12": 3589836499.0,
+      "2025-06": 3440597038.0
+    },
+    "DonenVarlik": {
+      "2022-12": 287659908.0,
+      "2023-12": 361653931.0,
+      "2024-12": 818289610.0,
+      "2025-06": 697675934.0
+    },
+    "DuranVarlik": {
+      "2022-12": 1239200116.0,
+      "2023-12": 2607997515.0,
+      "2024-12": 2771546889.0,
+      "2025-06": 2742921104.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 319096499.0,
+      "2023-12": 474210754.0,
+      "2024-12": 746040620.0,
+      "2025-06": 436225010.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 219352372.0,
+      "2023-12": 584341973.0,
+      "2024-12": 387346789.0,
+      "2025-06": 474200796.0
+    },
+    "Nakit": {
+      "2022-12": 41474160.0,
+      "2023-12": 60196898.0,
+      "2024-12": 45824628.0,
+      "2025-06": 23635114.0
+    },
+    "IsletmeNakitAkisi": {
+      "2024-12": 300917831.0,
+      "2025-06": -21635903.0
+    },
+    "Amortisman": {
+      "2024-12": 154494064.0,
+      "2025-06": 46763766.0
+    },
+    "OdenmisSermaye": {
+      "2025-06": 100000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    110,
+    111,
+    112,
+    113,
+    130,
+    131,
+    132,
+    133
+  ]
 }

@@ -3,14 +3,100 @@
   "sirket_adi": "Tellioğlu Yem-Gıda Entegre Tesisleri San. ve Tic. A.Ş.",
   "izahname_url": "https://tellioglu.com.tr/images/index/pdf/taslak-izahname.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-01T12:27:30Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-09"
+  ],
+  "guncel": {
+    "ToplamVarlik": 3504411203.0,
+    "DonenVarlik": 1077517180.0,
+    "Nakit": 159029446.0,
+    "DuranVarlik": 2426894023.0,
+    "ToplamKaynak": 3504411203.0,
+    "KisaVadeliYukumluluk": 1189232189.0,
+    "UzunVadeliYukumluluk": 367202846.0,
+    "Ozkaynak": 1947976168.0,
+    "OdenmisSermaye": 200000000.0,
+    "NetKar": 14225818.0
+  },
+  "seriler": {
+    "ToplamVarlik": {
+      "2022-12": 2077937255.0,
+      "2023-12": 3384697699.0,
+      "2024-12": 3859389528.0,
+      "2025-09": 3504411203.0
+    },
+    "DonenVarlik": {
+      "2022-12": 1065004138.0,
+      "2023-12": 864102974.0,
+      "2024-12": 1522804092.0,
+      "2025-09": 1077517180.0
+    },
+    "Nakit": {
+      "2022-12": 142929061.0,
+      "2023-12": 9302673.0,
+      "2024-12": 275285582.0,
+      "2025-09": 159029446.0
+    },
+    "DuranVarlik": {
+      "2022-12": 1012933117.0,
+      "2023-12": 2520594725.0,
+      "2024-12": 2336585436.0,
+      "2025-09": 2426894023.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 2077937255.0,
+      "2023-12": 3384697699.0,
+      "2024-12": 3859389528.0,
+      "2025-09": 3504411203.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 677916926.0,
+      "2023-12": 737719944.0,
+      "2024-12": 1484710869.0,
+      "2025-09": 1189232189.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 434296105.0,
+      "2023-12": 464560799.0,
+      "2024-12": 390133996.0,
+      "2025-09": 367202846.0
+    },
+    "Ozkaynak": {
+      "2022-12": 965724224.0,
+      "2023-12": 2182416956.0,
+      "2024-12": 1984544663.0,
+      "2025-09": 1947976168.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 123215000.0,
+      "2023-12": 123215000.0,
+      "2024-12": 123215000.0,
+      "2025-09": 200000000.0
+    },
+    "NetKar": {
+      "2022-12": 169101206.0,
+      "2023-12": 50325445.0,
+      "2024-12": 9622010.0,
+      "2025-09": 14225818.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    145,
+    146,
+    147,
+    148
+  ]
 }
