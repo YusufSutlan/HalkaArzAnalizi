@@ -1,0 +1,97 @@
+{
+  "slug": "hastavuk-gida-tarim-hayvancilik-a-s",
+  "sirket_adi": "Hastavuk Gıda Tarım Hayvancılık A.Ş.",
+  "izahname_url": "https://www.hastavuk.com.tr/wp-content/uploads/2025/10/Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-02T12:18:20Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-06"
+  ],
+  "guncel": {
+    "DonenVarlik": 2437233638.0,
+    "DuranVarlik": 2263713779.0,
+    "ToplamVarlik": 4700947417.0,
+    "KisaVadeliYukumluluk": 1442381241.0,
+    "UzunVadeliYukumluluk": 166194429.0,
+    "ToplamBorc": 1608575670.0,
+    "Ozkaynak": 3092371747.0,
+    "ToplamKaynak": 4700947417.0,
+    "OdenmisSermaye": 1100000000.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2022-12": 3470867981.0,
+      "2023-12": 2218560227.0,
+      "2024-12": 2659486199.0,
+      "2025-06": 2437233638.0
+    },
+    "DuranVarlik": {
+      "2022-12": 2743891006.0,
+      "2023-12": 2217197366.0,
+      "2024-12": 2241284383.0,
+      "2025-06": 2263713779.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 6214758987.0,
+      "2023-12": 4435757593.0,
+      "2024-12": 4900770582.0,
+      "2025-06": 4700947417.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 3990073343.0,
+      "2023-12": 2121741353.0,
+      "2024-12": 1357282023.0,
+      "2025-06": 1442381241.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 87728436.0,
+      "2023-12": 127835134.0,
+      "2024-12": 150864311.0,
+      "2025-06": 166194429.0
+    },
+    "ToplamBorc": {
+      "2022-12": 4077801779.0,
+      "2023-12": 2249576487.0,
+      "2024-12": 1508146334.0,
+      "2025-06": 1608575670.0
+    },
+    "Ozkaynak": {
+      "2022-12": 2136957207.0,
+      "2023-12": 2186181106.0,
+      "2024-12": 3392624248.0,
+      "2025-06": 3092371747.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 6214758987.0,
+      "2023-12": 4435757593.0,
+      "2024-12": 4900770582.0,
+      "2025-06": 4700947417.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 50000000.0,
+      "2023-12": 50000000.0,
+      "2024-12": 1100000000.0,
+      "2025-06": 1100000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: NetKar, Hasilat",
+  "islenen_sayfalar": [
+    153,
+    154,
+    155,
+    156
+  ]
+}

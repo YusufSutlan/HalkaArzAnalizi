@@ -3,14 +3,100 @@
   "sirket_adi": "Beşler Makarna Un İrmik Gıda San. ve Tic. A.Ş.",
   "izahname_url": "https://beslerun.com/documents/besler-makarna-un-irmik-gida-san-ve-tic-as-sermaye-piyasasi-kurulu-onayina-sunulan-basvuru-izahnamesi.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-02T12:16:01Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-06"
+  ],
+  "guncel": {
+    "DonenVarlik": 2971927223.0,
+    "Nakit": 54147655.0,
+    "DuranVarlik": 1783384042.0,
+    "ToplamVarlik": 4755311265.0,
+    "KisaVadeliYukumluluk": 2890771480.0,
+    "UzunVadeliYukumluluk": 428548199.0,
+    "Ozkaynak": 1435991586.0,
+    "OdenmisSermaye": 150000000.0,
+    "NetKar": 208616089.0,
+    "ToplamKaynak": 4755311265.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2022-12": 3494679622.0,
+      "2023-12": 2266327315.0,
+      "2024-12": 2423333814.0,
+      "2025-06": 2971927223.0
+    },
+    "Nakit": {
+      "2022-12": 625827140.0,
+      "2023-12": 197441766.0,
+      "2024-12": 41021194.0,
+      "2025-06": 54147655.0
+    },
+    "DuranVarlik": {
+      "2022-12": 1235466029.0,
+      "2023-12": 1721993711.0,
+      "2024-12": 1805016773.0,
+      "2025-06": 1783384042.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 4730145651.0,
+      "2023-12": 3988321026.0,
+      "2024-12": 4228350587.0,
+      "2025-06": 4755311265.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 3388215996.0,
+      "2023-12": 2260575268.0,
+      "2024-12": 2692548198.0,
+      "2025-06": 2890771480.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 240135399.0,
+      "2023-12": 373828712.0,
+      "2024-12": 247005934.0,
+      "2025-06": 428548199.0
+    },
+    "Ozkaynak": {
+      "2022-12": 1101794256.0,
+      "2023-12": 1353917046.0,
+      "2024-12": 1288796455.0,
+      "2025-06": 1435991586.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 97086259.0,
+      "2023-12": 150000000.0,
+      "2024-12": 150000000.0,
+      "2025-06": 150000000.0
+    },
+    "NetKar": {
+      "2022-12": 86818662.0,
+      "2023-12": 64498064.0,
+      "2024-12": 12013954.0,
+      "2025-06": 208616089.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 4730145651.0,
+      "2023-12": 3988321026.0,
+      "2024-12": 4228350587.0,
+      "2025-06": 4755311265.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    132,
+    133,
+    134,
+    135
+  ]
 }
