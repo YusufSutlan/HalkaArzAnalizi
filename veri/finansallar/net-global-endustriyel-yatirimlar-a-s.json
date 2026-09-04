@@ -1,0 +1,95 @@
+{
+  "slug": "net-global-endustriyel-yatirimlar-a-s",
+  "sirket_adi": "Net Global Endüstriyel Yatırımlar A.Ş.",
+  "izahname_url": "https://www.netglobaley.com/Content/documents/NetGlobalIzahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-04T12:00:03Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "FaaliyetKari": 362488691.0,
+    "FinansmanGideri": -159759461.0,
+    "NetKar": 179341322.0,
+    "Ozkaynak": 2285044102.0,
+    "ToplamKaynak": 2992680283.0,
+    "KisaVadeliYukumluluk": 538123301.0,
+    "UzunVadeliYukumluluk": 169512880.0,
+    "FinansalBorc": 382150543.0,
+    "Nakit": 5272603.0,
+    "IsletmeNakitAkisi": -46769956.0,
+    "OdenmisSermaye": 250000000.0
+  },
+  "seriler": {
+    "FaaliyetKari": {
+      "2022-12": 344191006.0,
+      "2023-12": 343618271.0,
+      "2024-12": 362488691.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -79655773.0,
+      "2023-12": -142952784.0,
+      "2024-12": -159759461.0
+    },
+    "NetKar": {
+      "2022-12": 217414731.0,
+      "2023-12": 313346580.0,
+      "2024-12": 179341322.0
+    },
+    "Ozkaynak": {
+      "2022-12": 1824837116.0,
+      "2023-12": 2108346173.0,
+      "2024-12": 2285044102.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 2623020113.0,
+      "2023-12": 2804942486.0,
+      "2024-12": 2992680283.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 413049793.0,
+      "2023-12": 463281342.0,
+      "2024-12": 538123301.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 385133204.0,
+      "2023-12": 233314971.0,
+      "2024-12": 169512880.0
+    },
+    "FinansalBorc": {
+      "2022-12": 477579639.0,
+      "2023-12": 360614245.0,
+      "2024-12": 382150543.0
+    },
+    "Nakit": {
+      "2022-12": 135704135.0,
+      "2023-12": 112323895.0,
+      "2024-12": 5272603.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 242280311.0,
+      "2023-12": 71028312.0,
+      "2024-12": -46769956.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 50000000.0,
+      "2023-12": 50000000.0,
+      "2024-12": 250000000.0
+    }
+  },
+  "dogrulama": {
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    139,
+    140,
+    141,
+    142
+  ]
+}
