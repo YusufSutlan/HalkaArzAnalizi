@@ -1,0 +1,111 @@
+{
+  "slug": "biosys-biyomedikal-muhendislik-san-ve-tic-a-s",
+  "sirket_adi": "Biosys Biyomedikal Mühendislik San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.biosysmed.com/wp-content/uploads/2025/08/BIOSYS-EK-9-IZAHNAME.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-05T11:32:18Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12",
+    "2025-03"
+  ],
+  "guncel": {
+    "NetKar": -23750448.0,
+    "Ozkaynak": 888696231.0,
+    "ToplamVarlik": 1478112933.0,
+    "ToplamKaynak": 1478112933.0,
+    "ToplamBorc": 589416702.0,
+    "DonenVarlik": 807541940.0,
+    "DuranVarlik": 670570993.0,
+    "KisaVadeliYukumluluk": 241792198.0,
+    "UzunVadeliYukumluluk": 347624504.0,
+    "Nakit": 695027.0,
+    "OdenmisSermaye": 100000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2022-12": 33636367.0,
+      "2023-12": 98938918.0,
+      "2024-12": 158263989.0,
+      "2025-03": -23750448.0
+    },
+    "Ozkaynak": {
+      "2022-12": 574078533.0,
+      "2023-12": 738518935.0,
+      "2024-12": 912504500.0,
+      "2025-03": 888696231.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 589323248.0,
+      "2023-12": 925001619.0,
+      "2024-12": 1643196519.0,
+      "2025-03": 1478112933.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 589323248.0,
+      "2023-12": 925001619.0,
+      "2024-12": 1643196519.0,
+      "2025-03": 1478112933.0
+    },
+    "ToplamBorc": {
+      "2022-12": 15244715.0,
+      "2023-12": 186482684.0,
+      "2024-12": 730692019.0,
+      "2025-03": 589416702.0
+    },
+    "DonenVarlik": {
+      "2022-12": 164553748.0,
+      "2023-12": 196062506.0,
+      "2024-12": 965693177.0,
+      "2025-03": 807541940.0
+    },
+    "DuranVarlik": {
+      "2022-12": 424769500.0,
+      "2023-12": 728939113.0,
+      "2024-12": 677503342.0,
+      "2025-03": 670570993.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 14459456.0,
+      "2023-12": 71239232.0,
+      "2024-12": 243015163.0,
+      "2025-03": 241792198.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 785259.0,
+      "2023-12": 115243452.0,
+      "2024-12": 487676856.0,
+      "2025-03": 347624504.0
+    },
+    "Nakit": {
+      "2022-12": 30491678.0,
+      "2023-12": 1051664.0,
+      "2024-12": 33348265.0,
+      "2025-03": 695027.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 400000.0,
+      "2023-12": 400000.0,
+      "2024-12": 100000000.0,
+      "2025-03": 100000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    96,
+    97,
+    98,
+    99
+  ]
+}
