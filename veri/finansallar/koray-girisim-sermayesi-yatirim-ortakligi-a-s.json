@@ -1,0 +1,75 @@
+{
+  "slug": "koray-girisim-sermayesi-yatirim-ortakligi-a-s",
+  "sirket_adi": "Koray Girişim Sermayesi Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://koraygirisim.com/storage/all_sections_pdf/01K1T0K5532VF7FX5DRN68MJ8A.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-06T11:55:21Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2025-06"
+  ],
+  "guncel": {
+    "DonenVarlik": 1038972.0,
+    "Nakit": 35181.0,
+    "DuranVarlik": 2808801602.0,
+    "ToplamVarlik": 2809840574.0,
+    "KisaVadeliYukumluluk": 1670746217.0,
+    "UzunVadeliYukumluluk": 237450095.0,
+    "ToplamBorc": 1908196312.0,
+    "Ozkaynak": 901644262.0,
+    "OdenmisSermaye": 300000000.0,
+    "NetKar": 575800829.0,
+    "ToplamKaynak": 2809840574.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2025-06": 1038972.0
+    },
+    "Nakit": {
+      "2025-06": 35181.0
+    },
+    "DuranVarlik": {
+      "2025-06": 2808801602.0
+    },
+    "ToplamVarlik": {
+      "2025-06": 2809840574.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2025-06": 1670746217.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2025-06": 237450095.0
+    },
+    "ToplamBorc": {
+      "2025-06": 1908196312.0
+    },
+    "Ozkaynak": {
+      "2025-06": 901644262.0
+    },
+    "OdenmisSermaye": {
+      "2025-06": 300000000.0
+    },
+    "NetKar": {
+      "2025-06": 575800829.0
+    },
+    "ToplamKaynak": {
+      "2025-06": 2809840574.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    81,
+    82,
+    83,
+    84
+  ]
+}
