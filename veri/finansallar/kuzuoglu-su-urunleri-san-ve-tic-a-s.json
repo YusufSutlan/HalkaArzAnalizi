@@ -1,0 +1,99 @@
+{
+  "slug": "kuzuoglu-su-urunleri-san-ve-tic-a-s",
+  "sirket_adi": "Kuzuoğlu Su Ürünleri San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.kuzuoglu.com.tr/wp-content/uploads/2025/05/Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-07T13:40:05Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "NetKar": 229816874.0,
+    "Ozkaynak": 6270324417.0,
+    "ToplamKaynak": 11521831294.0,
+    "DonenVarlik": 2719260554.0,
+    "KisaVadeliYukumluluk": 2666497283.0,
+    "UzunVadeliYukumluluk": 2585009594.0,
+    "FinansalBorc": 2043299190.0,
+    "IsletmeNakitAkisi": 465952057.0,
+    "OdenmisSermaye": 100000000.0,
+    "ToplamBorc": 5251506877.0,
+    "Nakit": 47052953.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2024-12": 229816874.0
+    },
+    "Ozkaynak": {
+      "2022-12": 4356204618.0,
+      "2023-12": 6105584900.0,
+      "2024-12": 6270324417.0
+    },
+    "ToplamKaynak": {
+      "2024-12": 11521831294.0
+    },
+    "DonenVarlik": {
+      "2022-12": 1717678541.0,
+      "2023-12": 3232640417.0,
+      "2024-12": 2719260554.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 1829178133.0,
+      "2023-12": 3712362243.0,
+      "2024-12": 2666497283.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2024-12": 2585009594.0
+    },
+    "FinansalBorc": {
+      "2022-12": 830993050.0,
+      "2023-12": 1896414160.0,
+      "2024-12": 2043299190.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 459927170.0,
+      "2023-12": 394490318.0,
+      "2024-12": 465952057.0
+    },
+    "OdenmisSermaye": {
+      "2024-12": 100000000.0
+    },
+    "ToplamBorc": {
+      "2024-12": 5251506877.0
+    },
+    "Nakit": {
+      "2024-12": 47052953.0
+    }
+  },
+  "dogrulama": {
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164,
+    165,
+    166,
+    167,
+    168,
+    169
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "slug": "sanat-ambalaj-san-ve-tic-a-s",
+  "sirket_adi": "Sanat Ambalaj San. ve Tic. A.Ş.",
+  "izahname_url": "https://bullsyatirim.com/upload/files/sanat/sanat-ambalaj_taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-07T13:42:03Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "Hasilat": 3958962869.0,
+    "BrutKar": 791237625.0,
+    "FaaliyetKari": 625387070.0,
+    "NetKar": 476011145.0,
+    "FinansmanGideri": -1255942075.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 4419993045.0,
+      "2023-12": 3874792046.0,
+      "2024-12": 3958962869.0
+    },
+    "BrutKar": {
+      "2022-12": 747810815.0,
+      "2023-12": 502056458.0,
+      "2024-12": 791237625.0
+    },
+    "FaaliyetKari": {
+      "2022-12": 670601287.0,
+      "2023-12": 617697317.0,
+      "2024-12": 625387070.0
+    },
+    "NetKar": {
+      "2022-12": 854157878.0,
+      "2023-12": 120350389.0,
+      "2024-12": 476011145.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -915375190.0,
+      "2023-12": -1514950895.0,
+      "2024-12": -1255942075.0
+    }
+  },
+  "dogrulama": {
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Ozkaynak",
+  "islenen_sayfalar": [
+    128,
+    129,
+    130,
+    131
+  ]
+}
