@@ -1,0 +1,100 @@
+{
+  "slug": "separ-plastik-san-ve-tic-a-s",
+  "sirket_adi": "Separ Plastik San. ve Tic. A.Ş.",
+  "izahname_url": "https://cdn.infoyatirim.com/Content/Finance/c097bbe2-17cf-4d26-a8d3-fd8f2d675290.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-08T12:24:58Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 949268213.0,
+    "DuranVarlik": 1568357242.0,
+    "Nakit": 18730300.0,
+    "KisaVadeliYukumluluk": 807277188.0,
+    "UzunVadeliYukumluluk": 408801548.0,
+    "Ozkaynak": 1301546719.0,
+    "OdenmisSermaye": 250000000.0,
+    "NetKar": 267609836.0,
+    "ToplamKaynak": 2517625455.0,
+    "ToplamBorc": 1216078736.0,
+    "IsletmeNakitAkisi": 277942692.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2022-12": 654368042.0,
+      "2023-12": 880485184.0,
+      "2024-12": 949268213.0
+    },
+    "DuranVarlik": {
+      "2022-12": 1286702626.0,
+      "2023-12": 1471389131.0,
+      "2024-12": 1568357242.0
+    },
+    "Nakit": {
+      "2022-12": 19668751.0,
+      "2023-12": 20239525.0,
+      "2024-12": 18730300.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 702589009.0,
+      "2023-12": 746969778.0,
+      "2024-12": 807277188.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 518572890.0,
+      "2023-12": 366164207.0,
+      "2024-12": 408801548.0
+    },
+    "Ozkaynak": {
+      "2022-12": 719908769.0,
+      "2023-12": 1238740330.0,
+      "2024-12": 1301546719.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 20000000.0,
+      "2023-12": 250000000.0,
+      "2024-12": 250000000.0
+    },
+    "NetKar": {
+      "2022-12": 137800564.0,
+      "2023-12": 35963925.0,
+      "2024-12": 267609836.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1941070668.0,
+      "2023-12": 2351874315.0,
+      "2024-12": 2517625455.0
+    },
+    "ToplamBorc": {
+      "2022-12": 1221161899.0,
+      "2023-12": 1113133985.0,
+      "2024-12": 1216078736.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 57218441.0,
+      "2023-12": -182712909.0,
+      "2024-12": 277942692.0
+    }
+  },
+  "dogrulama": {
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    80,
+    81,
+    82,
+    83,
+    98,
+    99,
+    100,
+    101
+  ]
+}

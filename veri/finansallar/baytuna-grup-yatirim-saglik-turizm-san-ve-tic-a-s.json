@@ -1,0 +1,132 @@
+{
+  "slug": "baytuna-grup-yatirim-saglik-turizm-san-ve-tic-a-s",
+  "sirket_adi": "Baytuna Grup Yatırım Sağlık Turizm San. ve Tic. A.Ş.",
+  "izahname_url": "https://cdn.infoyatirim.com/Content/Finance/f5452798-4fe4-41ac-a2c6-d270209c261f.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-08T12:24:00Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "Hasilat": 2356864514.0,
+    "BrutKar": 869375300.0,
+    "FaaliyetKari": 793092334.0,
+    "NetKar": 612937845.0,
+    "Ozkaynak": 3126282849.0,
+    "ToplamVarlik": 4896708183.0,
+    "ToplamKaynak": 4896708183.0,
+    "ToplamBorc": 1770425334.0,
+    "DonenVarlik": 775098878.0,
+    "DuranVarlik": 4121609305.0,
+    "KisaVadeliYukumluluk": 924396874.0,
+    "UzunVadeliYukumluluk": 846028460.0,
+    "Nakit": 199693273.0,
+    "IsletmeNakitAkisi": 801690852.0,
+    "FinansmanGideri": -379462334.0,
+    "OdenmisSermaye": 100000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 890415386.0,
+      "2023-12": 1460729897.0,
+      "2024-12": 2356864514.0
+    },
+    "BrutKar": {
+      "2022-12": 115761013.0,
+      "2023-12": 308941351.0,
+      "2024-12": 869375300.0
+    },
+    "FaaliyetKari": {
+      "2022-12": 85977607.0,
+      "2023-12": 297109606.0,
+      "2024-12": 793092334.0
+    },
+    "NetKar": {
+      "2022-12": 293828431.0,
+      "2023-12": 477526110.0,
+      "2024-12": 612937845.0
+    },
+    "Ozkaynak": {
+      "2022-12": 2166701794.0,
+      "2023-12": 2520626674.0,
+      "2024-12": 3126282849.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 3836334904.0,
+      "2023-12": 4356205906.0,
+      "2024-12": 4896708183.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 3836334904.0,
+      "2023-12": 4356205906.0,
+      "2024-12": 4896708183.0
+    },
+    "ToplamBorc": {
+      "2022-12": 1669633110.0,
+      "2023-12": 1835579232.0,
+      "2024-12": 1770425334.0
+    },
+    "DonenVarlik": {
+      "2022-12": 327620410.0,
+      "2023-12": 509500587.0,
+      "2024-12": 775098878.0
+    },
+    "DuranVarlik": {
+      "2022-12": 3508714494.0,
+      "2023-12": 3846705319.0,
+      "2024-12": 4121609305.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 776879931.0,
+      "2023-12": 1065136590.0,
+      "2024-12": 924396874.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 892753179.0,
+      "2023-12": 770442642.0,
+      "2024-12": 846028460.0
+    },
+    "Nakit": {
+      "2022-12": 67622300.0,
+      "2023-12": 220677832.0,
+      "2024-12": 199693273.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 519541864.0,
+      "2023-12": 571281069.0,
+      "2024-12": 801690852.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -147731670.0,
+      "2023-12": -315265803.0,
+      "2024-12": -379462334.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 70000000.0,
+      "2023-12": 70000000.0,
+      "2024-12": 100000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    23,
+    27,
+    41,
+    130,
+    141
+  ]
+}

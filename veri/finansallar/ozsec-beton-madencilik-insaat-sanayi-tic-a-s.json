@@ -1,0 +1,118 @@
+{
+  "slug": "ozsec-beton-madencilik-insaat-sanayi-tic-a-s",
+  "sirket_adi": "Özseç Beton Madencilik İnşaat Sanayi Tic. A.Ş.",
+  "izahname_url": "https://ozsecbeton.com/assets/Ozsec-Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-08T12:26:38Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "Hasilat": 5431742426.0,
+    "BrutKar": 532368065.0,
+    "FaaliyetKari": 187922773.0,
+    "NetKar": 52897679.0,
+    "Ozkaynak": 1740476905.0,
+    "ToplamVarlik": 3666762863.0,
+    "ToplamKaynak": 3666762863.0,
+    "DonenVarlik": 967774598.0,
+    "DuranVarlik": 2698988265.0,
+    "KisaVadeliYukumluluk": 1346129723.0,
+    "UzunVadeliYukumluluk": 580156235.0,
+    "Nakit": 43107641.0,
+    "FinansmanGideri": -185138909.0,
+    "OdenmisSermaye": 400000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 3348332561.0,
+      "2023-12": 5330030812.0,
+      "2024-12": 5431742426.0
+    },
+    "BrutKar": {
+      "2022-12": 917627097.0,
+      "2023-12": 1459377537.0,
+      "2024-12": 532368065.0
+    },
+    "FaaliyetKari": {
+      "2022-12": 329249378.0,
+      "2023-12": 546078361.0,
+      "2024-12": 187922773.0
+    },
+    "NetKar": {
+      "2022-12": 232423763.0,
+      "2023-12": 564517502.0,
+      "2024-12": 52897679.0
+    },
+    "Ozkaynak": {
+      "2022-12": 587750504.0,
+      "2023-12": 1694000196.0,
+      "2024-12": 1740476905.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 1969711468.0,
+      "2023-12": 3435778265.0,
+      "2024-12": 3666762863.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1969711468.0,
+      "2023-12": 3435778265.0,
+      "2024-12": 3666762863.0
+    },
+    "DonenVarlik": {
+      "2022-12": 1072660506.0,
+      "2023-12": 1247558807.0,
+      "2024-12": 967774598.0
+    },
+    "DuranVarlik": {
+      "2022-12": 897050962.0,
+      "2023-12": 2188219458.0,
+      "2024-12": 2698988265.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 1243811387.0,
+      "2023-12": 1316345347.0,
+      "2024-12": 1346129723.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 138149577.0,
+      "2023-12": 425432722.0,
+      "2024-12": 580156235.0
+    },
+    "Nakit": {
+      "2022-12": 60390889.0,
+      "2023-12": 47543680.0,
+      "2024-12": 43107641.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -25533769.0,
+      "2023-12": -23415482.0,
+      "2024-12": -185138909.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 100000000.0,
+      "2023-12": 400000000.0,
+      "2024-12": 400000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    14,
+    22,
+    36,
+    37,
+    104
+  ]
+}
