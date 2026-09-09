@@ -1,0 +1,101 @@
+{
+  "slug": "doga-sigorta-a-s",
+  "sirket_adi": "Doğa Sigorta A.Ş.",
+  "izahname_url": "https://storage.dogasigorta.com/app-1433/pdf/halka-arz/Taslak%20%C4%B0zahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-09T12:35:01Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "NetKar": 900137952.0,
+    "Ozkaynak": 1965976241.0,
+    "ToplamVarlik": 14309554922.0,
+    "ToplamKaynak": 14309554922.0,
+    "DonenVarlik": 13576327333.0,
+    "DuranVarlik": 733227590.0,
+    "KisaVadeliYukumluluk": 12191266638.0,
+    "UzunVadeliYukumluluk": 152312043.0,
+    "Nakit": 6100626890.0,
+    "Amortisman": -33693359.0,
+    "OdenmisSermaye": 220000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2022-12": -7630484.0,
+      "2023-12": 618397805.0,
+      "2024-12": 900137952.0
+    },
+    "Ozkaynak": {
+      "2022-12": 488470416.0,
+      "2023-12": 1085718914.0,
+      "2024-12": 1965976241.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 4610711752.0,
+      "2023-12": 8716918536.0,
+      "2024-12": 14309554922.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 4610711752.0,
+      "2023-12": 8716918536.0,
+      "2024-12": 14309554922.0
+    },
+    "DonenVarlik": {
+      "2022-12": 4532931089.0,
+      "2023-12": 8392141551.0,
+      "2024-12": 13576327333.0
+    },
+    "DuranVarlik": {
+      "2022-12": 77780660.0,
+      "2023-12": 324776986.0,
+      "2024-12": 733227590.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 4085193486.0,
+      "2023-12": 7562653979.0,
+      "2024-12": 12191266638.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 37047850.0,
+      "2023-12": 68545643.0,
+      "2024-12": 152312043.0
+    },
+    "Nakit": {
+      "2022-12": 976122142.0,
+      "2023-12": 2581108116.0,
+      "2024-12": 6100626890.0
+    },
+    "Amortisman": {
+      "2022-12": -11829288.0,
+      "2023-12": -20942905.0,
+      "2024-12": -33693359.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 220000000.0,
+      "2023-12": 220000000.0,
+      "2024-12": 220000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    107,
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114
+  ]
+}

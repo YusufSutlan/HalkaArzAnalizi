@@ -1,0 +1,129 @@
+{
+  "slug": "sector-tarim-kimya-gida-pazarlama-san-ve-tic-a-s",
+  "sirket_adi": "Sector Tarım Kimya Gıda Pazarlama San. ve Tic. A.Ş.",
+  "izahname_url": "https://bullsyatirim.com/upload/files/kurumsal-finansman/sector-tarim-taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-09T12:34:23Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "Hasilat": 2510966301.0,
+    "BrutKar": 684756663.0,
+    "FaaliyetKari": 524856067.0,
+    "NetKar": 85540804.0,
+    "Ozkaynak": 1255722330.0,
+    "ToplamVarlik": 2451807519.0,
+    "ToplamKaynak": 2451807519.0,
+    "ToplamBorc": 1196085189.0,
+    "DonenVarlik": 1498923083.0,
+    "DuranVarlik": 952884436.0,
+    "KisaVadeliYukumluluk": 920286972.0,
+    "UzunVadeliYukumluluk": 275798217.0,
+    "Nakit": 4641739.0,
+    "FinansmanGideri": -348348214.0,
+    "OdenmisSermaye": 600000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 2454860755.0,
+      "2023-12": 3386343217.0,
+      "2024-12": 2510966301.0
+    },
+    "BrutKar": {
+      "2022-12": 379916024.0,
+      "2023-12": 519044423.0,
+      "2024-12": 684756663.0
+    },
+    "FaaliyetKari": {
+      "2022-12": 269369350.0,
+      "2023-12": 389532855.0,
+      "2024-12": 524856067.0
+    },
+    "NetKar": {
+      "2022-12": -40873299.0,
+      "2023-12": 113638700.0,
+      "2024-12": 85540804.0
+    },
+    "Ozkaynak": {
+      "2022-12": 494456161.0,
+      "2023-12": 1168033747.0,
+      "2024-12": 1255722330.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 1515105050.0,
+      "2023-12": 2246060981.0,
+      "2024-12": 2451807519.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1515105050.0,
+      "2023-12": 2246060981.0,
+      "2024-12": 2451807519.0
+    },
+    "ToplamBorc": {
+      "2022-12": 1020648889.0,
+      "2023-12": 1078027234.0,
+      "2024-12": 1196085189.0
+    },
+    "DonenVarlik": {
+      "2022-12": 1240228234.0,
+      "2023-12": 1732963541.0,
+      "2024-12": 1498923083.0
+    },
+    "DuranVarlik": {
+      "2022-12": 274876816.0,
+      "2023-12": 513097440.0,
+      "2024-12": 952884436.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 862847106.0,
+      "2023-12": 681204448.0,
+      "2024-12": 920286972.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 157801783.0,
+      "2023-12": 396822786.0,
+      "2024-12": 275798217.0
+    },
+    "Nakit": {
+      "2022-12": 90639790.0,
+      "2023-12": 75115782.0,
+      "2024-12": 4641739.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -73862379.0,
+      "2023-12": -191912567.0,
+      "2024-12": -348348214.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 118717175.0,
+      "2023-12": 600000000.0,
+      "2024-12": 600000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    147,
+    148,
+    149,
+    150,
+    159,
+    160,
+    161,
+    162
+  ]
+}

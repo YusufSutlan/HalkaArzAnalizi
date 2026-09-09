@@ -1,0 +1,108 @@
+{
+  "slug": "basakkent-girisim-sermayesi-yatirim-ortakligi-a-s",
+  "sirket_adi": "Başakkent Girişim Sermayesi Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://basakkentgsyo.com.tr/wp-content/uploads/2025/01/basakkentgsyo-taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-09T12:35:37Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "Hasilat": 202582742.0,
+    "BrutKar": 198760681.0,
+    "FaaliyetKari": 197871423.0,
+    "NetKar": 168648807.0,
+    "Ozkaynak": 424521837.0,
+    "ToplamKaynak": 586645101.0,
+    "DonenVarlik": 101223161.0,
+    "KisaVadeliYukumluluk": 162070658.0,
+    "UzunVadeliYukumluluk": 52606.0,
+    "Nakit": 4676.0,
+    "IsletmeNakitAkisi": 124060423.0,
+    "FinansmanGideri": -15562.0,
+    "OdenmisSermaye": 100000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2023-12": 160816784.0,
+      "2024-12": 202582742.0
+    },
+    "BrutKar": {
+      "2023-12": 139692320.0,
+      "2024-12": 198760681.0
+    },
+    "FaaliyetKari": {
+      "2022-12": -457528.0,
+      "2023-12": 137706624.0,
+      "2024-12": 197871423.0
+    },
+    "NetKar": {
+      "2022-12": -17428018.0,
+      "2023-12": 98095954.0,
+      "2024-12": 168648807.0
+    },
+    "Ozkaynak": {
+      "2022-12": 68616202.0,
+      "2023-12": 165474447.0,
+      "2024-12": 424521837.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 68616202.0,
+      "2023-12": 177120269.0,
+      "2024-12": 586645101.0
+    },
+    "DonenVarlik": {
+      "2022-12": 68616202.0,
+      "2023-12": 4286502.0,
+      "2024-12": 101223161.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 11599677.0,
+      "2024-12": 162070658.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 46145.0,
+      "2024-12": 52606.0
+    },
+    "Nakit": {
+      "2022-12": 7137095.0,
+      "2023-12": 4286502.0,
+      "2024-12": 4676.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 26746358.0,
+      "2023-12": 81056347.0,
+      "2024-12": 124060423.0
+    },
+    "FinansmanGideri": {
+      "2022-12": -492.0,
+      "2023-12": -85833.0,
+      "2024-12": -15562.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 29000000.0,
+      "2023-12": 29000000.0,
+      "2024-12": 100000000.0
+    }
+  },
+  "dogrulama": {
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    101,
+    102,
+    103,
+    104,
+    113,
+    114,
+    115,
+    116
+  ]
+}

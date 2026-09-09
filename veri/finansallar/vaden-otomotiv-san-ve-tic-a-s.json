@@ -1,0 +1,91 @@
+{
+  "slug": "vaden-otomotiv-san-ve-tic-a-s",
+  "sirket_adi": "Vaden Otomotiv San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.denizyatirim.com/asset/AnnouncementsPdf/1743161971.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-09T12:38:53Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 4480924807.0,
+    "Nakit": 21357948.0,
+    "DuranVarlik": 10510428068.0,
+    "ToplamVarlik": 14991352875.0,
+    "KisaVadeliYukumluluk": 4701854972.0,
+    "UzunVadeliYukumluluk": 2873029136.0,
+    "Ozkaynak": 7416468767.0,
+    "OdenmisSermaye": 1375000000.0,
+    "NetKar": 713443055.0,
+    "ToplamKaynak": 14991352875.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2022-12": 2771173576.0,
+      "2023-12": 3627257389.0,
+      "2024-12": 4480924807.0
+    },
+    "Nakit": {
+      "2022-12": 144575518.0,
+      "2023-12": 9134283.0,
+      "2024-12": 21357948.0
+    },
+    "DuranVarlik": {
+      "2022-12": 5793192399.0,
+      "2023-12": 8852417589.0,
+      "2024-12": 10510428068.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 8564365975.0,
+      "2023-12": 12479674978.0,
+      "2024-12": 14991352875.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 2778322433.0,
+      "2023-12": 4511627383.0,
+      "2024-12": 4701854972.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 1207281405.0,
+      "2023-12": 1274188748.0,
+      "2024-12": 2873029136.0
+    },
+    "Ozkaynak": {
+      "2022-12": 4578762137.0,
+      "2023-12": 6693858847.0,
+      "2024-12": 7416468767.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 500000000.0,
+      "2023-12": 1369481720.0,
+      "2024-12": 1375000000.0
+    },
+    "NetKar": {
+      "2022-12": 1082956831.0,
+      "2023-12": 1800779425.0,
+      "2024-12": 713443055.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 8564365975.0,
+      "2023-12": 12479674978.0,
+      "2024-12": 14991352875.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    247,
+    248,
+    249,
+    250
+  ]
+}
