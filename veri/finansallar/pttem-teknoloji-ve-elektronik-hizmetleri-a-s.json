@@ -1,0 +1,115 @@
+{
+  "slug": "pttem-teknoloji-ve-elektronik-hizmetleri-a-s",
+  "sirket_adi": "Pttem Teknoloji ve Elektronik Hizmetleri A.Ş.",
+  "izahname_url": "https://cdn.gedik.com/media/media/4aopfudh/pttem-teknoloji-taslak-izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-10T12:31:31Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "NetKar": 200745407.0,
+    "Ozkaynak": 638570396.0,
+    "ToplamVarlik": 2450476147.0,
+    "ToplamKaynak": 2450476147.0,
+    "ToplamBorc": 1811905751.0,
+    "DonenVarlik": 2136050393.0,
+    "DuranVarlik": 314425754.0,
+    "KisaVadeliYukumluluk": 1764861590.0,
+    "UzunVadeliYukumluluk": 47044161.0,
+    "Nakit": 545993137.0,
+    "IsletmeNakitAkisi": 400812642.0,
+    "Amortisman": 36223075.0,
+    "OdenmisSermaye": 115000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2022-12": 37144381.0,
+      "2023-12": 341771483.0,
+      "2024-12": 200745407.0
+    },
+    "Ozkaynak": {
+      "2022-12": 198593335.0,
+      "2023-12": 540364818.0,
+      "2024-12": 638570396.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 1710006288.0,
+      "2023-12": 2403367885.0,
+      "2024-12": 2450476147.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1710006288.0,
+      "2023-12": 2403367885.0,
+      "2024-12": 2450476147.0
+    },
+    "ToplamBorc": {
+      "2022-12": 1511412953.0,
+      "2023-12": 1863003067.0,
+      "2024-12": 1811905751.0
+    },
+    "DonenVarlik": {
+      "2022-12": 1398827967.0,
+      "2023-12": 2082556708.0,
+      "2024-12": 2136050393.0
+    },
+    "DuranVarlik": {
+      "2022-12": 311178321.0,
+      "2023-12": 320811177.0,
+      "2024-12": 314425754.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 1458227593.0,
+      "2023-12": 1839526906.0,
+      "2024-12": 1764861590.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 53185360.0,
+      "2023-12": 23476161.0,
+      "2024-12": 47044161.0
+    },
+    "Nakit": {
+      "2022-12": 1006659051.0,
+      "2023-12": 876428319.0,
+      "2024-12": 545993137.0
+    },
+    "IsletmeNakitAkisi": {
+      "2022-12": 1051598682.0,
+      "2023-12": 589882071.0,
+      "2024-12": 400812642.0
+    },
+    "Amortisman": {
+      "2022-12": 36252887.0,
+      "2023-12": 35403680.0,
+      "2024-12": 36223075.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 150000.0,
+      "2023-12": 56350000.0,
+      "2024-12": 115000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    92,
+    93,
+    94,
+    95,
+    107,
+    108,
+    109,
+    110
+  ]
+}
