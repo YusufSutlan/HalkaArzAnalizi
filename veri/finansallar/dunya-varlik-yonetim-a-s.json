@@ -1,0 +1,91 @@
+{
+  "slug": "dunya-varlik-yonetim-a-s",
+  "sirket_adi": "Dünya Varlık Yönetim A.Ş.",
+  "izahname_url": "https://invest.dunyavarlik.com/dosyalar/halkaArz/spk-onayina-sunulan-taslak-izahname.17-01-2025.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-11T12:29:56Z",
+  "olcek": 1000.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-09",
+    "2023-12",
+    "2024-09"
+  ],
+  "guncel": {
+    "DuranVarlik": 87691000.0,
+    "ToplamVarlik": 5605594000.0,
+    "Ozkaynak": 2489654000.0,
+    "OdenmisSermaye": 185000000.0,
+    "NetKar": 636001000.0,
+    "ToplamKaynak": 5605594000.0,
+    "FaaliyetKari": 908360000.0
+  },
+  "seriler": {
+    "DuranVarlik": {
+      "2021-12": 47761000.0,
+      "2022-12": 81562000.0,
+      "2023-12": 91200000.0,
+      "2024-09": 87691000.0
+    },
+    "ToplamVarlik": {
+      "2021-12": 1395423000.0,
+      "2022-12": 1782104000.0,
+      "2023-12": 3210241000.0,
+      "2024-09": 5605594000.0
+    },
+    "Ozkaynak": {
+      "2021-12": 623222000.0,
+      "2022-12": 883993000.0,
+      "2023-12": 1862990000.0,
+      "2024-09": 2489654000.0
+    },
+    "OdenmisSermaye": {
+      "2021-12": 185000000.0,
+      "2022-12": 185000000.0,
+      "2023-12": 185000000.0,
+      "2024-09": 185000000.0
+    },
+    "NetKar": {
+      "2021-12": 62539000.0,
+      "2022-12": 266520000.0,
+      "2023-09": 710403000.0,
+      "2023-12": 986333000.0,
+      "2024-09": 636001000.0
+    },
+    "ToplamKaynak": {
+      "2021-12": 1395423000.0,
+      "2022-12": 1782104000.0,
+      "2023-12": 3210241000.0,
+      "2024-09": 5605594000.0
+    },
+    "FaaliyetKari": {
+      "2021-12": 85641000.0,
+      "2022-12": 386395000.0,
+      "2023-09": 1048634000.0,
+      "2023-12": 1423383000.0,
+      "2024-09": 908360000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122
+  ]
+}
