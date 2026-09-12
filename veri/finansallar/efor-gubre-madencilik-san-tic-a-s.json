@@ -1,0 +1,72 @@
+{
+  "slug": "efor-gubre-madencilik-san-tic-a-s",
+  "sirket_adi": "Efor Gübre Madencilik San. Tic. A.Ş.",
+  "izahname_url": "https://www.halkyatirim.com.tr/pdf/KurumsalFinansman/2025/3/Efor%20G%C3%BCbre_%C4%B0zahname.PDF",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-12T11:55:13Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "NetKar": 58145760.0,
+    "Ozkaynak": 1813846004.0,
+    "ToplamVarlik": 3895462135.0,
+    "ToplamKaynak": 3895462135.0,
+    "KisaVadeliYukumluluk": 1906527886.0,
+    "UzunVadeliYukumluluk": 175088245.0,
+    "OdenmisSermaye": 400000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2022-12": -28051268.0,
+      "2023-12": 457243212.0,
+      "2024-12": 58145760.0
+    },
+    "Ozkaynak": {
+      "2022-12": 898736625.0,
+      "2023-12": 1815819369.0,
+      "2024-12": 1813846004.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 1871222706.0,
+      "2023-12": 3364504509.0,
+      "2024-12": 3895462135.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 1871222706.0,
+      "2023-12": 3364504509.0,
+      "2024-12": 3895462135.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 671229203.0,
+      "2023-12": 1233030758.0,
+      "2024-12": 1906527886.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 301256878.0,
+      "2023-12": 315654382.0,
+      "2024-12": 175088245.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 200000000.0,
+      "2023-12": 400000000.0,
+      "2024-12": 400000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    109,
+    110,
+    111,
+    112
+  ]
+}

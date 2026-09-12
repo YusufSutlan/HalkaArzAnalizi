@@ -1,0 +1,109 @@
+{
+  "slug": "makel-elektrik-malzemeleri-san-ve-tic-a-s",
+  "sirket_adi": "Makel Elektrik Malzemeleri San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.makel.com.tr/Download/files/Makel_Taslak_Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-12T11:58:58Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-09",
+    "2023-12",
+    "2024-09"
+  ],
+  "guncel": {
+    "NetKar": 16139830.0,
+    "ToplamVarlik": 1502529689.0,
+    "ToplamKaynak": 1502529689.0,
+    "ToplamBorc": 707041639.0,
+    "Ozkaynak": 795488050.0,
+    "KisaVadeliYukumluluk": 353681690.0,
+    "UzunVadeliYukumluluk": 353359949.0,
+    "OdenmisSermaye": 254309000.0,
+    "Nakit": 4355412.0,
+    "IsletmeNakitAkisi": 244503582.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2021-12": -2414437.0,
+      "2022-12": -50810460.0,
+      "2023-12": 35283936.0,
+      "2024-09": 16139830.0
+    },
+    "ToplamVarlik": {
+      "2021-12": 2923098862.0,
+      "2022-12": 2115270860.0,
+      "2023-12": 1763178139.0,
+      "2024-09": 1502529689.0
+    },
+    "ToplamKaynak": {
+      "2021-12": 2923098862.0,
+      "2022-12": 2115270860.0,
+      "2023-12": 1763178139.0,
+      "2024-09": 1502529689.0
+    },
+    "ToplamBorc": {
+      "2021-12": 1959257552.0,
+      "2022-12": 1245233070.0,
+      "2023-12": 985584598.0,
+      "2024-09": 707041639.0
+    },
+    "Ozkaynak": {
+      "2021-12": 963841310.0,
+      "2022-12": 870037790.0,
+      "2023-12": 777593541.0,
+      "2024-09": 795488050.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2021-12": 642849425.0,
+      "2022-12": 488112535.0,
+      "2023-12": 489287894.0,
+      "2024-09": 353681690.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2021-12": 1316408127.0,
+      "2022-12": 757120535.0,
+      "2023-12": 496296704.0,
+      "2024-09": 353359949.0
+    },
+    "OdenmisSermaye": {
+      "2021-12": 172020000.0,
+      "2022-12": 172020000.0,
+      "2023-12": 254309000.0,
+      "2024-09": 254309000.0
+    },
+    "Nakit": {
+      "2021-12": 11971553.0,
+      "2022-12": 51926199.0,
+      "2023-12": 27869806.0,
+      "2024-09": 4355412.0
+    },
+    "IsletmeNakitAkisi": {
+      "2021-12": -361991109.0,
+      "2022-12": 718665428.0,
+      "2023-09": 249624334.0,
+      "2023-12": 29790100.0,
+      "2024-09": 244503582.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    133,
+    134,
+    135,
+    136,
+    149,
+    150,
+    151,
+    152
+  ]
+}
