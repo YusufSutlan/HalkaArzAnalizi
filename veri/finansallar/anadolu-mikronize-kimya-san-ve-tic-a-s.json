@@ -1,0 +1,106 @@
+{
+  "slug": "anadolu-mikronize-kimya-san-ve-tic-a-s",
+  "sirket_adi": "Anadolu Mikronize Kimya San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.anadolumikronize.com.tr/uploads/editor/files/taslak%20izahname%20anadolu%20mikronize.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-13T13:02:53Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-12",
+    "2024-09"
+  ],
+  "guncel": {
+    "Nakit": 5176761.0,
+    "DonenVarlik": 473882251.0,
+    "DuranVarlik": 1162427723.0,
+    "ToplamVarlik": 1636309974.0,
+    "KisaVadeliYukumluluk": 468352061.0,
+    "UzunVadeliYukumluluk": 236743208.0,
+    "Ozkaynak": 931214705.0,
+    "OdenmisSermaye": 52500000.0,
+    "ToplamKaynak": 1636309974.0,
+    "NetKar": 4311583.0
+  },
+  "seriler": {
+    "Nakit": {
+      "2021-12": 97512857.0,
+      "2022-12": 29176754.0,
+      "2023-12": 42440776.0,
+      "2024-09": 5176761.0
+    },
+    "DonenVarlik": {
+      "2021-12": 490061573.0,
+      "2022-12": 520726384.0,
+      "2023-12": 410692661.0,
+      "2024-09": 473882251.0
+    },
+    "DuranVarlik": {
+      "2021-12": 277401894.0,
+      "2022-12": 276709933.0,
+      "2023-12": 1323588690.0,
+      "2024-09": 1162427723.0
+    },
+    "ToplamVarlik": {
+      "2021-12": 767463467.0,
+      "2022-12": 797436317.0,
+      "2023-12": 1734281351.0,
+      "2024-09": 1636309974.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2021-12": 288063976.0,
+      "2022-12": 348859711.0,
+      "2023-12": 469562684.0,
+      "2024-09": 468352061.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2021-12": 81988046.0,
+      "2022-12": 51162095.0,
+      "2023-12": 238445253.0,
+      "2024-09": 236743208.0
+    },
+    "Ozkaynak": {
+      "2021-12": 397411445.0,
+      "2022-12": 397414511.0,
+      "2023-12": 1026273414.0,
+      "2024-09": 931214705.0
+    },
+    "OdenmisSermaye": {
+      "2021-12": 52500000.0,
+      "2022-12": 52500000.0,
+      "2023-12": 52500000.0,
+      "2024-09": 52500000.0
+    },
+    "ToplamKaynak": {
+      "2021-12": 767463467.0,
+      "2022-12": 797436317.0,
+      "2023-12": 1734281351.0,
+      "2024-09": 1636309974.0
+    },
+    "NetKar": {
+      "2021-12": -14243108.0,
+      "2022-12": 4102469.0,
+      "2023-12": 25461197.0,
+      "2024-09": 4311583.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    96,
+    97,
+    98,
+    99,
+    120,
+    121,
+    122,
+    123
+  ]
+}
