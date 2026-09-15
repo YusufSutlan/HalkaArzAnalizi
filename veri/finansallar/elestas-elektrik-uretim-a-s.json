@@ -1,0 +1,101 @@
+{
+  "slug": "elestas-elektrik-uretim-a-s",
+  "sirket_adi": "Elestaş Elektrik Üretim A.Ş.",
+  "izahname_url": "https://elestas.com.tr/public/upload/yatirimci/6a06e34913c22.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-15T12:33:04Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "NetKar": 207722338.0,
+    "Ozkaynak": 5466854197.0,
+    "ToplamVarlik": 7563586226.0,
+    "ToplamKaynak": 7563586226.0,
+    "DonenVarlik": 283334576.0,
+    "DuranVarlik": 7280251650.0,
+    "KisaVadeliYukumluluk": 782736857.0,
+    "UzunVadeliYukumluluk": 1313995172.0,
+    "Nakit": 133070167.0,
+    "IsletmeNakitAkisi": 747649080.0,
+    "OdenmisSermaye": 331311114.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2023-12": 1582000854.0,
+      "2024-12": 287084369.0,
+      "2025-12": 207722338.0
+    },
+    "Ozkaynak": {
+      "2023-12": 8709101816.0,
+      "2024-12": 7364464145.0,
+      "2025-12": 5466854197.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 13002524756.0,
+      "2024-12": 10285889744.0,
+      "2025-12": 7563586226.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 13002524756.0,
+      "2024-12": 10285889744.0,
+      "2025-12": 7563586226.0
+    },
+    "DonenVarlik": {
+      "2023-12": 1125648910.0,
+      "2024-12": 205527173.0,
+      "2025-12": 283334576.0
+    },
+    "DuranVarlik": {
+      "2023-12": 11876875846.0,
+      "2024-12": 10080362571.0,
+      "2025-12": 7280251650.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 1205276893.0,
+      "2024-12": 835263328.0,
+      "2025-12": 782736857.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 3088146047.0,
+      "2024-12": 2086162271.0,
+      "2025-12": 1313995172.0
+    },
+    "Nakit": {
+      "2023-12": 12370533.0,
+      "2024-12": 29090773.0,
+      "2025-12": 133070167.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 720976539.0,
+      "2024-12": 2032571379.0,
+      "2025-12": 747649080.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 158700000.0,
+      "2024-12": 331311114.0,
+      "2025-12": 331311114.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    215,
+    216,
+    217,
+    218,
+    243,
+    244,
+    245,
+    246
+  ]
+}

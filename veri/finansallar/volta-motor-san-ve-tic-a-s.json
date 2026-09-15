@@ -1,0 +1,99 @@
+{
+  "slug": "volta-motor-san-ve-tic-a-s",
+  "sirket_adi": "Volta Motor San. ve Tic. A.Ş.",
+  "izahname_url": "https://cdn.shopify.com/s/files/1/0972/4107/1916/files/volta-motor-izahname.pdf?v=1785235269",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-15T12:31:16Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 3716591946.0,
+    "Nakit": 1180088815.0,
+    "DuranVarlik": 5164828323.0,
+    "ToplamVarlik": 8881420269.0,
+    "KisaVadeliYukumluluk": 2893504804.0,
+    "UzunVadeliYukumluluk": 954494926.0,
+    "ToplamBorc": 3847999730.0,
+    "Ozkaynak": 5033420539.0,
+    "OdenmisSermaye": 571000000.0,
+    "NetKar": 153418370.0,
+    "ToplamKaynak": 8881420269.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 1957250344.0,
+      "2024-12": 3360496414.0,
+      "2025-12": 3716591946.0
+    },
+    "Nakit": {
+      "2023-12": 669664964.0,
+      "2024-12": 680323669.0,
+      "2025-12": 1180088815.0
+    },
+    "DuranVarlik": {
+      "2023-12": 3032238881.0,
+      "2024-12": 3968467255.0,
+      "2025-12": 5164828323.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 4989489225.0,
+      "2024-12": 7328963669.0,
+      "2025-12": 8881420269.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 1221654565.0,
+      "2024-12": 2298134002.0,
+      "2025-12": 2893504804.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 769897886.0,
+      "2024-12": 828546381.0,
+      "2025-12": 954494926.0
+    },
+    "ToplamBorc": {
+      "2023-12": 1991552451.0,
+      "2024-12": 3126680383.0,
+      "2025-12": 3847999730.0
+    },
+    "Ozkaynak": {
+      "2023-12": 2997936774.0,
+      "2024-12": 4202283286.0,
+      "2025-12": 5033420539.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 326000000.0,
+      "2024-12": 571000000.0,
+      "2025-12": 571000000.0
+    },
+    "NetKar": {
+      "2023-12": 580409025.0,
+      "2024-12": 1053889150.0,
+      "2025-12": 153418370.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 4989489225.0,
+      "2024-12": 7328963669.0,
+      "2025-12": 8881420269.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    130,
+    131,
+    132,
+    133
+  ]
+}
