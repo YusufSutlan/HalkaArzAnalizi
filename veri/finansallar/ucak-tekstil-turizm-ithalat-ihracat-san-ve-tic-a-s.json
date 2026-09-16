@@ -1,0 +1,113 @@
+{
+  "slug": "ucak-tekstil-turizm-ithalat-ihracat-san-ve-tic-a-s",
+  "sirket_adi": "Uçak Tekstil Turizm İthalat İhracat San. ve Tic. A.Ş.",
+  "izahname_url": "https://ucaktekstil.com.tr/wp-content/uploads/2024/05/Ucak-Tekstil-A.S.-Halka-Arz-Taslak-Izahname-Spk-onayina-sunulan.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-16T13:05:19Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-12"
+  ],
+  "guncel": {
+    "NetKar": 40321510.0,
+    "Ozkaynak": 2278945620.0,
+    "ToplamVarlik": 4326098315.0,
+    "ToplamKaynak": 4326098315.0,
+    "ToplamBorc": 2047152695.0,
+    "DonenVarlik": 1798033217.0,
+    "DuranVarlik": 2528065098.0,
+    "KisaVadeliYukumluluk": 1353174387.0,
+    "UzunVadeliYukumluluk": 693978308.0,
+    "FinansalBorc": 1391497476.0,
+    "Nakit": 721815902.0,
+    "IsletmeNakitAkisi": 552360803.0,
+    "OdenmisSermaye": 196000000.0
+  },
+  "seriler": {
+    "NetKar": {
+      "2021-12": 633964450.0,
+      "2022-12": 381843759.0,
+      "2023-12": 40321510.0
+    },
+    "Ozkaynak": {
+      "2021-12": 983880052.0,
+      "2022-12": 1439508567.0,
+      "2023-12": 2278945620.0
+    },
+    "ToplamVarlik": {
+      "2021-12": 2973306937.0,
+      "2022-12": 2927585309.0,
+      "2023-12": 4326098315.0
+    },
+    "ToplamKaynak": {
+      "2021-12": 2973306937.0,
+      "2022-12": 2927585309.0,
+      "2023-12": 4326098315.0
+    },
+    "ToplamBorc": {
+      "2021-12": 1989426885.0,
+      "2022-12": 1488076742.0,
+      "2023-12": 2047152695.0
+    },
+    "DonenVarlik": {
+      "2021-12": 2037273886.0,
+      "2022-12": 1522987452.0,
+      "2023-12": 1798033217.0
+    },
+    "DuranVarlik": {
+      "2021-12": 936033051.0,
+      "2022-12": 1404597857.0,
+      "2023-12": 2528065098.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2021-12": 1281713758.0,
+      "2022-12": 1048364714.0,
+      "2023-12": 1353174387.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2021-12": 707713127.0,
+      "2022-12": 439712028.0,
+      "2023-12": 693978308.0
+    },
+    "FinansalBorc": {
+      "2021-12": 1349672493.0,
+      "2022-12": 1204319570.0,
+      "2023-12": 1391497476.0
+    },
+    "Nakit": {
+      "2021-12": 314869976.0,
+      "2022-12": 109487670.0,
+      "2023-12": 721815902.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 552360803.0
+    },
+    "OdenmisSermaye": {
+      "2021-12": 37800000.0,
+      "2022-12": 705600000.0,
+      "2023-12": 196000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    117,
+    118,
+    119,
+    120,
+    145,
+    146,
+    147,
+    148
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "slug": "kirlioglu-kimya-san-ve-tic-a-s",
+  "sirket_adi": "Kırlıoğlu Kimya San. ve Tic. A.Ş.",
+  "izahname_url": "https://www.kirlioglu.com.tr/application/files/5817/1413/4924/Taslak_Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-16T13:09:29Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-12"
+  ],
+  "guncel": {
+    "Hasilat": 1723430024.0,
+    "BrutKar": 813964287.0,
+    "FaaliyetKari": 711171532.0,
+    "NetKar": 266764355.0,
+    "Ozkaynak": 1626102458.0,
+    "ToplamKaynak": 2147178082.0,
+    "DonenVarlik": 1455034651.0,
+    "KisaVadeliYukumluluk": 287737497.0,
+    "UzunVadeliYukumluluk": 233338127.0,
+    "FinansalBorc": 264171609.0,
+    "Nakit": 313184177.0,
+    "IsletmeNakitAkisi": 329798140.0,
+    "FinansmanGideri": -51352087.0,
+    "OdenmisSermaye": 300000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2021-12": 838774253.0,
+      "2022-12": 1606725037.0,
+      "2023-12": 1723430024.0
+    },
+    "BrutKar": {
+      "2021-12": 335613361.0,
+      "2022-12": 777207981.0,
+      "2023-12": 813964287.0
+    },
+    "FaaliyetKari": {
+      "2021-12": 318274645.0,
+      "2022-12": 652252058.0,
+      "2023-12": 711171532.0
+    },
+    "NetKar": {
+      "2021-12": 139149176.0,
+      "2022-12": 237523523.0,
+      "2023-12": 266764355.0
+    },
+    "Ozkaynak": {
+      "2021-12": 910436450.0,
+      "2022-12": 1132996114.0,
+      "2023-12": 1626102458.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 2147178082.0
+    },
+    "DonenVarlik": {
+      "2021-12": 1095619840.0,
+      "2022-12": 1252331196.0,
+      "2023-12": 1455034651.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2021-12": 258540058.0,
+      "2022-12": 324220462.0,
+      "2023-12": 287737497.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 233338127.0
+    },
+    "FinansalBorc": {
+      "2021-12": 351765124.0,
+      "2022-12": 324099038.0,
+      "2023-12": 264171609.0
+    },
+    "Nakit": {
+      "2021-12": 340130396.0,
+      "2022-12": 325825017.0,
+      "2023-12": 313184177.0
+    },
+    "IsletmeNakitAkisi": {
+      "2021-12": 216667979.0,
+      "2022-12": 344686263.0,
+      "2023-12": 329798140.0
+    },
+    "FinansmanGideri": {
+      "2021-12": -45485031.0,
+      "2022-12": -59021056.0,
+      "2023-12": -51352087.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 300000000.0
+    }
+  },
+  "dogrulama": {
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    104,
+    105,
+    106,
+    107,
+    116,
+    117,
+    118,
+    119
+  ]
+}
