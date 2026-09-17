@@ -1,0 +1,95 @@
+{
+  "slug": "aycan-entegre-gida-a-s",
+  "sirket_adi": "Aycan Entegre Gıda A.Ş.",
+  "izahname_url": "https://www.aycangida.com.tr/dokumanlar/AYCAN-GIDA-EK-9-IZAHNAME.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-17T12:27:34Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 3764106500.0,
+    "Nakit": 219141979.0,
+    "DuranVarlik": 1088091662.0,
+    "ToplamVarlik": 4852198162.0,
+    "KisaVadeliYukumluluk": 3659547639.0,
+    "UzunVadeliYukumluluk": 186792643.0,
+    "Ozkaynak": 1005857880.0,
+    "OdenmisSermaye": 200000000.0,
+    "NetKar": 62070371.0,
+    "ToplamKaynak": 4852198162.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 2456862653.0,
+      "2024-12": 2422184999.0,
+      "2025-12": 3764106500.0
+    },
+    "Nakit": {
+      "2023-12": 104618980.0,
+      "2024-12": 59954855.0,
+      "2025-12": 219141979.0
+    },
+    "DuranVarlik": {
+      "2023-12": 1135868637.0,
+      "2024-12": 1041819385.0,
+      "2025-12": 1088091662.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 3592731290.0,
+      "2024-12": 3464004384.0,
+      "2025-12": 4852198162.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 2688334202.0,
+      "2024-12": 2324431938.0,
+      "2025-12": 3659547639.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 135867800.0,
+      "2024-12": 195232094.0,
+      "2025-12": 186792643.0
+    },
+    "Ozkaynak": {
+      "2023-12": 768529288.0,
+      "2024-12": 944340352.0,
+      "2025-12": 1005857880.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 162000000.0,
+      "2024-12": 200000000.0,
+      "2025-12": 200000000.0
+    },
+    "NetKar": {
+      "2023-12": -103955530.0,
+      "2024-12": 84718560.0,
+      "2025-12": 62070371.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 3592731290.0,
+      "2024-12": 3464004384.0,
+      "2025-12": 4852198162.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109
+  ]
+}
