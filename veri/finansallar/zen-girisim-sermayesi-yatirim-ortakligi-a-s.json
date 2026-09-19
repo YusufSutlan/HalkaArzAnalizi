@@ -1,0 +1,118 @@
+{
+  "slug": "zen-girisim-sermayesi-yatirim-ortakligi-a-s",
+  "sirket_adi": "Zen Girişim Sermayesi Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://cdn.infoyatirim.com/content/uploadedfile/22.11.2023%20zen%20gsyo-%c4%b0zahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-19T12:16:50Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-09",
+    "2022-12",
+    "2023-09"
+  ],
+  "guncel": {
+    "Hasilat": 257710351.0,
+    "BrutKar": 257710351.0,
+    "FaaliyetKari": 253415348.0,
+    "NetKar": 253397612.0,
+    "Ozkaynak": 589204835.0,
+    "ToplamVarlik": 595407140.0,
+    "ToplamKaynak": 595407140.0,
+    "DonenVarlik": 28249391.0,
+    "DuranVarlik": 567157749.0,
+    "KisaVadeliYukumluluk": 5829652.0,
+    "UzunVadeliYukumluluk": 372653.0,
+    "Nakit": 226548.0,
+    "FinansmanGideri": 43373.0,
+    "Amortisman": 3619.0,
+    "OdenmisSermaye": 110000000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-09": 160324131.0,
+      "2022-12": 226514805.0,
+      "2023-09": 257710351.0
+    },
+    "BrutKar": {
+      "2022-09": 160324131.0,
+      "2022-12": 226514805.0,
+      "2023-09": 257710351.0
+    },
+    "FaaliyetKari": {
+      "2022-09": 159595132.0,
+      "2022-12": 224680300.0,
+      "2023-09": 253415348.0
+    },
+    "NetKar": {
+      "2022-09": 160685464.0,
+      "2022-12": 225807223.0,
+      "2023-09": 253397612.0
+    },
+    "Ozkaynak": {
+      "2022-12": 275807223.0,
+      "2023-09": 589204835.0
+    },
+    "ToplamVarlik": {
+      "2022-12": 336486915.0,
+      "2023-09": 595407140.0
+    },
+    "ToplamKaynak": {
+      "2022-12": 336486915.0,
+      "2023-09": 595407140.0
+    },
+    "DonenVarlik": {
+      "2022-12": 12472206.0,
+      "2023-09": 28249391.0
+    },
+    "DuranVarlik": {
+      "2022-12": 324014709.0,
+      "2023-09": 567157749.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-12": 355617.0,
+      "2023-09": 5829652.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-12": 60324075.0,
+      "2023-09": 372653.0
+    },
+    "Nakit": {
+      "2022-12": 4005933.0,
+      "2023-09": 226548.0
+    },
+    "FinansmanGideri": {
+      "2022-09": 33000.0,
+      "2022-12": 4845.0,
+      "2023-09": 43373.0
+    },
+    "Amortisman": {
+      "2022-09": 0.0,
+      "2022-12": 1773.0,
+      "2023-09": 3619.0
+    },
+    "OdenmisSermaye": {
+      "2022-12": 50000000.0,
+      "2023-09": 110000000.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "brut_kar_makul": true,
+    "kar_tutarliligi": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    85,
+    86,
+    87,
+    88,
+    91,
+    92,
+    93,
+    94
+  ]
+}
