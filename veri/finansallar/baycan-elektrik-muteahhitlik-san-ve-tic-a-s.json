@@ -1,0 +1,57 @@
+{
+  "slug": "baycan-elektrik-muteahhitlik-san-ve-tic-a-s",
+  "sirket_adi": "Baycan Elektrik Müteahhitlik San. ve Tic. A.Ş.",
+  "izahname_url": "https://yatirimciiliskileri.baycan.com.tr/wp-content/uploads/2026/06/Baycan_TaslakIzahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-20T12:04:52Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-12",
+    "2023-12",
+    "2024-06",
+    "2024-12",
+    "2025-06"
+  ],
+  "guncel": {
+    "Hasilat": 867915602.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-12": 1443526057.0,
+      "2023-12": 1522859748.0,
+      "2024-06": 960802649.0,
+      "2024-12": 1747890830.0,
+      "2025-06": 867915602.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159,
+    160,
+    161,
+    162,
+    163,
+    164
+  ]
+}

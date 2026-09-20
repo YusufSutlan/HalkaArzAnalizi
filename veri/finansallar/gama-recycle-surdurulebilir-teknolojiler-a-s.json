@@ -1,0 +1,99 @@
+{
+  "slug": "gama-recycle-surdurulebilir-teknolojiler-a-s",
+  "sirket_adi": "Gama Recycle Sürdürülebilir Teknolojiler A.Ş.",
+  "izahname_url": "https://www.garantibbvayatirim.com.tr/medium/document-file-1586.vsf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-20T12:32:40Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2020-12",
+    "2021-12",
+    "2022-12"
+  ],
+  "guncel": {
+    "Nakit": 35051297.0,
+    "DonenVarlik": 1485157024.0,
+    "DuranVarlik": 2098275685.0,
+    "ToplamVarlik": 3583432709.0,
+    "KisaVadeliYukumluluk": 1614416275.0,
+    "UzunVadeliYukumluluk": 860082272.0,
+    "ToplamBorc": 2474498547.0,
+    "OdenmisSermaye": 165000000.0,
+    "Ozkaynak": 1108934162.0,
+    "NetKar": 58724145.0,
+    "ToplamKaynak": 3583432709.0
+  },
+  "seriler": {
+    "Nakit": {
+      "2020-12": 14705023.0,
+      "2021-12": 21320444.0,
+      "2022-12": 35051297.0
+    },
+    "DonenVarlik": {
+      "2020-12": 317289621.0,
+      "2021-12": 632506655.0,
+      "2022-12": 1485157024.0
+    },
+    "DuranVarlik": {
+      "2020-12": 515075541.0,
+      "2021-12": 1237913907.0,
+      "2022-12": 2098275685.0
+    },
+    "ToplamVarlik": {
+      "2020-12": 832365162.0,
+      "2021-12": 1870420562.0,
+      "2022-12": 3583432709.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2020-12": 288181400.0,
+      "2021-12": 783613594.0,
+      "2022-12": 1614416275.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2020-12": 419690369.0,
+      "2021-12": 614799980.0,
+      "2022-12": 860082272.0
+    },
+    "ToplamBorc": {
+      "2020-12": 707871769.0,
+      "2021-12": 1398413574.0,
+      "2022-12": 2474498547.0
+    },
+    "OdenmisSermaye": {
+      "2020-12": 65982000.0,
+      "2021-12": 66000000.0,
+      "2022-12": 165000000.0
+    },
+    "Ozkaynak": {
+      "2020-12": 124493393.0,
+      "2021-12": 472006988.0,
+      "2022-12": 1108934162.0
+    },
+    "NetKar": {
+      "2020-12": 54186157.0,
+      "2021-12": 122990642.0,
+      "2022-12": 58724145.0
+    },
+    "ToplamKaynak": {
+      "2020-12": 832365162.0,
+      "2021-12": 1870420562.0,
+      "2022-12": 3583432709.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    147,
+    148,
+    149,
+    150
+  ]
+}

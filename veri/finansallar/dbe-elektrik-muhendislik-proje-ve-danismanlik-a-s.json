@@ -4,7 +4,7 @@
   "izahname_url": "https://cdn.infoyatirim.com/Content/Finance/5d4bf491-5ee7-4452-b440-5f2dc261c82a.pdf",
   "kaynak": "izahname-pdf+llm",
   "model": "gemini/gemini-flash-latest",
-  "islenme_zamani": "2026-09-19T12:11:19Z",
+  "islenme_zamani": "2026-09-20T12:23:06Z",
   "olcek": 1.0,
   "donemler": [
     "2021-12",
@@ -19,12 +19,11 @@
     "ToplamVarlik": 2401916139.0,
     "KisaVadeliYukumluluk": 862746518.0,
     "UzunVadeliYukumluluk": 585168959.0,
-    "ToplamBorc": 1559984235.0,
-    "Ozkaynak": 918930206.0,
+    "ToplamBorc": 1447915477.0,
+    "Ozkaynak": 954000662.0,
     "OdenmisSermaye": 110000000.0,
     "NetKar": 50318245.0,
-    "ToplamKaynak": 2401916139.0,
-    "FinansalBorc": 475606910.0
+    "ToplamKaynak": 2401916139.0
   },
   "seriler": {
     "DonenVarlik": {
@@ -67,13 +66,13 @@
       "2021-12": 471733578.0,
       "2022-12": 562013915.0,
       "2023-12": 1261165996.0,
-      "2024-09": 1559984235.0
+      "2024-09": 1447915477.0
     },
     "Ozkaynak": {
       "2021-12": 260707480.0,
       "2022-12": 616942871.0,
       "2023-12": 895982470.0,
-      "2024-09": 918930206.0
+      "2024-09": 954000662.0
     },
     "OdenmisSermaye": {
       "2021-12": 12130000.0,
@@ -92,32 +91,18 @@
       "2022-12": 1178956786.0,
       "2023-12": 2157148466.0,
       "2024-09": 2401916139.0
-    },
-    "FinansalBorc": {
-      "2021-12": 86992939.0,
-      "2022-12": 41592036.0,
-      "2023-12": 561837248.0,
-      "2024-09": 475606910.0
     }
   },
   "dogrulama": {
     "bilanco_denkligi": true,
     "varlik_toplami": true,
-    "kaynak_toplami": false,
-    "yukumluluk_toplami": false,
+    "kaynak_toplami": true,
+    "yukumluluk_toplami": true,
     "ozkaynak_makul": true
   },
-  "guvenilir": false,
-  "not": "Tutarlılık kontrolü başarısız: kaynak_toplami, yukumluluk_toplami",
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
   "islenen_sayfalar": [
-    114,
-    115,
-    116,
-    117,
-    118,
-    119,
-    120,
-    121,
     122,
     123,
     124,
@@ -125,14 +110,6 @@
     126,
     127,
     128,
-    129,
-    130,
-    131,
-    132,
-    133,
-    134,
-    135,
-    136,
-    137
+    129
   ]
 }
