@@ -1,0 +1,90 @@
+{
+  "slug": "techmine-girisim-sermayesi-yatirim-ortakligi-a-s",
+  "sirket_adi": "Techmine Girişim Sermayesi Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://cdn.infoyatirim.com/Content/UploadedFile/Techmine-GSYO-Izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-09-21T14:07:09Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2022-09"
+  ],
+  "guncel": {
+    "Hasilat": 21315401.0,
+    "BrutKar": 3456195.0,
+    "FaaliyetKari": -23491665.0,
+    "FinansmanGideri": -1373459.0,
+    "NetKar": -22143119.0,
+    "Nakit": 10250026.0,
+    "DonenVarlik": 26729181.0,
+    "DuranVarlik": 3892351.0,
+    "ToplamVarlik": 30621532.0,
+    "KisaVadeliYukumluluk": 17264254.0,
+    "UzunVadeliYukumluluk": 138951.0,
+    "OdenmisSermaye": 40157238.0,
+    "Ozkaynak": 13218326.0,
+    "ToplamKaynak": 30621532.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2022-09": 21315401.0
+    },
+    "BrutKar": {
+      "2022-09": 3456195.0
+    },
+    "FaaliyetKari": {
+      "2022-09": -23491665.0
+    },
+    "FinansmanGideri": {
+      "2022-09": -1373459.0
+    },
+    "NetKar": {
+      "2022-09": -22143119.0
+    },
+    "Nakit": {
+      "2022-09": 10250026.0
+    },
+    "DonenVarlik": {
+      "2022-09": 26729181.0
+    },
+    "DuranVarlik": {
+      "2022-09": 3892351.0
+    },
+    "ToplamVarlik": {
+      "2022-09": 30621532.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2022-09": 17264254.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2022-09": 138951.0
+    },
+    "OdenmisSermaye": {
+      "2022-09": 40157238.0
+    },
+    "Ozkaynak": {
+      "2022-09": 13218326.0
+    },
+    "ToplamKaynak": {
+      "2022-09": 30621532.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "brut_kar_makul": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71
+  ]
+}
