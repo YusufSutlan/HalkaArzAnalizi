@@ -4,7 +4,7 @@ import time
 import asyncio
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from enum import Enum
 from typing import Optional, ClassVar
 from dataclasses import dataclass, field
@@ -54,6 +54,8 @@ class AppSettings:
     # 15 çok düşüktü: kaynak sitede 200+ şirket listeleniyor ve yeni
     # duyurulan arzlar bu sınırın dışında kalabiliyordu.
     MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "40"))
+    # Rozetsiz kartlarda talep toplama bitişi bu kadar gün içindeyse arz güncel sayılır.
+    GUNCEL_GUN_SAYISI: int = int(os.environ.get("GUNCEL_GUN_SAYISI", "30"))
     ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
     ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
@@ -3106,6 +3108,16 @@ class DataExtractor:
                 "yeni!", "yeni !", "gong!", "gong !", "ertelendi",
                 "talep toplan", "hazırlanıyor", "dağıtım bekleniyor",
             ])
+            # DÜZELTME: Kaynak site "Yeni!"/"Gong!" rozetlerini artık
+            # göstermiyor; yalnızca rozete bakmak listeyi tamamen
+            # boşaltıyordu. Karttaki talep toplama tarihi son
+            # GUNCEL_GUN_SAYISI gün içindeyse (veya ileri tarihliyse)
+            # arz güncel sayılıyor; yıllar önceki arzlar yine elenir.
+            if not guncel_rozet:
+                aralik = TextUtils.tarih_araligi_coz(kart_metni)
+                if aralik:
+                    sinir = date.today() - timedelta(days=SETTINGS.GUNCEL_GUN_SAYISI)
+                    guncel_rozet = aralik[1] >= sinir
             if not guncel_rozet:
                 atlanan += 1
                 continue
