@@ -490,7 +490,13 @@ class TextUtils:
         yil = int(yil_match.group(1)) if yil_match else datetime.now().year
 
         # Metinde geçen ayları sırayla topla
-        ay_bulgular = [(m.index(ad), no) for ad, no in AYLAR.items() if ad in m]
+        # DÜZELTME: Ay adları kelime sınırıyla aranıyor. Düz substring
+        # araması "Hekimoğulları" içindeki "ekim"i Ekim ayı sanıyordu.
+        ay_bulgular = []
+        for ad, no in AYLAR.items():
+            eslesme = re.search(rf"\b{ad}\b", m)
+            if eslesme:
+                ay_bulgular.append((eslesme.start(), no))
         if not ay_bulgular:
             return None
         ay_bulgular.sort()
@@ -3113,7 +3119,13 @@ class DataExtractor:
             # boşaltıyordu. Karttaki talep toplama tarihi son
             # GUNCEL_GUN_SAYISI gün içindeyse (veya ileri tarihliyse)
             # arz güncel sayılıyor; yıllar önceki arzlar yine elenir.
-            if not guncel_rozet:
+            # Yalnızca "12-13 Ağustos 2026" gibi gün+ay içeren açık bir
+            # tarih varsa; taslak kartlarında tarih yoktur.
+            acik_tarih = re.search(
+                r"\b\d{1,2}(?:\s*-\s*\d{1,2})*\s+(?:" + "|".join(AYLAR) + r")\b",
+                kart_metni,
+            )
+            if not guncel_rozet and acik_tarih:
                 aralik = TextUtils.tarih_araligi_coz(kart_metni)
                 if aralik:
                     sinir = date.today() - timedelta(days=SETTINGS.GUNCEL_GUN_SAYISI)
