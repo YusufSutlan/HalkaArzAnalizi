@@ -66,5 +66,6 @@
   "not": "Kullanılabilir ancak şu kalemler eksik: NetKar, Hasilat",
   "islenen_sayfalar": [
     20
-  ]
+  ],
+  "nakit_denendi": true
 }
