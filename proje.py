@@ -2975,6 +2975,15 @@ class DataExtractor:
             "bist_kodu": veri[InfoKey.BIST_KODU],
             "durum": durum,
             "islem_tarihi": veri[InfoKey.ISLEM_TARIHI],
+            # Makine-okunur tarihler (YYYY-AA-GG). Mobil uygulama
+            # bildirimleri bunlara göre planlıyor; metin tarihi
+            # ("24-25-26 Ağustos 2026") istemcide yeniden çözülmesin.
+            "talep_baslangic": (parsed.get("talep_aralik") or (None, None))[0]
+                and parsed["talep_aralik"][0].isoformat(),
+            "talep_bitis": (parsed.get("talep_aralik") or (None, None))[1]
+                and parsed["talep_aralik"][1].isoformat(),
+            "islem_baslangic": (lambda a: a[0].isoformat() if a else None)(
+                TextUtils.tarih_araligi_coz(str(veri.get(InfoKey.ISLEM_TARIHI, "")))),
             "skor": t_kalite,
             "temel_kalite_skoru": t_kalite,
             "tavan_potansiyeli_skoru": s["tavan_potansiyeli"],

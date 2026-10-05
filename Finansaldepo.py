@@ -55,6 +55,11 @@ ALAN_ESLEME: dict[str, str] = {
     "Amortisman": "Amortisman",
 }
 
+# Dönem içi AKIŞ kalemleri (gelir tablosu + nakit akışı). Ara dönemde
+# kısmi tutardırlar ve yıllıklaştırılmaları gerekir. Bilanço kalemleri değil.
+AKIS_KALEMLERI = ("Hasilat", "BrutKar", "FaaliyetKari", "NetKar",
+                  "IsletmeNakitAkisi", "FinansmanGideri", "Amortisman")
+
 
 def slug_uret(ad: str) -> str:
     """araclar/izahname_isle.py ile AYNI mantık — dosya adları eşleşmeli."""
@@ -179,6 +184,41 @@ def kayittan_finansal_uret(kayit: dict, FinKey) -> tuple[dict, dict]:
                 fin[fk_haritasi[hedef]] = float(deger)
             except (TypeError, ValueError):
                 continue
+
+    # ── Akış kalemlerini YILLIKLAŞTIR (son 12 ay / TTM) ──
+    # Kayıtların ~2/3'ünde güncel dönem bir ara dönem (3/6/9 ay). Gelir
+    # tablosu ve nakit akışı kalemleri o döneme ait KISMİ tutarlar; bunları
+    # yıllıkmış gibi kullanmak F/K'yı ~4 kat şişiriyor (şirket "pahalı"
+    # görünüyor), ROE'yi ~4 kat düşürüyor ve tek bir mevsimsel çeyreği
+    # "şirket nakit yakıyor" diye işaretliyordu. Bilanço (stok) kalemleri
+    # bir andaki durumu gösterdiği için son değerleri doğrudur.
+    #   TTM = cari ara dönem + önceki tam yıl − önceki yılın aynı ara dönemi
+    #   Olmazsa: önceki tam yıl değeri.  O da yoksa: kalem kullanılmaz.
+    donemler = kayit.get("donemler") or []
+    ham_seriler = kayit.get("seriler") or {}
+    son = donemler[-1] if donemler else ""
+    m = re.fullmatch(r"(20\d{2})-(\d{2})", son)
+    if m and m.group(2) != "12":
+        yil, ay = int(m.group(1)), m.group(2)
+        for alan in AKIS_KALEMLERI:
+            hedef = ALAN_ESLEME.get(alan)
+            if not hedef or hedef not in fk_haritasi:
+                continue
+            fk = fk_haritasi[hedef]
+            if fk not in fin:
+                continue
+            seri = ham_seriler.get(alan) or {}
+            try:
+                tam = seri.get(f"{yil - 1}-12")
+                onceki = seri.get(f"{yil - 1}-{ay}")
+                if tam is not None and onceki is not None and son in seri:
+                    fin[fk] = float(seri[son]) + float(tam) - float(onceki)
+                elif tam is not None:
+                    fin[fk] = float(tam)
+                else:
+                    del fin[fk]
+            except (TypeError, ValueError):
+                fin.pop(fk, None)
 
     # Muhasebe özdeşlikleriyle eksik kalemleri türet. Veri uydurulmuyor:
     # yalnızca aynı bilançonun diğer kalemlerinden hesaplanıyor. Özellikle

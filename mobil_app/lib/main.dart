@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'bildirimler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -257,6 +258,126 @@ class _AnaEkranState extends State<AnaEkran> {
     super.initState();
     _favorileriYukle();
     verileriGetir();
+    _bildirimleriHazirla();
+  }
+
+  /// İlk açılışta bir kez bildirim izni ister ve arka plan kontrolünü kurar.
+  Future<void> _bildirimleriHazirla() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!(prefs.getBool('bildirim_izin_istendi') ?? false)) {
+        await BildirimServisi.instance.izinIste();
+        await prefs.setBool('bildirim_izin_istendi', true);
+      }
+      await BildirimServisi.instance.arkaPlanKontroluKaydet();
+    } catch (e) {
+      debugPrint('Bildirim kurulumu başarısız: $e');
+    }
+  }
+
+  Future<void> _bildirimleriGuncelle() async {
+    try {
+      await BildirimServisi.instance.guncelle(halkaArzlar);
+    } catch (e) {
+      debugPrint('Bildirimler güncellenemedi: $e');
+    }
+  }
+
+  Future<void> _bildirimAyarlariniAc() async {
+    BildirimAyarlari ayar = await BildirimAyarlari.yukle();
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          Future<void> degistir(BildirimAyarlari yeni) async {
+            setSheet(() => ayar = yeni);
+            await yeni.kaydet();
+            await _bildirimleriGuncelle();
+          }
+
+          Widget anahtar(String baslik, String alt, bool deger,
+              ValueChanged<bool>? onChanged) {
+            return SwitchListTile.adaptive(
+              value: deger,
+              onChanged: onChanged,
+              activeTrackColor: AppColors.accent,
+              title: Text(baslik,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              subtitle: Text(alt,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12.5)),
+            );
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Text("Bildirimler",
+                        style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary)),
+                  ),
+                  anahtar(
+                    "Yeni halka arzlar",
+                    "Listeye yeni bir arz eklendiğinde haber ver",
+                    ayar.yeniArz,
+                    (v) => degistir(BildirimAyarlari(
+                        yeniArz: v,
+                        hatirlatma: ayar.hatirlatma,
+                        sadeceFavoriler: ayar.sadeceFavoriler)),
+                  ),
+                  anahtar(
+                    "Tarih hatırlatmaları",
+                    "Talep toplama başlangıcı, son gün ve işlem başlangıcı",
+                    ayar.hatirlatma,
+                    (v) => degistir(BildirimAyarlari(
+                        yeniArz: ayar.yeniArz,
+                        hatirlatma: v,
+                        sadeceFavoriler: ayar.sadeceFavoriler)),
+                  ),
+                  anahtar(
+                    "Sadece favorilerim",
+                    "Hatırlatmaları yalnızca işaretlediğin arzlar için gönder",
+                    ayar.sadeceFavoriler,
+                    ayar.hatirlatma
+                        ? (v) => degistir(BildirimAyarlari(
+                            yeniArz: ayar.yeniArz,
+                            hatirlatma: ayar.hatirlatma,
+                            sadeceFavoriler: v))
+                        : null,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 4),
+                    child: Text(
+                      "Hatırlatmalar telefonunda planlanır, uygulama kapalıyken "
+                      "de gelir. Yeni arz kontrolü arka planda birkaç saatte bir "
+                      "yapılır; iOS bu zamanlamayı kendisi belirler, gecikebilir.",
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.4,
+                          color: AppColors.textTertiary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _favorileriYukle() async {
@@ -297,6 +418,7 @@ class _AnaEkranState extends State<AnaEkran> {
           halkaArzlar = decoded['halka_arzlar'] ?? [];
           yukleniyor = false;
         });
+        _bildirimleriGuncelle();
       } else if (response.statusCode == 502 || response.statusCode == 503) {
         setState(() {
           hataMesaji =
@@ -346,6 +468,11 @@ class _AnaEkranState extends State<AnaEkran> {
       appBar: AppBar(
         title: const Text('Halka Arz Asistanı'),
         actions: [
+          IconButton(
+            tooltip: "Bildirim ayarları",
+            icon: const Icon(Icons.notifications_none_rounded),
+            onPressed: _bildirimAyarlariniAc,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
