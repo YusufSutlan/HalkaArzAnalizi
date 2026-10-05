@@ -283,6 +283,12 @@ SEKTOR_PROFILLERI: dict[str, dict[str, float]] = {
                   "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
     "GENEL":     {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
                   "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    # Turizm, araç/filo kiralama, lojistik. Ayrı sektör verisi olmadığı için
+    # çarpanlar bilinçli olarak GENEL ile aynı; amaç bu şirketlerin metindeki
+    # "finansman/kiralama" kelimeleri yüzünden FİNANS (banka eşikleri,
+    # FD/FAVÖK'süz değerleme) sayılmasını önlemek.
+    "HİZMET":    {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
+                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
 }
 
 
@@ -639,6 +645,9 @@ class ScoreAnalyzer:
         "GIDA": [("gıda", 2.5), ("tarım", 2.0), ("hayvancılık", 2.5),
                  ("süt ürünleri", 2.5), ("içecek", 2.0), ("un ", 1.0),
                  ("yem ", 1.5)],
+        "HİZMET": [("turizm", 2.0), ("araç kiralama", 3.0), ("filo kiralama", 3.0),
+                   ("otelcilik", 3.0), ("otel", 1.2), ("lojistik", 2.0),
+                   ("taşımacılık", 2.0), ("havayolu", 3.0), ("kiralama", 1.0)],
         "SANAYİ": [("çimento", 3.0), ("hazır beton", 3.0), ("demir çelik", 3.0),
                    ("otomotiv", 2.5), ("makine imalat", 2.5), ("kimya", 2.0),
                    ("plastik", 2.0), ("tekstil", 2.5), ("ambalaj", 2.0),
@@ -3126,7 +3135,8 @@ class DataExtractor:
                 kart_metni,
             )
             if not guncel_rozet and acik_tarih:
-                aralik = TextUtils.tarih_araligi_coz(kart_metni)
+                # Şirket adındaki ay adları ("Ekim Turizm") tarihe karışmasın
+                aralik = TextUtils.tarih_araligi_coz(kart_metni[acik_tarih.start():])
                 if aralik:
                     sinir = date.today() - timedelta(days=SETTINGS.GUNCEL_GUN_SAYISI)
                     guncel_rozet = aralik[1] >= sinir

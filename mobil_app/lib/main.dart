@@ -17,7 +17,12 @@ void main() async {
 // ---------------------------------------------------------
 class ApiConfig {
   ApiConfig._();
-  static const String baseUrl = 'https://halkaarzanaliziapi.onrender.com';
+  // Geliştirmede yerel sunucuya bağlanmak için:
+  //   flutter run --dart-define=API_URL=http://localhost:8000
+  static const String baseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'https://halkaarzanaliziapi.onrender.com',
+  );
   static const Duration timeout = Duration(seconds: 30);
 }
 
@@ -243,14 +248,39 @@ class _AnaEkranState extends State<AnaEkran> {
   List<dynamic> halkaArzlar = [];
   bool yukleniyor = true;
   String hataMesaji = "";
+  // Kullanıcının yıldızladığı arzlar (şirket adıyla). Listede en üstte
+  // gösterilir; cihazda saklanır.
+  Set<String> favoriler = {};
 
   @override
   void initState() {
     super.initState();
+    _favorileriYukle();
     verileriGetir();
   }
 
-  Future<void> verileriGetir() async {
+  Future<void> _favorileriYukle() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => favoriler = (prefs.getStringList('favoriler') ?? []).toSet());
+  }
+
+  Future<void> _favoriDegistir(String sirket) async {
+    setState(() {
+      if (!favoriler.remove(sirket)) favoriler.add(sirket);
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favoriler', favoriler.toList());
+  }
+
+  /// Favoriler önde, kalan sıra sunucunun sırası (duruma göre) korunur.
+  List<dynamic> get _siraliArzlar {
+    final fav = halkaArzlar.where((a) => favoriler.contains(a['sirket']));
+    final diger = halkaArzlar.where((a) => !favoriler.contains(a['sirket']));
+    return [...fav, ...diger];
+  }
+
+  Future<void> verileriGetir({int deneme = 0}) async {
     try {
       final response = await http
           .get(Uri.parse('${ApiConfig.baseUrl}/api/halkarzlar'))
@@ -280,6 +310,9 @@ class _AnaEkranState extends State<AnaEkran> {
         });
       }
     } on TimeoutException {
+      // Ücretsiz sunucu uykudan uyanırken ilk istek 30 sn'yi aşabiliyor;
+      // kullanıcıya hata göstermeden önce bir kez otomatik tekrar dene.
+      if (deneme == 0 && mounted) return verileriGetir(deneme: 1);
       // DÜZELTME: Önceden zaman aşımı için ayrı bir mesaj yoktu; genel
       // "bağlantı kurulamadı" mesajına düşüyordu. Render.com gibi ücretsiz
       // sunucular soğuk başlangıçta (cold start) yavaş olabildiğinden bu
@@ -366,11 +399,46 @@ class _AnaEkranState extends State<AnaEkran> {
           // DÜZELTME: Liste boş geldiğinde (örn. site şu an hiçbir halka
           // arz listelemiyorsa) eskiden boş bir ekran gösteriliyordu;
           // artık kullanıcıya bilgi veriliyor.
-          ? const Center(
-              child: Text(
-                "Şu anda listelenecek bir halka arz bulunamadı.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
+          // Aktif arz olmadığı dönemler çok sık; tek satırlık bir metin
+          // uygulamanın bozuk olduğu izlenimini veriyordu. Artık durum
+          // açıklanıyor ve aşağı çekerek yenileme de çalışıyor.
+          ? RefreshIndicator(
+              color: AppColors.accent,
+              backgroundColor: AppColors.surface,
+              onRefresh: verileriGetir,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+                  const Icon(
+                    Icons.event_available_rounded,
+                    size: 44,
+                    color: AppColors.textTertiary,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Şu an aktif halka arz yok",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Talep toplama tarihi açıklanan veya talep toplayan bir arz "
+                    "olduğunda burada analiziyle birlikte görünecek. Yenilemek "
+                    "için aşağı çekin.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             )
           : RefreshIndicator(
@@ -399,7 +467,7 @@ class _AnaEkranState extends State<AnaEkran> {
                       ),
                     );
                   }
-                  final arz = halkaArzlar[index - 1];
+                  final arz = _siraliArzlar[index - 1];
                   final double skor = (arz['skor'] ?? 0).toDouble();
                   final String durum = arz['durum'] ?? "Bilinmiyor";
                   final String sirketAdi =
@@ -409,16 +477,23 @@ class _AnaEkranState extends State<AnaEkran> {
                   final double listeBaski = (arz['ilk_gun_satis_baskisi'] ?? 0)
                       .toDouble();
 
-                  Color renk = skor >= 75
+                  // Renk eşikleri sunucunun yıldız eşikleriyle aynı:
+                  // 4-5 yıldız yeşil, 3 mavi, 2 turuncu, 0-1 kırmızı.
+                  Color renk = skor >= 70
                       ? AppColors.positive
                       : skor >= 55
                       ? AppColors.info
-                      : skor >= 35
+                      : skor >= 40
                       ? AppColors.warning
                       : AppColors.danger;
                   if (skor == 0) renk = AppColors.neutral;
-                  if (durum == "Borsada İşlem Görüyor")
-                    renk = AppColors.positive;
+                  // DÜZELTME: Eskiden "Borsada İşlem Görüyor" durumu puan
+                  // rengini de yeşile çeviriyordu; 53 puanlık bir arz 75
+                  // puanlık gibi "güçlü" görünüyordu. Artık yalnızca durum
+                  // rozeti bu renge boyanıyor, puan rengi puana ait.
+                  final Color durumRenk = durum == "Borsada İşlem Görüyor"
+                      ? AppColors.positive
+                      : renk;
 
                   return InkWell(
                     onTap: () => Navigator.push(
@@ -442,15 +517,37 @@ class _AnaEkranState extends State<AnaEkran> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  sirketAdi,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        sirketAdi,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 16.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => _favoriDegistir(sirketAdi),
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(left: 8),
+                                        child: Icon(
+                                          favoriler.contains(sirketAdi)
+                                              ? Icons.bookmark_rounded
+                                              : Icons.bookmark_border_rounded,
+                                          size: 21,
+                                          color: favoriler.contains(sirketAdi)
+                                              ? AppColors.accent
+                                              : AppColors.textTertiary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -475,14 +572,14 @@ class _AnaEkranState extends State<AnaEkran> {
                                         vertical: 5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: renk.withValues(alpha: 0.12),
+                                        color: durumRenk.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         durum,
                                         style: TextStyle(
                                           fontSize: 11.5,
-                                          color: renk,
+                                          color: durumRenk,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
@@ -1092,6 +1189,14 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
               payMiktariStr: arz['pay_miktari']?.toString(),
               fiyatStr: arz['fiyat']?.toString(),
             ),
+            if ((arz['fiyat_sayi'] ?? 0) > 0) ...[
+              const SizedBox(height: 26),
+              _KutuBaslik("Tavan Serisi Hesaplayıcı", Icons.trending_up_rounded),
+              TavanHesaplayici(
+                fiyat: (arz['fiyat_sayi'] as num).toDouble(),
+                varsayilanLot: (arz['kisi_basi_tahmini_lot'] as num?)?.round(),
+              ),
+            ],
           ],
         ),
       ),
@@ -2468,4 +2573,187 @@ class _LotHesaplayiciState extends State<LotHesaplayici> {
       ),
     );
   }
+}
+
+/// Tavan serisi hesaplayıcı: halka arz fiyatından başlayarak arka arkaya
+/// kaç gün tavan yapılırsa elindeki lotun ne kadar edeceğini gösterir.
+/// Rakip uygulamalarda en çok kullanılan araçlardan biri.
+///
+/// BIST kuralı: günlük fiyat değişim sınırı %10'dur ve tavan fiyatı,
+/// o fiyat aralığının fiyat adımına (tick) aşağı yuvarlanır. Komisyon ve
+/// vergi dahil değildir.
+class TavanHesaplayici extends StatefulWidget {
+  final double fiyat;
+  final int? varsayilanLot;
+  const TavanHesaplayici({super.key, required this.fiyat, this.varsayilanLot});
+
+  @override
+  State<TavanHesaplayici> createState() => _TavanHesaplayiciState();
+}
+
+class _TavanHesaplayiciState extends State<TavanHesaplayici> {
+  late final TextEditingController _lot = TextEditingController(
+    text: ((widget.varsayilanLot ?? 0) > 0 ? widget.varsayilanLot! : 100)
+        .toString(),
+  );
+
+  @override
+  void dispose() {
+    _lot.dispose();
+    super.dispose();
+  }
+
+  /// Borsa İstanbul pay piyasası fiyat adımları.
+  static double _fiyatAdimi(double f) {
+    if (f < 20) return 0.01;
+    if (f < 50) return 0.02;
+    if (f < 100) return 0.05;
+    if (f < 250) return 0.10;
+    if (f < 500) return 0.25;
+    if (f < 1000) return 0.50;
+    if (f < 2500) return 1.00;
+    return 2.50;
+  }
+
+  static double _tavan(double onceki) {
+    final double ham = onceki * 1.10;
+    final double adim = _fiyatAdimi(ham);
+    // Kayan nokta hatasına karşı küçük tolerans
+    return ((ham / adim) + 1e-9).floor() * adim;
+  }
+
+  String _tl(double d) {
+    final bool neg = d < 0;
+    final int kurusToplam = (d.abs() * 100).round();
+    final String tam = _binlikAyrac(kurusToplam ~/ 100);
+    final String kurus = (kurusToplam % 100).toString().padLeft(2, '0');
+    return "${neg ? '-' : ''}₺$tam,$kurus";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int lot = int.tryParse(_lot.text.replaceAll('.', '')) ?? 0;
+    final double maliyet = lot * widget.fiyat;
+    final List<_TavanSatiri> satirlar = [];
+    double f = widget.fiyat;
+    for (int gun = 1; gun <= 10; gun++) {
+      f = _tavan(f);
+      satirlar.add(_TavanSatiri(gun, f, lot * f - maliyet));
+    }
+
+    const TextStyle baslikStil = TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      color: AppColors.textTertiary,
+    );
+    const TextStyle hucre = TextStyle(
+      fontSize: 13,
+      color: AppColors.textPrimary,
+      fontFeatures: [FontFeature.tabularFigures()],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Elinizdeki lot",
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ),
+              SizedBox(
+                width: 110,
+                child: TextField(
+                  controller: _lot,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.right,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    suffixText: " lot",
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Maliyet: ${_tl(maliyet)}  ·  Arz fiyatı ${_tl(widget.fiyat)}",
+            style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          ),
+          const SizedBox(height: 14),
+          const Row(
+            children: [
+              SizedBox(width: 56, child: Text("Tavan", style: baslikStil)),
+              Expanded(child: Text("Fiyat", style: baslikStil)),
+              Expanded(
+                child: Text("Kâr", style: baslikStil, textAlign: TextAlign.right),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.border, height: 16),
+          ...satirlar.map(
+            (s) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(width: 56, child: Text("${s.gun}. gün", style: hucre)),
+                  Expanded(child: Text(_tl(s.fiyat), style: hucre)),
+                  Expanded(
+                    child: Text(
+                      "+${_tl(s.kar)}",
+                      textAlign: TextAlign.right,
+                      style: hucre.copyWith(
+                        color: AppColors.positive,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "Her gün %10 tavan ve BIST fiyat adımına yuvarlama varsayılır. "
+            "Komisyon ve vergi dahil değildir. Tavan serisi garanti değildir; "
+            "bu tablo yalnızca bir senaryo hesabıdır.",
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              height: 1.4,
+              color: AppColors.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TavanSatiri {
+  final int gun;
+  final double fiyat;
+  final double kar;
+  const _TavanSatiri(this.gun, this.fiyat, this.kar);
 }

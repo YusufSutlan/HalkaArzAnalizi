@@ -96,3 +96,4 @@ python test_kap.py
 - `veri/finansallar/` — GitHub Actions tarafından üretilen, izahnamelerden
   çıkarılan finansal veri JSON'ları. Sunucu bunları doğrudan okur.
 - `mobil_app/` — Flutter istemcisi. Çalıştırmak için: `cd mobil_app && flutter pub get && flutter run`.
+  Yerel bir backend'e bağlamak için: `flutter run --dart-define=API_URL=http://localhost:8000`.

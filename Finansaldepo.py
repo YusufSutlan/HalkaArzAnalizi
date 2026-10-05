@@ -180,6 +180,35 @@ def kayittan_finansal_uret(kayit: dict, FinKey) -> tuple[dict, dict]:
             except (TypeError, ValueError):
                 continue
 
+    # Muhasebe özdeşlikleriyle eksik kalemleri türet. Veri uydurulmuyor:
+    # yalnızca aynı bilançonun diğer kalemlerinden hesaplanıyor. Özellikle
+    # ToplamBorc 126 kaydın yalnızca ~37'sinde doğrudan var, ama kısa ve uzun
+    # vadeli yükümlülükler ~105'inde mevcut; eskiden borç/likidite boyutu
+    # bu yüzden şirketlerin yarısında "ölçülemedi" kalıyordu.
+    ham = kayit.get("guncel") or {}
+
+    def _say(alan: str):
+        try:
+            d = ham.get(alan)
+            return float(d) if d is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _turet(hedef: str, deger):
+        if hedef in fk_haritasi and fk_haritasi[hedef] not in fin \
+                and deger is not None and deger > 0:
+            fin[fk_haritasi[hedef]] = deger
+
+    tv, dv = _say("ToplamVarlik"), _say("DuranVarlik")
+    if tv is not None and dv is not None:
+        _turet("DonenVarlik", tv - dv)
+    kv, uv = _say("KisaVadeliYukumluluk"), _say("UzunVadeliYukumluluk")
+    tk, ozk = _say("ToplamKaynak"), _say("Ozkaynak")
+    if kv is not None and uv is not None:
+        _turet("ToplamBorc", kv + uv)
+    elif tk is not None and ozk is not None:
+        _turet("ToplamBorc", tk - ozk)
+
     for alan, seri in (kayit.get("seriler") or {}).items():
         hedef = ALAN_ESLEME.get(alan)
         if not hedef or hedef not in fk_haritasi:
