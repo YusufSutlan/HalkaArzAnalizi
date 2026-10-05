@@ -1145,6 +1145,219 @@ def _sonuclari_birlestir(a: Optional[FinansalSonuc],
     return birlesik
 
 
+# ═══════════════════════════════════════════════════════════════════
+# NAKİT AKIŞ TAMAMLAMA
+# ═══════════════════════════════════════════════════════════════════
+#
+# NEDEN: pdf_isle ilk GÜVENİLİR sonuçta duruyor; bilanço + gelir tablosu
+# bulunduğunda sonuç güvenilir sayılıyor. Nakit akış tablosu ise bu
+# tablolardan birkaç sayfa SONRA geliyor (bilanço -> kâr/zarar -> diğer
+# kapsamlı gelir -> özkaynak değişim -> nakit akış) ve 5 sayfalık
+# pencereye çoğunlukla girmiyordu. Sonuç: 126 kaydın yalnızca ~45'inde
+# işletme nakit akışı vardı ve puanlamadaki "nakit akışı kalitesi"
+# boyutu şirketlerin yarısından fazlasında ölçülemiyordu.
+#
+# ÇÖZÜM: Güvenilir sonuçta nakit akışı yoksa, nakit akış tablosu
+# sayfalarına HEDEFLİ ve ucuz ikinci bir okuma yapılır. Aynı tablodaki
+# amortisman düzeltmesi de alınır (FAVÖK hesabını açar).
+
+NAKIT_ALANLARI = ("IsletmeNakitAkisi", "Amortisman")
+
+NAKIT_ISTEMI = """Bu görüntüler bir halka arz izahnamesinin sayfalarıdır.
+
+GÖREV: NAKİT AKIŞ TABLOSUNU bul ve yalnızca şu iki satırı çıkar:
+- IsletmeNakitAkisi: "İşletme faaliyetlerinden (elde edilen / kullanılan)
+  nakit akışları" toplam satırı. (Ara toplam değil, bölüm toplamı.)
+- Amortisman: "Amortisman ve itfa giderleri ile ilgili düzeltmeler" satırı.
+
+KURALLAR:
+1. SADECE JSON döndür. Açıklama, markdown, ``` KULLANMA.
+2. Rakamları GÖRDÜĞÜN GİBİ yaz. Hesaplama YAPMA, tahmin ETME.
+3. Satırı göremiyorsan o alanı HİÇ EKLEME. Nakit akış tablosu yoksa
+   "kalemler": {} döndür.
+4. "Bin TL" / "(000)" -> "olcek": 1000, "Milyon TL" -> 1000000, yoksa 1.
+5. Parantez içindeki değerler NEGATİFTİR: (1.234) -> -1234
+6. Dönemleri "YYYY-MM" biçiminde yaz (31.12.2025 -> "2025-12").
+
+ÇIKTI:
+{"olcek": 1, "kalemler": {"IsletmeNakitAkisi": {"2024-12": 1500000, "2025-12": -250000},
+ "Amortisman": {"2025-12": 300000}}}
+"""
+
+
+def nakit_sayfalari_bul(pdf_yolu: str, islenen_sayfalar: list[int],
+                        adet: int = MAX_SAYFA_GONDER) -> list[int]:
+    """
+    Nakit akış tablosu olası sayfalarını (0-tabanlı) döndürür.
+
+    Metin tabanlı PDF: sayfa puanlamasında "nakit" türünde en iyi sayfalar.
+    Taranmış PDF veya bulunamazsa: daha önce okunan finansal tablo
+    sayfalarının hemen SONRASI (nakit akış tablosu orada yer alır).
+    """
+    import warnings
+    warnings.filterwarnings("ignore")
+    import pdfplumber
+
+    with pdfplumber.open(pdf_yolu) as pdf:
+        toplam = len(pdf.pages)
+        metinler = [(s.extract_text() or "") for s in pdf.pages]
+
+    ortalama = sum(len(m) for m in metinler) / max(toplam, 1)
+    if ortalama >= 200:
+        adaylar = []
+        for i, m in enumerate(metinler):
+            puan, tur = sayfa_puanla(m)
+            if tur == "nakit" and puan >= 6.0:
+                adaylar.append((puan, i))
+        if adaylar:
+            secilen: set[int] = set()
+            for _, i in sorted(adaylar, reverse=True)[:3]:
+                secilen.update(k for k in (i, i + 1) if k < toplam)
+            return sorted(secilen)[:adet]
+
+    if not islenen_sayfalar:
+        return []
+    son = max(islenen_sayfalar) - 1            # 1-tabanlıdan 0-tabanlıya
+
+    # Taranmış PDF: nakit akış tablosunun yeri belgeye göre çok değişiyor
+    # (tam tablo finansal tabloların hemen arkasında olabileceği gibi,
+    # "Fon kaynakları / Nakit akışları" bölümünde 10-30 sayfa sonra da
+    # olabiliyor). Kör tahmin yerine ucuz bir keşif turuyla yer bulunur.
+    if KESIF_AKTIF:
+        bulunan = nakit_kesif(pdf_yolu, son, toplam)
+        if bulunan:
+            secilen = set()
+            for b in bulunan:
+                secilen.update(k for k in (b, b + 1) if k < toplam)
+            return sorted(secilen)[:adet]
+    return [k for k in range(son, son + adet) if 0 <= k < toplam]
+
+
+NAKIT_KESIF_ISTEMI = """Bu görüntüler bir halka arz izahnamesinin sayfalarıdır.
+Sana verilen sayfa numaraları sırayla: %s
+
+GÖREV: "İşletme faaliyetlerinden elde edilen / kullanılan nakit akışları"
+satırını içeren bir NAKİT AKIŞ TABLOSU (tam tablo veya özet tablo) hangi
+sayfada? Rakamlı bir tablo olmalı; yalnızca metin içinde geçmesi yetmez.
+
+Sadece JSON döndür:
+{"nakit_sayfalari": [201], "aciklama": "201 özet nakit akış tablosu"}
+Yoksa: {"nakit_sayfalari": [], "aciklama": "yok"}
+"""
+
+
+def nakit_kesif(pdf_yolu: str, son: int, toplam: int) -> list[int]:
+    """Finansal tablolardan sonraki ~40 sayfada nakit akış tablosunu arar."""
+    import warnings
+    warnings.filterwarnings("ignore")
+    import pdfplumber
+
+    aralik = list(range(max(0, son - 2), min(toplam, son + 40)))
+    adim = max(1, len(aralik) // 24)
+    ornek = aralik[::adim][:24]
+    if not ornek:
+        return []
+    goruntuler: list[bytes] = []
+    with pdfplumber.open(pdf_yolu) as pdf:
+        for i in ornek:
+            try:
+                im = pdf.pages[i].to_image(resolution=60).original
+                if im.mode != "RGB":
+                    im = im.convert("RGB")
+                tampon = io.BytesIO()
+                im.save(tampon, format="JPEG", quality=55, optimize=True)
+                goruntuler.append(tampon.getvalue())
+            except Exception:
+                continue
+    if not goruntuler:
+        return []
+    logger.info(f"  Nakit keşfi: {ornek[0]+1}-{ornek[-1]+1} arası {len(goruntuler)} sayfa")
+    ham = llm_cagir(goruntuler, istem=NAKIT_KESIF_ISTEMI % ", ".join(
+        str(i + 1) for i in ornek), jpeg=True)
+    temiz: list[int] = []
+    for x in (ham or {}).get("nakit_sayfalari") or []:
+        try:
+            n = int(x) - 1
+        except (TypeError, ValueError):
+            continue
+        if 0 <= n < toplam:
+            temiz.append(n)
+    if temiz:
+        logger.info(f"  Nakit keşfi sonucu: {[t + 1 for t in temiz]}")
+    return sorted(set(temiz))
+
+
+def nakit_ekle(sonuc: FinansalSonuc, ham: Optional[dict]) -> int:
+    """
+    Nakit okumasını mevcut sonuca GÜVENLİ biçimde ekler.
+
+    _sonuclari_birlestir KULLANILMIYOR: o fonksiyon "en son dönemi" baz
+    alıyor; nakit sayfasında daha yeni bir ara dönem (örn. 2026-03) varsa
+    bilanço kalemleri güncel veriden düşerdi. Burada yalnızca mevcut
+    güncel dönemle AYNI dönemin değeri ekleniyor.
+
+    Dönüş: eklenen alan sayısı.
+    """
+    if not ham or not sonuc.donemler:
+        return 0
+    try:
+        olcek = float(ham.get("olcek", 1) or 1)
+    except (TypeError, ValueError):
+        olcek = 1.0
+    son = sonuc.donemler[-1]
+    hasilat = sonuc.guncel.get("Hasilat")
+    eklenen = 0
+    for alan in NAKIT_ALANLARI:
+        if alan in sonuc.guncel:
+            continue
+        seri = (ham.get("kalemler") or {}).get(alan)
+        if not isinstance(seri, dict):
+            continue
+        temiz: dict[str, float] = {}
+        for donem, deger in seri.items():
+            d = str(donem).strip()
+            if not re.fullmatch(r"20\d{2}-\d{2}", d):
+                continue
+            try:
+                temiz[d] = float(deger) * olcek
+            except (TypeError, ValueError):
+                continue
+        if son not in temiz:
+            continue
+        # Makullük: işletme nakit akışı hasılatın 5 katını aşamaz; aşıyorsa
+        # büyük olasılıkla ölçek veya satır yanlış okunmuştur.
+        if hasilat and abs(temiz[son]) > 5 * abs(hasilat):
+            logger.warning(f"  {alan} makul değil ({temiz[son]:.0f}), eklenmedi.")
+            continue
+        sonuc.seriler[alan] = temiz
+        sonuc.guncel[alan] = temiz[son]
+        eklenen += 1
+    return eklenen
+
+
+def nakit_tamamla(pdf_yolu: str, sonuc: FinansalSonuc) -> FinansalSonuc:
+    """Güvenilir ama nakit akışı eksik sonuca hedefli nakit okuması yapar."""
+    if not sonuc.guvenilir or "IsletmeNakitAkisi" in sonuc.guncel:
+        return sonuc
+    sayfalar = nakit_sayfalari_bul(pdf_yolu, sonuc.islenen_sayfalar)
+    if not sayfalar:
+        return sonuc
+    logger.info(f"  Nakit akışı tamamlanıyor — sayfalar {[s + 1 for s in sayfalar]}")
+    goruntuler, jpeg_mi = sayfalari_goruntuye_cevir(pdf_yolu, sayfalar)
+    if not goruntuler:
+        return sonuc
+    ham = llm_cagir(goruntuler, istem=NAKIT_ISTEMI, jpeg=jpeg_mi)
+    n = nakit_ekle(sonuc, ham)
+    if n:
+        sonuc.islenen_sayfalar = sorted(set(sonuc.islenen_sayfalar) |
+                                        {s + 1 for s in sayfalar})
+        sonuc.dogrulama = dogrula(sonuc.guncel)
+        logger.info(f"  ✓ Nakit akış tablosundan {n} kalem eklendi")
+    else:
+        logger.info("  Nakit akış tablosu bu sayfalarda bulunamadı.")
+    return sonuc
+
+
 def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
              izahname_url: str = "", max_deneme: int = 3) -> FinansalSonuc:
     """
@@ -1185,7 +1398,7 @@ def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
 
         if sonuc.guvenilir:
             logger.info(f"  ✓ Güvenilir sonuç ({len(sonuc.guncel)} kalem)")
-            return sonuc
+            return nakit_tamamla(pdf_yolu, sonuc)
 
         logger.info(f"  Yetersiz ({len(sonuc.guncel)} kalem): {sonuc.not_}")
 
@@ -1201,7 +1414,7 @@ def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
                 f"  ✓ Denemeler birleştirilince güvenilir oldu "
                 f"({len(en_iyi.guncel)} kalem)"
             )
-            return en_iyi
+            return nakit_tamamla(pdf_yolu, en_iyi)
 
     if en_iyi is not None:
         return en_iyi
@@ -1209,6 +1422,20 @@ def pdf_isle(pdf_yolu: str, slug: str, sirket_adi: str = "",
                       izahname_url=izahname_url)
     s.not_ = "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı."
     return s
+
+
+def sonuc_yukle(d: dict) -> FinansalSonuc:
+    """Kayıtlı JSON'u FinansalSonuc nesnesine geri çevirir."""
+    return FinansalSonuc(
+        slug=d.get("slug", ""), sirket_adi=d.get("sirket_adi", ""),
+        izahname_url=d.get("izahname_url", ""), kaynak=d.get("kaynak", ""),
+        model=d.get("model", ""), islenme_zamani=d.get("islenme_zamani", ""),
+        olcek=d.get("olcek", 1.0), donemler=list(d.get("donemler") or []),
+        guncel=dict(d.get("guncel") or {}), seriler=dict(d.get("seriler") or {}),
+        dogrulama=dict(d.get("dogrulama") or {}),
+        guvenilir=bool(d.get("guvenilir")), not_=d.get("not", ""),
+        islenen_sayfalar=list(d.get("islenen_sayfalar") or []),
+    )
 
 
 def kaydet(sonuc: FinansalSonuc) -> Path:
@@ -1229,6 +1456,9 @@ def main() -> int:
     ap.add_argument("--slug", help="--pdf ile kullanılacak dosya adı")
     ap.add_argument("--limit", type=int, default=5,
                     help="Bir çalıştırmada en fazla kaç şirket işlensin")
+    ap.add_argument("--nakit-tamamla", action="store_true",
+                    help="Güvenilir ama nakit akışı eksik mevcut kayıtları "
+                         "yalnızca nakit akış tablosunu okuyarak tamamla")
     ap.add_argument("--modelleri-listele", action="store_true",
                     help="API anahtarının erişebildiği modelleri göster")
     args = ap.parse_args()
@@ -1282,6 +1512,38 @@ def main() -> int:
 
         slug = slug_uret(s["ad"])
         hedef = CIKTI_DIZINI / f"{slug}.json"
+
+        # ── Geriye dönük nakit akışı tamamlama ──
+        if args.nakit_tamamla:
+            if not hedef.exists():
+                continue
+            mevcut = json.loads(hedef.read_text(encoding="utf-8"))
+            if (not mevcut.get("guvenilir")
+                    or "IsletmeNakitAkisi" in (mevcut.get("guncel") or {})
+                    or mevcut.get("nakit_denendi")
+                    or not mevcut.get("izahname_url")):
+                continue
+            logger.info(f"── Nakit tamamla: {s['ad']} ──")
+            gecici = Path(f"/tmp/{slug}.pdf")
+            if not pdf_indir(mevcut["izahname_url"], gecici):
+                hatalar += 1
+                continue
+            try:
+                sonuc = sonuc_yukle(mevcut)
+                sonuc = nakit_tamamla(str(gecici), sonuc)
+                d = sonuc.to_dict()
+                # Bulunamasa da işaretle: her gün aynı PDF'e tekrar para harcanmasın
+                d["nakit_denendi"] = True
+                hedef.write_text(json.dumps(d, ensure_ascii=False, indent=2),
+                                 encoding="utf-8")
+                islenen += 1
+            except Exception as e:
+                hatalar += 1
+                logger.error(f"  {s['ad']} tamamlanamadı: {type(e).__name__}: {e}")
+            finally:
+                gecici.unlink(missing_ok=True)
+            continue
+
         if hedef.exists() and not args.zorla:
             mevcut = json.loads(hedef.read_text(encoding="utf-8"))
             if mevcut.get("guvenilir"):

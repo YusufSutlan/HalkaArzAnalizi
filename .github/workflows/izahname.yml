@@ -22,6 +22,10 @@ on:
         description: "En fazla kaç şirket"
         type: string
         default: "5"
+      nakit_limit:
+        description: "Nakit akışı eksik eski kayıtlardan kaçı tamamlansın (0 = atla)"
+        type: string
+        default: "5"
 
 permissions:
   contents: write
@@ -71,6 +75,23 @@ jobs:
             --limit "${{ github.event.inputs.limit || '5' }}" \
             ${{ github.event.inputs.zorla == 'true' && '--zorla' || '' }} \
             ${{ github.event.inputs.sirket && format('--sirket "{0}"', github.event.inputs.sirket) || '' }}
+
+      # Eski kayıtların çoğunda işletme nakit akışı eksik (nakit akış
+      # tablosu ilk okumada pencereye girmiyordu). Her çalıştırmada birkaç
+      # kayıt hedefli bir okumayla tamamlanır; maliyet günlere yayılır.
+      - name: Nakit akışı eksik kayıtları tamamla
+        if: always()
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_SAGLAYICI: ${{ vars.LLM_SAGLAYICI || 'gemini' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gemini-flash-latest' }}
+          MAX_SAYFA_GONDER: "5"
+          KESIF_AKTIF: "1"
+        run: |
+          N="${{ github.event.inputs.nakit_limit || '5' }}"
+          if [ "$N" != "0" ]; then
+            python Izahnameisle.py --nakit-tamamla --limit "$N"
+          fi
 
       - name: Sonuçları özetle
         if: always()
