@@ -17,7 +17,8 @@
     "FaaliyetKari": 116934888.0,
     "NetKar": 30938974.0,
     "FinansmanGideri": -204099977.0,
-    "KisaVadeliYukumluluk": 1475416942.0
+    "KisaVadeliYukumluluk": 1475416942.0,
+    "IsletmeNakitAkisi": 44130147.0
   },
   "seriler": {
     "Hasilat": {
@@ -47,6 +48,11 @@
     },
     "KisaVadeliYukumluluk": {
       "2025-12": 1475416942.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": -177292404.0,
+      "2024-12": 227780275.0,
+      "2025-12": 44130147.0
     }
   },
   "dogrulama": {
@@ -63,6 +69,9 @@
     102,
     103,
     104,
-    105
-  ]
+    105,
+    107,
+    108
+  ],
+  "nakit_denendi": true
 }
