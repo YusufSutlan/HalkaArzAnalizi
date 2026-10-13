@@ -25,7 +25,8 @@
     "UzunVadeliYukumluluk": 1514887843.0,
     "Ozkaynak": 664653271.0,
     "OdenmisSermaye": 355000000.0,
-    "ToplamKaynak": 5220047121.0
+    "ToplamKaynak": 5220047121.0,
+    "IsletmeNakitAkisi": -379687158.0
   },
   "seriler": {
     "Hasilat": {
@@ -104,6 +105,10 @@
       "2023-12": 4084196592.0,
       "2024-12": 4799522496.0,
       "2025-03": 5220047121.0
+    },
+    "IsletmeNakitAkisi": {
+      "2024-12": 150825603.0,
+      "2025-03": -379687158.0
     }
   },
   "dogrulama": {
@@ -119,6 +124,9 @@
     22,
     34,
     126,
-    136
-  ]
+    136,
+    152,
+    153
+  ],
+  "nakit_denendi": true
 }

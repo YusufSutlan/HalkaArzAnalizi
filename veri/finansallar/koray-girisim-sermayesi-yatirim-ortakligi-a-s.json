@@ -20,7 +20,8 @@
     "Ozkaynak": 901644262.0,
     "OdenmisSermaye": 300000000.0,
     "NetKar": 575800829.0,
-    "ToplamKaynak": 2809840574.0
+    "ToplamKaynak": 2809840574.0,
+    "IsletmeNakitAkisi": 79739746.0
   },
   "seriler": {
     "DonenVarlik": {
@@ -55,6 +56,9 @@
     },
     "ToplamKaynak": {
       "2025-06": 2809840574.0
+    },
+    "IsletmeNakitAkisi": {
+      "2025-06": 79739746.0
     }
   },
   "dogrulama": {
@@ -70,6 +74,9 @@
     81,
     82,
     83,
-    84
-  ]
+    84,
+    92,
+    93
+  ],
+  "nakit_denendi": true
 }
