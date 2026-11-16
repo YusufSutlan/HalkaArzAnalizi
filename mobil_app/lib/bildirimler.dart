@@ -19,7 +19,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:workmanager/workmanager.dart';
 
 /// iOS'ta AppDelegate.swift ve Info.plist içindeki kimlikle aynı olmalı.
-const String arzKontrolGorevi = 'com.yusufsutlan.halkarzasistan.arzKontrol';
+const String arzKontrolGorevi = 'tr.com.stltechnology.halkaarz.arzKontrol';
 
 /// Kullanıcı ayarları (cihazda saklanır).
 class BildirimAyarlari {

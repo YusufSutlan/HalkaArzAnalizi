@@ -6,7 +6,7 @@ import workmanager_apple
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   // Dart tarafındaki Workmanager().registerPeriodicTask ile aynı kimlik olmalı
   // ve Info.plist > BGTaskSchedulerPermittedIdentifiers içinde bulunmalı.
-  static let arzKontrolGorevi = "com.yusufsutlan.halkarzasistan.arzKontrol"
+  static let arzKontrolGorevi = "tr.com.stltechnology.halkaarz.arzKontrol"
 
   override func application(
     _ application: UIApplication,

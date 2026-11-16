@@ -39,6 +39,40 @@ Finansal veri tarafında ise ayrı ve daha ağır bir hat var:
   Aydınlatma Platformu) üzerinden finansal veri tamamlama; test'leri
   `test_kap.py` içinde.
 
+- **`Gecmisveri.py`** + **`veri/gecmis_arzlar.json`** — 2023'ten bu yana
+  tamamlanan halka arzların gerçek sonuçları (katılımcı sayısı, kişi başı
+  dağıtılan tutar, tavan serisi, getiriler). Kısa vade göstergesi beklenen
+  katılımı, kıyas değerlerini ve "benzer arzlar geçmişte ne yaptı"
+  istatistiğini buradan alır.
+- **`araclar/geriye_donuk_test.py`** — Bu dosyayı üretir ve modeli gerçek
+  sonuçlarla sınar. `python araclar/geriye_donuk_test.py` rapor basar,
+  `--yaz` ile veri dosyasını günceller. GitHub Actions her gün çalıştırır.
+- **`test_skor.py`** — Skor motoru testleri (`python test_skor.py`, ağ gerekmez).
+
+## Skor modeli (v4)
+
+İki ayrı çıktı vardır ve dayanakları farklıdır:
+
+**Kısa vade göstergesi ve ilk gün satış baskısı — geriye dönük test edilmiş.**
+108 halka arzın (2023–2026) gerçek sonuçlarıyla sınandı. Gösterge dört
+etkenden oluşur: kişi başına düşen tahmini tutar (son arzların medyanına
+göre), BIST 100'ün son 60 günlük getirisi, arz büyüklüğü ve temel kalite.
+Tavan serisi uzunluğuyla sıra korelasyonu ≈ 0,57; 2023, 2024, 2025 ve 2026
+yıllarının her birinde ayrı ayrı pozitif (0,47–0,64). Halka arz iskontosu,
+ortak satışı oranı, rakip arz sayısı ve fiyat istikrarı taahhüdünün ölçülebilir
+etkisi çıkmadığı için bu göstergeye girmezler.
+
+**Temel kalite skoru — kurama dayalı, istatistiksel olarak doğrulanmamış.**
+Kârlılık, büyüme, borç, likidite, nakit akışı, değerleme ve arz yapısını
+puanlar. İzahname finansalı olan tamamlanmış arz sayısı (~20) doğrulama için
+yetersizdir. Değerleme, kaynağı belirsiz sektör sabitleri yerine geçmiş halka
+arzların çarpan medyanlarıyla kıyaslanır ve halka arz sonrası bilanço
+kullanılır (sermaye artırımı geliri özkaynağa eklenir).
+
+Bilinen sınırlar: FAVÖK izahnamelerin çok azında hesaplanabildiği için
+FD/FAVÖK ve Net Borç/FAVÖK nadiren ölçülür; fiyat sağlayıcıda 2023'ün ikinci
+yarısındaki arzların ilk ayları eksiktir; ~100 gözlem küçük bir örneklemdir.
+
 **`mobil_app/`** — API'nin `/api/halkarzlar` uç noktasına doğrudan bağlanan
 Flutter mobil istemcisi (`lib/main.dart`). `ApiConfig.baseUrl` production
 adresine (Render) işaret eder; yerel geliştirmede `pubspec.yaml` bulunan

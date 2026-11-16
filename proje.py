@@ -30,19 +30,21 @@ YATIRIM_UYARISI = (
     "kendiniz doğrulayın."
 )
 
-# ÖNEMLİ NOT (kalibrasyon):
-# Aşağıdaki "ilk gün satış baskısı" modeli, gözlemlenen bir mekanizmaya dayanır
-# (büyük arz + eşit dağıtım -> kişi başı yüksek lot -> ilk gün kâr satışı).
-# Ancak bu model HENÜZ GERİYE DÖNÜK TEST EDİLMEMİŞTİR. Eşikler
-# ortam değişkenleriyle ayarlanabilir bırakıldı; geçmiş arz verisiyle
-# doğrulanana kadar çıktı "tahmin" değil "uyarı" olarak sunulmalıdır.
-MODEL_SURUMU = "3.0.0-kalibre-edilmemis"
+# KALİBRASYON:
+# Kısa vade modeli (ilk gün satış baskısı + kısa vade göstergesi) 2023-2026
+# arasında tamamlanan halka arzların GERÇEK sonuçlarıyla geriye dönük test
+# edilmiştir (bkz. araclar/geriye_donuk_test.py ve veri/gecmis_arzlar.json).
+# Temel kalite skorunun finansal boyutları için yeterli örnek henüz yok
+# (izahname finansalı olan ~20 tamamlanmış arz); o kısım finans kuramına ve
+# 124 izahnamenin oran dağılımlarına göre ayarlanmıştır, istatistiksel olarak
+# doğrulanmış DEĞİLDİR. Çıktılar bu ayrımla sunulmalıdır.
+MODEL_SURUMU = "4.0.0"
 
-# Sektör çarpanlarının hangi tarihe ait olduğu. Bayat veriyle kıyaslama
-# yapmak sessizce yanlış sonuç üretir; bu yüzden tarih tutuluyor ve
-# bayatladığında API yanıtında açıkça uyarı veriliyor.
-SEKTOR_VERI_TARIHI = os.environ.get("SEKTOR_VERI_TARIHI", "2026-05-01")
-SEKTOR_VERI_BAYATLAMA_GUNU = int(os.environ.get("SEKTOR_VERI_BAYATLAMA_GUNU", "120"))
+from Gecmisveri import GecmisArzlar
+
+# Geçmiş arz sonuçları: beklenen katılımcı, kişi başı tutar referansı,
+# emsal çarpanlar ve "benzer arzlar ne yaptı" istatistikleri buradan gelir.
+GECMIS = GecmisArzlar()
 
 
 @dataclass(frozen=True)
@@ -61,20 +63,18 @@ class AppSettings:
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
     ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
 
-    # ── İlk gün satış baskısı modeli eşikleri (ayarlanabilir) ──
-    # Talep toplamanın tarihsel ortalama bireysel katılımcı sayısı.
-    TAHMINI_KATILIMCI: int = int(os.environ.get("TAHMINI_KATILIMCI", "2500000"))
-    # Bu tutarın üzerinde kişi başı dağıtım = yüksek kâr satışı baskısı.
-    # KALİBRASYON NOTU: Türkiye'de tipik bir küçük arzda (~500 mn TL,
-    # ~3 mn katılımcı) kişi başı dağıtım ~150-200 TL (1-2 lot) civarındadır.
-    # 4-6 milyar TL'lik bir arzda ise bu tutar 1.500-3.000 TL'ye, yani
-    # 10-20 katına çıkar. Satış baskısı yaratan asıl fark budur.
-    # Bu eşikler geriye dönük test sonrası mutlaka güncellenmelidir.
-    KISI_BASI_YUKSEK_TUTAR: float = float(os.environ.get("KISI_BASI_YUKSEK_TUTAR", "1200"))
-    KISI_BASI_KRITIK_TUTAR: float = float(os.environ.get("KISI_BASI_KRITIK_TUTAR", "2500"))
-    # "Büyük arz" sayılan eşikler (TL).
-    BUYUK_ARZ_ESIGI: float = float(os.environ.get("BUYUK_ARZ_ESIGI", "3_000_000_000".replace("_", "")))
-    COK_BUYUK_ARZ_ESIGI: float = float(os.environ.get("COK_BUYUK_ARZ_ESIGI", "5_000_000_000".replace("_", "")))
+    # Beklenen bireysel katılımcı sayısı. 0 = otomatik (son 5 arzın gerçek
+    # katılımcı medyanı, bkz. Gecmisveri.py). Elle sabitlemek için > 0 verin.
+    # NOT: Eski sabit değer 2.500.000 idi; 2026'da gerçek katılım 500-750 bin
+    # bandına indiği için kişi başı dağıtımı ~4 kat düşük tahmin ediyordu.
+    TAHMINI_KATILIMCI: int = int(os.environ.get("TAHMINI_KATILIMCI", "0"))
+    # BIST 100'ün son 60 işlem günündeki getirisi buradan okunur (piyasa
+    # momentumu). Ulaşılamazsa momentum etkisi nötr sayılır.
+    ENDEKS_URL: str = os.environ.get(
+        "ENDEKS_URL",
+        "https://query1.finance.yahoo.com/v8/finance/chart/XU100.IS?range=6mo&interval=1d",
+    )
+    ENDEKS_CACHE_TTL: int = int(os.environ.get("ENDEKS_CACHE_TTL", "21600"))
 
 
 SETTINGS = AppSettings()
@@ -222,6 +222,11 @@ class ScoreWeights:
     DEĞİŞİKLİK: Ağırlıklar incelemede önerilen dağılıma çekildi.
     Çekirdek 100 puan: Kârlılık 20 / Büyüme 15 / Borç 15 / Likidite 10 /
     Değerleme 20 / Fon Kullanımı 10 / Kurumsallık 5 / Arz Yapısı 5.
+    DEĞİŞİKLİK (v4): Geriye dönük testte halka arz iskontosu ve "kurumsallık"
+    anahtar kelimeleri hiçbir sonuçla ilişkili çıkmadı (iskonto hafif NEGATİF);
+    ağırlıkları düşürüldü. FD/FAVÖK için emsal verisi olmadığından (124
+    izahnamenin yalnızca 5'inde FAVÖK hesaplanabiliyor) puanlamadan çıkarıldı,
+    ağırlığı F/K ve PD/DD'ye dağıtıldı.
     Nakit akışı, iskonto, açıklık ve satmama ek boyutlar olarak eklendi;
     nihai skor zaten "elde edilen / ölçülebilen maksimum" şeklinde
     normalize edildiği için toplam 100'ü aşması sorun değil, önemli olan
@@ -235,9 +240,9 @@ class ScoreWeights:
         Category.DEGERLEME: 20.0,
         Category.NAKIT_AKISI: 10.0,
         Category.FON_KULLANIM: 10.0,
-        Category.KURUMSALLIK: 5.0,
+        Category.KURUMSALLIK: 3.0,
         Category.ARZ_YAPISI: 5.0,
-        Category.ISKONTO: 4.0,
+        Category.ISKONTO: 2.0,
         Category.ACIKLIK: 3.0,
         Category.SATMAMA: 3.0,
     }
@@ -253,43 +258,40 @@ class ScoreWeights:
     BORC_NET_FAVOK: float = 5.0
     BORC_FAIZ_KARSILAMA: float = 4.0
     # Değerleme alt kırılımı
-    DEGERLEME_FK: float = 8.0
-    DEGERLEME_PDDD: float = 6.0
-    DEGERLEME_FD_FAVOK: float = 6.0
+    DEGERLEME_FK: float = 10.0
+    DEGERLEME_PDDD: float = 10.0
 
 
 WEIGHTS = ScoreWeights()
 
 
-# Sektör bazlı çarpanlar VE borçluluk eşikleri.
-# DEĞİŞİKLİK: incelemede "her sektör için eşikler farklı olmalı"
-# denilmişti; borç eşikleri artık sektöre göre değişiyor.
+# Sektör bazlı BORÇLULUK eşikleri.
+# DEĞİŞİKLİK (v4): Buradaki sektör F/K, PD/DD, FD/FAVÖK "ortalamaları"
+# kaldırıldı. Kaynağı ve tarihi belli olmayan sabitlerdi ve gerçek
+# verilerle uyuşmuyordu: tabloda SANAYİ F/K 10 yazarken 2026'da BIST imalat
+# medyanı ~24, halka arz medyanı ~32 idi; sonuçta neredeyse her arz
+# "pahalı" çıkıyordu. Değerleme artık geçmiş halka arzların emsal
+# medyanlarıyla ve BIST 100 medyanıyla kıyaslanıyor (bkz. Gecmisveri.py).
 SEKTOR_PROFILLERI: dict[str, dict[str, float]] = {
-    "TEKNOLOJİ": {"fk": 18.0, "pddd": 4.5, "fd_favok": 12.0,
-                  "borc_iyi": 0.4, "borc_kabul": 1.0, "net_borc_favok_iyi": 1.0},
-    "ENERJİ":    {"fk": 14.0, "pddd": 2.5, "fd_favok": 8.0,
-                  "borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.0},
-    "SANAYİ":    {"fk": 10.0, "pddd": 1.8, "fd_favok": 7.0,
-                  "borc_iyi": 0.8, "borc_kabul": 2.0, "net_borc_favok_iyi": 2.5},
-    "GIDA":      {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
-                  "borc_iyi": 0.8, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
-    "GYO":       {"fk": 5.0,  "pddd": 0.8, "fd_favok": 12.0,
-                  "borc_iyi": 1.0, "borc_kabul": 3.0, "net_borc_favok_iyi": 5.0},
-    "FİNANS":    {"fk": 6.0,  "pddd": 1.2, "fd_favok": 0.0,
-                  "borc_iyi": 4.0, "borc_kabul": 8.0, "net_borc_favok_iyi": 0.0},
-    "İNŞAAT":    {"fk": 8.0,  "pddd": 1.5, "fd_favok": 7.0,
-                  "borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.5},
-    "PERAKENDE": {"fk": 14.0, "pddd": 3.0, "fd_favok": 9.0,
-                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
-    "GENEL":     {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
-                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
-    # Turizm, araç/filo kiralama, lojistik. Ayrı sektör verisi olmadığı için
-    # çarpanlar bilinçli olarak GENEL ile aynı; amaç bu şirketlerin metindeki
-    # "finansman/kiralama" kelimeleri yüzünden FİNANS (banka eşikleri,
-    # FD/FAVÖK'süz değerleme) sayılmasını önlemek.
-    "HİZMET":    {"fk": 12.0, "pddd": 2.0, "fd_favok": 8.0,
-                  "borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    "TEKNOLOJİ": {"borc_iyi": 0.4, "borc_kabul": 1.0, "net_borc_favok_iyi": 1.0},
+    "ENERJİ":    {"borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.0},
+    "SANAYİ":    {"borc_iyi": 0.8, "borc_kabul": 2.0, "net_borc_favok_iyi": 2.5},
+    "GIDA":      {"borc_iyi": 0.8, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    "GYO":       {"borc_iyi": 1.0, "borc_kabul": 3.0, "net_borc_favok_iyi": 5.0},
+    "FİNANS":    {"borc_iyi": 4.0, "borc_kabul": 8.0, "net_borc_favok_iyi": 0.0},
+    "İNŞAAT":    {"borc_iyi": 1.0, "borc_kabul": 2.5, "net_borc_favok_iyi": 3.5},
+    "PERAKENDE": {"borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    "GENEL":     {"borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
+    # Turizm, araç/filo kiralama, lojistik: bu şirketlerin metindeki
+    # "finansman/kiralama" kelimeleri yüzünden FİNANS (banka eşikleri)
+    # sayılmasını önlemek için ayrı tutuluyor.
+    "HİZMET":    {"borc_iyi": 0.7, "borc_kabul": 1.8, "net_borc_favok_iyi": 2.5},
 }
+
+# Finans sektörü (banka/sigorta) için emsal çarpanlar. Bu şirketler sanayi
+# şirketleriyle aynı F/K bandında fiyatlanmaz. Dosyada (gecmis_arzlar.json
+# > finans_medyan) varsa o kullanılır.
+FINANS_VARSAYILAN = {"fk": 6.2, "pddd": 0.8}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -539,12 +541,23 @@ class TextUtils:
 
     @staticmethod
     def sektor_verisi_bayat_mi() -> tuple[bool, int]:
-        try:
-            ref = datetime.strptime(SEKTOR_VERI_TARIHI, "%Y-%m-%d").date()
-        except ValueError:
-            return (True, 9999)
-        gun = (datetime.now().date() - ref).days
-        return (gun > SEKTOR_VERI_BAYATLAMA_GUNU, gun)
+        """Emsal/geçmiş arz verisi (veri/gecmis_arzlar.json) güncel mi?"""
+        return GECMIS.bayat_mi()
+
+    @staticmethod
+    def arz_sekli_coz(metin: Optional[str]) -> tuple[float, float]:
+        """
+        "Sermaye Artırımı : 49.000.000 Lot / Ortak Satışı : 7.000.000 Lot (…)"
+        metninden (şirkete giren lot, satan ortaklara giden lot) döndürür.
+        Lot yazılmamışsa (0, 0).
+        """
+        m = TextUtils.kucult(metin)
+        def _topla(etiket: str) -> float:
+            return sum(
+                float(x.replace(".", ""))
+                for x in re.findall(etiket + r"[^:\n]{0,25}:\s*([\d.]+)\s*lot", m)
+            )
+        return (_topla(r"sermaye art[ıi]r[ıi]m[ıi]"), _topla(r"ortak sat[ıi][şs][ıi]"))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -571,6 +584,10 @@ class PiyasaBaglami:
     ayni_hafta_arz_sayisi: int = 1
     ayni_hafta_toplam_buyukluk: float = 0.0
     rakip_sirketler: list[str] = field(default_factory=list)
+    # BIST 100'ün son 60 işlem günündeki getirisi (0.12 = %12). None = bilinmiyor.
+    bist_mom60: Optional[float] = None
+    # Geriye dönük testte "o gün bilinen" veriyle hesap yapabilmek için.
+    referans_tarih: Optional[date] = None
 
 
 class ScoreAnalyzer:
@@ -754,7 +771,10 @@ class ScoreAnalyzer:
             return None
         yillar = sorted(seri.keys())
         ilk, son = seri[yillar[0]], seri[yillar[-1]]
-        donem = len(yillar) - 1
+        # DÜZELTME: Dönem sayısı nokta sayısından değil, yıl farkından
+        # hesaplanır. Seride boşluk varsa (2023 ve 2025) eski hesap iki
+        # yıllık büyümeyi tek yıla sığdırıp abartıyordu.
+        donem = max(1, yillar[-1] - yillar[0])
         if ilk == 0:
             return None
         if ilk < 0 and son > 0:
@@ -795,10 +815,11 @@ class ScoreAnalyzer:
             has_data = True
             mx += self.weights.KARLILIK_ROE
             roe = (net_kar / ozk) * 100
-            if roe >= 30:
+            # Eşikler 124 izahnamenin dağılımına göre: medyan %9, üst çeyrek %27.
+            if roe >= 25:
                 puan += self.weights.KARLILIK_ROE
                 aciklamalar.append(f"Çok güçlü özkaynak kârlılığı (ROE %{roe:.1f}).")
-            elif roe >= 15:
+            elif roe >= 12:
                 puan += self.weights.KARLILIK_ROE * 0.7
                 aciklamalar.append(f"İyi özkaynak kârlılığı (ROE %{roe:.1f}).")
             elif roe >= 5:
@@ -806,6 +827,14 @@ class ScoreAnalyzer:
                 aciklamalar.append(f"Zayıf özkaynak kârlılığı (ROE %{roe:.1f}).")
             else:
                 aciklamalar.append(f"Çok düşük özkaynak kârlılığı (ROE %{roe:.1f}).")
+
+        elif net_kar is not None and ozk is not None and ozk <= 0:
+            # DÜZELTME: Özkaynağı negatif şirkette ROE hesaplanamadığı için bu
+            # 8 puanlık kalem hiç sayılmıyor, paydadan da düşüyordu; yani en
+            # kötü durumdaki şirket bu kalemden "muaf" oluyordu.
+            has_data = True
+            mx += self.weights.KARLILIK_ROE
+            aciklamalar.append("Özkaynak negatif: özkaynak kârlılığı hesaplanamıyor.")
 
         # Net kâr marjı — ROE'den bağımsız olarak ayrıca ölçülüyor
         if net_kar is not None and hasilat and hasilat > 0:
@@ -829,10 +858,13 @@ class ScoreAnalyzer:
             has_data = True
             mx += self.weights.KARLILIK_FAALIYET_MARJ
             f_marj = (faaliyet_kari / hasilat) * 100
-            if f_marj >= 15:
+            # Eşikler dağılıma göre: izahnamelerde medyan faaliyet marjı %21,
+            # alt çeyrek %11. Eski 15/6 eşiği şirketlerin üçte ikisine tam puan
+            # veriyordu.
+            if f_marj >= 20:
                 puan += self.weights.KARLILIK_FAALIYET_MARJ
                 aciklamalar.append(f"Güçlü esas faaliyet marjı (%{f_marj:.1f}).")
-            elif f_marj >= 6:
+            elif f_marj >= 10:
                 puan += self.weights.KARLILIK_FAALIYET_MARJ * 0.6
                 aciklamalar.append(f"Makul faaliyet marjı (%{f_marj:.1f}).")
             elif f_marj > 0:
@@ -885,9 +917,10 @@ class ScoreAnalyzer:
                 aciklamalar.append(f"Hasılat büyüyor (yıllık ~%{h_buyume:.0f}).")
             elif h_buyume >= 0:
                 puan += self.weights.BUYUME_HASILAT * 0.25
-                aciklamalar.append(
-                    f"Hasılat yatay/enflasyon altı büyüyor (yıllık ~%{h_buyume:.0f})."
-                )
+                # NOT: İzahname tabloları çoğunlukla enflasyon muhasebesine
+                # (TMS 29) göre düzeltilmiş, yani REEL rakamlardır; bu yüzden
+                # "enflasyon altı" denmiyor.
+                aciklamalar.append(f"Hasılat sınırlı büyüyor (yıllık ~%{h_buyume:.0f}).")
             else:
                 aciklamalar.append(f"Hasılat daralıyor (yıllık ~%{h_buyume:.0f}).")
                 kirmizi_bayraklar.append("🚨 Hasılat son dönemlerde daralma eğiliminde.")
@@ -1074,227 +1107,212 @@ class ScoreAnalyzer:
 
     # ───────────────────────── DEĞERLEME ─────────────────────────
 
-    def degerleme_carpanlari(self, market_cap: Optional[float], fin: dict,
-                             sektor: str) -> dict:
+    def _carpan_referanslari(self, sektor: str) -> dict:
         """
-        YENİ: F/K, PD/DD ve FD/FAVÖK oranlarını sektör ortalamasıyla
-        birlikte, KULLANICIYA GÖSTERİLECEK biçimde döndürür.
+        Çarpanların neyle kıyaslanacağını döndürür.
 
-        Puanlama zaten bu oranları hesaplıyordu ama sonuç sadece skora
-        gömülüyordu. Yatırımcının "bu fiyat pahalı mı ucuz mu?"
-        sorusuna doğrudan cevap görmesi gerekir.
+        - Finans (banka/sigorta): BIST finans medyanı.
+        - GYO: F/K anlamlı değil (kârın çoğu gayrimenkul değerleme farkı);
+          PD/DD BIST 100 medyanıyla kıyaslanır (GYO'lar tipik olarak defter
+          değerine yakın ya da iskontolu işlem görür).
+        - Diğerleri: geçmiş halka arzların medyanı. Bir halka arzın "pahalı"
+          olup olmadığını en iyi, benzer koşullarda fiyatlanan diğer halka
+          arzlar gösterir.
         """
-        prof = self._profil(sektor)
+        emsal = GECMIS.emsal_carpanlar()
+        bist = GECMIS.bist100_medyan()
+        if sektor == "FİNANS":
+            f = GECMIS.ozet.get("finans_medyan") or FINANS_VARSAYILAN
+            ad = "BIST finans medyanı"
+            return {"fk": (f["fk"], ad), "pddd": (f["pddd"], ad)}
+        if sektor == "GYO":
+            return {"fk": None,
+                    "pddd": (bist.get("pddd") or 0.8, "BIST 100 medyanı")}
+        ad = "geçmiş halka arzların medyanı"
+        return {"fk": (emsal["fk"], ad), "pddd": (emsal["pddd"], ad)}
+
+    @staticmethod
+    def _oran_yorumu(oran: float) -> tuple[str, float]:
+        """deger/referans oranı -> (etiket, puan çarpanı)."""
+        if oran <= 0.75:
+            return ("Emsallerin altında", 1.0)
+        if oran <= 1.25:
+            return ("Emsallere yakın", 0.6)
+        if oran <= 2.0:
+            return ("Emsallerin üzerinde", 0.2)
+        return ("Emsallerin çok üzerinde", 0.0)
+
+    def degerleme_carpanlari(self, market_cap: Optional[float], fin: dict,
+                             sektor: str, birincil_tutar: float = 0.0) -> dict:
+        """
+        F/K, PD/DD ve FD/FAVÖK oranlarını emsalleriyle birlikte,
+        KULLANICIYA GÖSTERİLECEK biçimde döndürür. Puanlama da bu
+        çıktıyı kullanır (tek hesap, iki kullanım).
+
+        DÜZELTME (v4) — halka arz SONRASI bilanço:
+        Piyasa değeri halka arz sonrası (yeni paylar dahil) hesaplanıyor,
+        ama özkaynak ve net borç halka arz ÖNCESİ bilançodan geliyordu.
+        Sermaye artırımıyla şirkete girecek para özkaynağı büyütür, net
+        borcu azaltır. Bunu hesaba katmamak PD/DD'yi ve FD/FAVÖK'ü olduğundan
+        yüksek (şirketi olduğundan pahalı) gösteriyordu.
+        """
+        ref = self._carpan_referanslari(sektor)
         bayat, _ = TextUtils.sektor_verisi_bayat_mi()
         sonuc: dict = {
             "sektor": sektor,
             "sektor_verisi_bayat": bayat,
             "carpanlar": [],
             "genel_yorum": "",
+            "bist100_medyan": GECMIS.bist100_medyan() or None,
         }
         if not market_cap:
             sonuc["genel_yorum"] = (
                 "Piyasa değeri hesaplanamadığı için değerleme yapılamadı "
-                "(fiyat veya pay sayısı eksik)."
+                "(fiyat, pay sayısı veya halka açıklık oranı eksik)."
             )
             return sonuc
 
         sonuc["piyasa_degeri"] = round(market_cap, 0)
         sonuc["piyasa_degeri_notu"] = (
-            "Şirketin tamamının değeri (halka arz edilen kısım değil)."
+            "Şirketin halka arz sonrası tamamının değeri (halka arz edilen kısım değil)."
         )
         net_kar = fin.get(FinKey.NET_KAR)
         ozk = fin.get(FinKey.OZKAYNAK)
         favok = self._favok_hesapla(fin)
         fin_borc = fin.get(FinKey.FINANSAL_BORC)
         nakit = fin.get(FinKey.NAKIT)
+        birincil = max(0.0, birincil_tutar or 0.0)
+        if birincil:
+            sonuc["duzeltme_notu"] = (
+                f"PD/DD hesabında, sermaye artırımıyla şirkete girecek yaklaşık "
+                f"{TextUtils.sayi_formatla(birincil)} TL özkaynağa eklendi."
+            )
 
-        def _yorumla(deger: float, ortalama: float, ters: bool = False) -> tuple[str, float]:
-            """Sektör ortalamasına göre ucuz/pahalı yorumu ve fark yüzdesi."""
-            if ortalama <= 0:
-                return ("Karşılaştırma yapılamadı", 0.0)
-            fark = ((ortalama - deger) / ortalama) * 100
-            if fark >= 30:
-                return ("Belirgin iskontolu", fark)
-            if fark >= 10:
-                return ("Sektör altında (ucuz)", fark)
-            if fark >= -10:
-                return ("Sektör ortalamasında", fark)
-            if fark >= -30:
-                return ("Sektör üzerinde (primli)", fark)
-            return ("Belirgin primli (pahalı)", fark)
-
-        if net_kar and net_kar > 0:
-            fk = market_cap / net_kar
-            if 0.5 <= fk <= 300:
-                yorum, fark = _yorumla(fk, prof["fk"])
-                sonuc["carpanlar"].append({
-                    "ad": "F/K", "tam_ad": "Fiyat / Kazanç",
-                    "deger": round(fk, 1), "sektor_ortalamasi": prof["fk"],
-                    "yorum": yorum, "fark_yuzde": round(fark, 0),
-                    "aciklama": (
-                        f"Şirketin piyasa değeri, yıllık net kârının "
-                        f"{fk:.1f} katı. Sektör ortalaması ~{prof['fk']:.0f}."
-                    ),
+        def _ekle(ad: str, tam_ad: str, deger: float, anahtar: str, ondalik: int,
+                  cumle: str) -> None:
+            r = ref.get(anahtar)
+            kayit = {
+                "ad": ad, "tam_ad": tam_ad, "deger": round(deger, ondalik),
+                "sektor_ortalamasi": None, "referans_adi": None,
+                "yorum": "Karşılaştırma verisi yok", "fark_yuzde": None,
+                "oran": None, "puan_orani": None, "aciklama": cumle,
+            }
+            if r:
+                ref_deger, ref_ad = r
+                oran = deger / ref_deger
+                yorum, carpan = self._oran_yorumu(oran)
+                kayit.update({
+                    "sektor_ortalamasi": round(ref_deger, ondalik),
+                    "referans_adi": ref_ad, "yorum": yorum,
+                    # Pozitif = emsalden düşük (daha ucuz), negatif = yüksek.
+                    "fark_yuzde": round((1 - oran) * 100, 0),
+                    "oran": round(oran, 2), "puan_orani": carpan,
+                    "aciklama": f"{cumle} Kıyas: {ref_ad} ~{ref_deger:.{ondalik}f}.",
                 })
-        elif net_kar is not None and net_kar <= 0:
+            sonuc["carpanlar"].append(kayit)
+
+        if net_kar is not None and net_kar <= 0:
             sonuc["carpanlar"].append({
-                "ad": "F/K", "tam_ad": "Fiyat / Kazanç",
-                "deger": None, "sektor_ortalamasi": prof["fk"],
+                "ad": "F/K", "tam_ad": "Fiyat / Kazanç", "deger": None,
+                "sektor_ortalamasi": (ref["fk"][0] if ref.get("fk") else None),
+                "referans_adi": (ref["fk"][1] if ref.get("fk") else None),
                 "yorum": "Hesaplanamaz (şirket zararda)",
-                "fark_yuzde": None,
-                "aciklama": "Şirket zarar ettiği için F/K oranı anlamlı değil.",
+                "fark_yuzde": None, "oran": None,
+                # Zarar eden şirket kazanç üzerinden değerlenemez; bu kalem
+                # "ölçülemedi" değil, SIFIR puan sayılır.
+                "puan_orani": 0.0 if ref.get("fk") else None,
+                "aciklama": "Şirket son 12 ayda zarar ettiği için F/K oranı hesaplanamıyor.",
             })
+        elif net_kar and net_kar > 0 and sektor != "GYO":
+            fk = market_cap / net_kar
+            if 0.5 <= fk <= 500:
+                _ekle("F/K", "Fiyat / Kazanç", fk, "fk", 1,
+                      f"Şirketin piyasa değeri, son 12 aylık net kârının {fk:.1f} katı.")
 
         if ozk and ozk > 0:
-            pddd = market_cap / ozk
+            pddd = market_cap / (ozk + birincil)
             if 0.05 <= pddd <= 100:
-                yorum, fark = _yorumla(pddd, prof["pddd"])
-                sonuc["carpanlar"].append({
-                    "ad": "PD/DD", "tam_ad": "Piyasa Değeri / Defter Değeri",
-                    "deger": round(pddd, 2), "sektor_ortalamasi": prof["pddd"],
-                    "yorum": yorum, "fark_yuzde": round(fark, 0),
-                    "aciklama": (
-                        f"Şirkete özkaynağının {pddd:.2f} katı değer biçilmiş. "
-                        f"Sektör ortalaması ~{prof['pddd']:.1f}."
-                    ),
-                })
+                _ekle("PD/DD", "Piyasa Değeri / Defter Değeri", pddd, "pddd", 2,
+                      f"Şirkete halka arz sonrası özkaynağının {pddd:.2f} katı değer biçilmiş.")
 
-        if favok and favok > 0 and prof["fd_favok"] > 0:
-            fd = market_cap + (fin_borc or 0) - (nakit or 0)
+        if favok and favok > 0 and sektor != "FİNANS":
+            fd = market_cap + (fin_borc or 0) - (nakit or 0) - birincil
             fd_favok = fd / favok
             if 0.5 <= fd_favok <= 100:
-                yorum, fark = _yorumla(fd_favok, prof["fd_favok"])
-                sonuc["carpanlar"].append({
-                    "ad": "FD/FAVÖK", "tam_ad": "Firma Değeri / FAVÖK",
-                    "deger": round(fd_favok, 1),
-                    "sektor_ortalamasi": prof["fd_favok"],
-                    "yorum": yorum, "fark_yuzde": round(fark, 0),
-                    "aciklama": (
-                        f"Borç dahil firma değeri, faaliyet nakit üretiminin "
-                        f"{fd_favok:.1f} katı. Sektör ortalaması ~{prof['fd_favok']:.0f}."
-                    ),
-                })
+                _ekle("FD/FAVÖK", "Firma Değeri / FAVÖK", fd_favok, "fd_favok", 1,
+                      f"Borç dahil firma değeri, FAVÖK'ün {fd_favok:.1f} katı.")
 
-        olculen = [c for c in sonuc["carpanlar"] if c.get("fark_yuzde") is not None]
+        olculen = [c for c in sonuc["carpanlar"] if c.get("oran") is not None]
         if not olculen:
             sonuc["genel_yorum"] = (
-                "Değerleme oranları hesaplanamadı; izahnamede yeterli "
+                "Değerleme oranları emsallerle kıyaslanamadı; izahnamede yeterli "
                 "finansal veri bulunamadı."
             )
         else:
-            ort_fark = sum(c["fark_yuzde"] for c in olculen) / len(olculen)
-            if ort_fark >= 25:
-                sonuc["genel_yorum"] = (
-                    "Halka arz fiyatı, sektör benzerlerine göre İSKONTOLU görünüyor."
-                )
-            elif ort_fark >= 8:
-                sonuc["genel_yorum"] = (
-                    "Halka arz fiyatı, sektör ortalamasının bir miktar ALTINDA."
-                )
-            elif ort_fark >= -8:
-                sonuc["genel_yorum"] = (
-                    "Halka arz fiyatı, sektör ortalamasına YAKIN."
-                )
-            elif ort_fark >= -25:
-                sonuc["genel_yorum"] = (
-                    "Halka arz fiyatı, sektör ortalamasının ÜZERİNDE (primli)."
-                )
-            else:
-                sonuc["genel_yorum"] = (
-                    "Halka arz fiyatı, sektör benzerlerine göre PAHALI görünüyor."
-                )
+            ort = sum(c["oran"] for c in olculen) / len(olculen)
+            etiket, _ = self._oran_yorumu(ort)
+            kiyas = olculen[0]["referans_adi"]
+            sonuc["genel_yorum"] = {
+                "Emsallerin altında":
+                    f"Halka arz fiyatındaki çarpanlar, kıyas alınan değerlerin ({kiyas}) ALTINDA.",
+                "Emsallere yakın":
+                    f"Halka arz fiyatındaki çarpanlar, kıyas alınan değerlere ({kiyas}) YAKIN.",
+                "Emsallerin üzerinde":
+                    f"Halka arz fiyatındaki çarpanlar, kıyas alınan değerlerin ({kiyas}) ÜZERİNDE.",
+                "Emsallerin çok üzerinde":
+                    f"Halka arz fiyatındaki çarpanlar, kıyas alınan değerlerin ({kiyas}) "
+                    f"2 katından YÜKSEK.",
+            }[etiket]
             if bayat:
-                sonuc["genel_yorum"] += (
-                    " (Sektör ortalamaları güncel olmayabilir.)"
-                )
+                sonuc["genel_yorum"] += " (Emsal verisi güncel olmayabilir.)"
         return sonuc
 
     def degerleme_puanla(self, market_cap: Optional[float], fin: dict, sektor: str,
-                         kirmizi_bayraklar: list) -> ScoreResult:
+                         kirmizi_bayraklar: list,
+                         birincil_tutar: float = 0.0) -> ScoreResult:
         """
-        DEĞİŞİKLİK: F/K ve PD/DD yanına FD/FAVÖK eklendi.
-        Ayrıca sektör çarpanları bayatladığında bu boyutun ağırlığı
-        düşürülüyor — güncelliği bilinmeyen bir referansla kesin
-        hüküm vermemek için.
+        Değerleme puanı: F/K ve PD/DD, emsal medyanına oranına göre puanlanır.
+
+            oran ≤ 0,75  -> tam puan      (emsallerin belirgin altında)
+            oran ≤ 1,25  -> %60           (emsallere yakın)
+            oran ≤ 2,00  -> %20           (emsallerin üzerinde)
+            oran > 2,00  -> 0             (emsallerin 2 katından yüksek)
+
+        Zarar eden şirkette F/K "ölçülemedi" sayılmaz, 0 puan alır.
+        Emsal verisi bayatladığında bu boyutun ağırlığı düşürülür.
         """
-        puan, mx, aciklamalar, has_data = 0.0, 0.0, [], False
-        prof = self._profil(sektor)
+        if not market_cap:
+            return ScoreResult(0, 0, "Piyasa değeri hesaplanamadı (fiyat/pay sayısı/açıklık eksik).", False)
+
         bayat, _ = TextUtils.sektor_verisi_bayat_mi()
         guven_carpani = 0.6 if bayat else 1.0
+        agirliklar = {"F/K": self.weights.DEGERLEME_FK, "PD/DD": self.weights.DEGERLEME_PDDD}
+        puan, mx, aciklamalar = 0.0, 0.0, []
 
-        if not market_cap:
-            return ScoreResult(0, 0, "Piyasa değeri hesaplanamadı (fiyat/pay sayısı eksik).", False)
+        for c in self.degerleme_carpanlari(market_cap, fin, sektor, birincil_tutar)["carpanlar"]:
+            agirlik = agirliklar.get(c["ad"])
+            if agirlik is None or c.get("puan_orani") is None:
+                continue
+            agirlik *= guven_carpani
+            mx += agirlik
+            puan += agirlik * c["puan_orani"]
+            if c["deger"] is None:
+                aciklamalar.append("Şirket zararda, kazanca göre değerlenemiyor.")
+                continue
+            aciklamalar.append(
+                f"{c['ad']} {c['deger']} ({c['yorum'].lower()}; {c['referans_adi']} "
+                f"~{c['sektor_ortalamasi']})."
+            )
+            if c["ad"] == "F/K" and c["oran"] > 2.0:
+                kirmizi_bayraklar.append(
+                    f"🚨 F/K oranı ({c['deger']}) kıyas alınan değerin 2 katından yüksek."
+                )
 
-        net_kar = fin.get(FinKey.NET_KAR)
-        ozk = fin.get(FinKey.OZKAYNAK)
-        favok = self._favok_hesapla(fin)
-        finansal_borc = fin.get(FinKey.FINANSAL_BORC)
-        nakit = fin.get(FinKey.NAKIT)
-
-        if net_kar and net_kar > 0:
-            fk = market_cap / net_kar
-            if 1.0 <= fk <= 250.0:
-                has_data = True
-                agirlik = self.weights.DEGERLEME_FK * guven_carpani
-                mx += agirlik
-                ort = prof["fk"]
-                fark = ((ort - fk) / ort) * 100
-                if fark > 15:
-                    puan += agirlik
-                    aciklamalar.append(f"Sektör ortalamasına göre iskontolu F/K ({fk:.1f} vs ~{ort:.0f}).")
-                elif -15 <= fark <= 15:
-                    puan += agirlik * 0.6
-                    aciklamalar.append(f"Sektör ortalamasına yakın F/K ({fk:.1f}).")
-                else:
-                    aciklamalar.append(f"Sektörüne göre primli F/K ({fk:.1f} vs ~{ort:.0f}).")
-                    if fark < -50:
-                        kirmizi_bayraklar.append(
-                            f"🚨 F/K oranı sektör ortalamasının çok üzerinde ({fk:.1f})."
-                        )
-
-        if ozk and ozk > 0:
-            pddd = market_cap / ozk
-            if 0.2 <= pddd <= 50.0:
-                has_data = True
-                agirlik = self.weights.DEGERLEME_PDDD * guven_carpani
-                mx += agirlik
-                ort = prof["pddd"]
-                fark = ((ort - pddd) / ort) * 100
-                if fark > 10:
-                    puan += agirlik
-                    aciklamalar.append(f"Cazip PD/DD ({pddd:.2f} vs ~{ort:.1f}).")
-                elif -10 <= fark <= 10:
-                    puan += agirlik * 0.6
-                    aciklamalar.append(f"Makul PD/DD ({pddd:.2f}).")
-                else:
-                    aciklamalar.append(f"Yüksek PD/DD ({pddd:.2f} vs ~{ort:.1f}).")
-
-        # YENİ: FD/FAVÖK — sermaye yapısından bağımsız değerleme çarpanı
-        if favok and favok > 0 and prof["fd_favok"] > 0:
-            firma_degeri = market_cap + (finansal_borc or 0) - (nakit or 0)
-            fd_favok = firma_degeri / favok
-            if 0.5 <= fd_favok <= 60:
-                has_data = True
-                agirlik = self.weights.DEGERLEME_FD_FAVOK * guven_carpani
-                mx += agirlik
-                ort = prof["fd_favok"]
-                fark = ((ort - fd_favok) / ort) * 100
-                if fark > 15:
-                    puan += agirlik
-                    aciklamalar.append(f"FD/FAVÖK sektör altında ({fd_favok:.1f} vs ~{ort:.0f}).")
-                elif -15 <= fark <= 15:
-                    puan += agirlik * 0.6
-                    aciklamalar.append(f"FD/FAVÖK sektör ortalamasında ({fd_favok:.1f}).")
-                else:
-                    aciklamalar.append(f"FD/FAVÖK sektör üzerinde ({fd_favok:.1f} vs ~{ort:.0f}).")
-
-        if not has_data:
+        if mx <= 0:
             return ScoreResult(0, 0, "Değerleme çarpanları hesaplanamadı.", False)
-
         if bayat:
-            aciklamalar.append("(Sektör çarpanları güncel olmadığı için bu boyutun ağırlığı düşürüldü.)")
-        return ScoreResult(round(puan, 1), mx, " ".join(aciklamalar), True)
+            aciklamalar.append("(Emsal verisi güncel olmadığı için bu boyutun ağırlığı düşürüldü.)")
+        return ScoreResult(round(puan, 1), round(mx, 1), " ".join(aciklamalar), True)
 
     # ───────────────────────── FON KULLANIMI ─────────────────────────
 
@@ -1391,22 +1409,52 @@ class ScoreAnalyzer:
     # ───────────────────── DİĞER BOYUTLAR ─────────────────────
 
     def arz_yapisi_puanla(self, metin: str, kirmizi_bayraklar: list, ceza_sozlugu: dict) -> ScoreResult:
+        """
+        Halka arz gelirinin ne kadarı şirkete giriyor?
+
+        DEĞİŞİKLİK (v4): Eskiden "kısmi ortak satışı" oranına bakılmaksızın
+        sabit %40 puan alıyordu; payların %5'ini satan ortakla %50'sini
+        satan aynı sayılıyordu. Artık puan, şirkete giren payla orantılı.
+        """
         mx = self.weights.MAX[Category.ARZ_YAPISI]
         if not metin or TextUtils.normalize(metin) in ("-", "açıklanmadı"):
             return ScoreResult(0, 0, "Arz yapısı belirsiz.", False)
 
+        birincil, ortak = TextUtils.arz_sekli_coz(metin)
+        if birincil + ortak > 0:
+            ortak_orani = ortak / (birincil + ortak)
+            if ortak_orani >= 0.999:
+                kirmizi_bayraklar.append(
+                    "🚨 Tamamen ortak satışı: halka arz geliri şirketin kasasına girmiyor."
+                )
+                ceza_sozlugu["ortak_satis"] = 15
+                return ScoreResult(0, mx, "Tamamen ortak satışı.", True)
+            if ortak_orani <= 0.001:
+                return ScoreResult(mx, mx, "Tamamen sermaye artırımı (fon şirkete giriyor).", True)
+            if ortak_orani > 0.5:
+                kirmizi_bayraklar.append(
+                    f"🚨 Halka arz gelirinin %{ortak_orani * 100:.0f}'i şirkete değil, "
+                    f"pay satan ortaklara gidiyor."
+                )
+                ceza_sozlugu["ortak_satis"] = 6
+            return ScoreResult(
+                round(mx * (1 - ortak_orani), 1), mx,
+                f"Gelirin %{(1 - ortak_orani) * 100:.0f}'i şirkete (sermaye artırımı), "
+                f"%{ortak_orani * 100:.0f}'i satan ortaklara gidiyor.", True)
+
+        # Lot yazılmamışsa anahtar kelimelerle kaba ayrım.
         m_lower = TextUtils.kucult(metin)
         olumsuz = re.sub(
             r"(ortak satış[ıi]?|mevcut pay satış[ıi]?)\s*[^.]{0,15}\b(yok|bulunmuyor|bulunmamaktadır)\b",
             "", m_lower
         )
-        ortak = "ortak satış" in olumsuz or "mevcut pay satış" in olumsuz
+        ortak_var = "ortak satış" in olumsuz or "mevcut pay satış" in olumsuz
 
-        if "sermaye artırımı" in m_lower and not ortak:
+        if "sermaye artırımı" in m_lower and not ortak_var:
             return ScoreResult(mx, mx, "Tamamen sermaye artırımı (fon şirkete giriyor).", True)
-        if "sermaye artırımı" in m_lower and ortak:
-            return ScoreResult(mx * 0.4, mx, "Kısmi ortak satışı mevcut.", True)
-        if ortak:
+        if "sermaye artırımı" in m_lower and ortak_var:
+            return ScoreResult(mx * 0.5, mx, "Kısmi ortak satışı mevcut (oran belirtilmemiş).", True)
+        if ortak_var:
             kirmizi_bayraklar.append(
                 "🚨 Tamamen ortak satışı: halka arz geliri şirketin kasasına girmiyor."
             )
@@ -1451,39 +1499,71 @@ class ScoreAnalyzer:
 
     def kurumsallik_puanla(self, raw_text: str,
                            kurulus_yili: Optional[int] = None) -> ScoreResult:
+        """
+        DEĞİŞİKLİK (v4): Yalnızca şirketin yaşı puanlanıyor.
+
+        Eski sürüm sayfa metninde "bağımsız denetim", "kurumsal yönetim",
+        "iso", "sürdürülebilirlik" kelimelerini arayıp puan veriyordu. Oysa
+        halka arz olan HER şirket zaten bağımsız denetimden geçmek zorunda;
+        bu kelimeler şirketin kalitesini değil, tanıtım metninin uzunluğunu
+        ölçüyordu. Geriye dönük testte de hiçbir sonuçla ilişkisi çıkmadı.
+        """
         mx = self.weights.MAX[Category.KURUMSALLIK]
         m = TextUtils.kucult(raw_text)
-        # DÜZELTME: Kuruluş yılı artık öncelikle sayfadaki .shc-founded
-        # alanından geliyor. Metin kalıbı ("2017 yılında ... kurulan")
-        # araya uzun cümleler girdiği için çoğu sayfada eşleşmiyordu.
         yillar = [int(y) for y in re.findall(r"(19[5-9]\d|20\d\d)\s*yılında\s*kurul", m)]
         if kurulus_yili:
             yillar.append(kurulus_yili)
-        puan, aciklamalar = 0.0, []
+        if not yillar:
+            return ScoreResult(0, 0, "Kuruluş yılı bulunamadı.", False)
 
-        if yillar:
-            yas = datetime.now().year - min(yillar)
-            if yas >= 20:
-                puan += mx * 0.5
-                aciklamalar.append(f"Köklü geçmiş (~{yas} yıl).")
-            elif yas >= 10:
-                puan += mx * 0.3
-                aciklamalar.append(f"Yerleşik kurumsal yapı (~{yas} yıl).")
-
-        if any(k in m for k in ["bağımsız denetim", "kurumsal yönetim"]):
-            puan += mx * 0.2
-            aciklamalar.append("Bağımsız denetim/kurumsal yönetim yapısı.")
-        if any(k in m for k in ["iso ", "esg", "sürdürülebilirlik"]):
-            puan += mx * 0.3
-            aciklamalar.append("Sürdürülebilirlik/sertifikasyon vizyonu.")
-
-        if not aciklamalar:
-            return ScoreResult(0, 0, "Kurumsallık verisi bulunamadı.", False)
-        return ScoreResult(round(min(mx, puan), 1), mx, " ".join(aciklamalar), True)
+        yas = datetime.now().year - min(yillar)
+        if yas >= 20:
+            return ScoreResult(mx, mx, f"Köklü geçmiş (~{yas} yıl).", True)
+        if yas >= 10:
+            return ScoreResult(round(mx * 0.6, 1), mx, f"Yerleşik şirket (~{yas} yıl).", True)
+        if yas >= 5:
+            return ScoreResult(round(mx * 0.3, 1), mx, f"Görece genç şirket (~{yas} yıl).", True)
+        return ScoreResult(0, mx, f"Çok genç şirket (~{max(yas, 0)} yıl): faaliyet geçmişi kısa.", True)
 
     # ═══════════════════════════════════════════════════════════
-    # 🔥 YENİ: İLK GÜN SATIŞ BASKISI MODELİ
+    # 🔥 KISA VADE MODELİ  (geriye dönük test edilmiş)
     # ═══════════════════════════════════════════════════════════
+    #
+    # 2023-2026 arasında tamamlanan ve fiyat verisi bulunan ~100 halka arzın
+    # gerçek sonuçlarıyla sınandı (araclar/geriye_donuk_test.py). Tavan serisi
+    # uzunluğuyla sıra korelasyonları (Spearman):
+    #
+    #   kişi başı dağıtılan tutar (son arzlara göre)   −0,40   ← en güçlü etken
+    #   BIST 100'ün son 60 günlük getirisi             +0,41
+    #   arz büyüklüğü (son arzlara göre)               −0,21
+    #   temel kalite skoru (diğerlerinden arta kalan)  +0,32
+    #   halka arz iskontosu                            −0,08   (etkisiz)
+    #   ortak satışı oranı                             −0,02   (etkisiz)
+    #   aynı dönemdeki rakip arz sayısı                −0,09   (etkisiz)
+    #   fiyat istikrarı taahhüdü                       fark yok
+    #
+    # Eski model iskontoya, sektöre, rakip arzlara ve fiyat istikrarına puan
+    # veriyor, piyasa momentumuna hiç bakmıyordu. Etkisiz çıkanlar modelden
+    # çıkarıldı. Yeni göstergenin tavan sayısıyla korelasyonu ~0,55 (eskisi
+    # 0,36) ve 2023, 2024, 2025, 2026 yıllarının her birinde ayrı ayrı pozitif.
+    #
+    # Katsayılar bilerek yuvarlak bırakıldı: ~100 gözlemle ince ayar yapmak
+    # geçmişe aşırı uydurma olur. Ağırlıklar ±%50 oynatıldığında sonuç
+    # değişmiyor; modelin dayanağı etkenlerin yönü, katsayıların kesinliği değil.
+    KV_OLCEK_TL: ClassVar[float] = 0.65        # ln(kişi başı / referans) ölçeği
+    KV_OLCEK_ARZ: ClassVar[float] = 0.65       # ln(arz / referans) ölçeği
+    KV_MOM_MERKEZ: ClassVar[float] = 0.10      # nötr sayılan 60 günlük endeks getirisi
+    KV_OLCEK_MOM: ClassVar[float] = 0.18
+    KV_KALITE_MERKEZ: ClassVar[float] = 55.0
+    KV_OLCEK_KALITE: ClassVar[float] = 13.0
+    KV_AGIRLIK: ClassVar[dict[str, float]] = {
+        "kisi_basi": -1.0, "momentum": 0.75, "arz": -0.3, "kalite": 0.4,
+    }
+    KV_PUAN_CARPANI: ClassVar[float] = 16.0
+
+    @staticmethod
+    def _kirp(x: float, alt: float = -2.5, ust: float = 2.5) -> float:
+        return max(alt, min(ust, x))
 
     def ilk_gun_satis_baskisi(
         self,
@@ -1496,47 +1576,38 @@ class ScoreAnalyzer:
         olasi_lot: Optional[list[dict]] = None,
     ) -> dict:
         """
-        YENİ MODEL — bu bölüm doğrudan Albayrak Beton gözleminden doğdu.
+        İlk günlerde satış gelme eğilimini ölçer (0-100).
 
-        Mekanizma:
-          Büyük bir arz + tamamen bireysel eşit dağıtım
-            -> kişi başına yüksek miktarda lot düşer
-            -> aynı hafta başka arzlar da varsa toplam talep bölünür,
-               kişi başı düşen lot daha da artar
-            -> ilk gün çok sayıda yatırımcının elinde satılabilir
-               büyüklükte pozisyon olur
-            -> kâr satışı arzı, tavan alıcısını kırar.
+        Mekanizma: Eşit dağıtımda herkes aynı miktarı alır. Kişi başına düşen
+        tutar büyüdükçe, ilk gün satılabilecek "elde tutmaya değmeyecek kadar
+        küçük olmayan" pozisyon sayısı artar; tavandaki alıcı emirleri bu
+        arzı karşılayamaz. Geçmiş veride kişi başı tutarı son arzların
+        medyanının 2 katını aşan arzların ~%40'ı hiç tavan yapmadı; yarısının
+        altında kalanlarda bu oran ~%3.
 
-        ÖNEMLİ: Bu bir OLASILIK sinyalidir, kesin bir tahmin değildir.
-        Bu yüzden çıktı ayrı bir "baskı skoru" + uyarı metni olarak
-        veriliyor; temel kalite skorunu kirletmiyor, yalnızca kısa
-        vadeli "tavan potansiyeli"ni aşağı çekiyor.
+        Bu bir OLASILIK göstergesidir, kesin tahmin değildir.
         """
         gerekceler: list[str] = []
-        baski = 0.0
+        import math
 
-        dagitim_metni = " ".join([
+        dagitim_metni = TextUtils.kucult(" ".join([
             str(veri.get(InfoKey.DAGITIM_YONTEMI, "")),
             str(veri.get(InfoKey.DAGITIM_TIPI, "")),
             str(veri.get(InfoKey.DAGITIM_TABLOSU, "")),
             str(veri.get(InfoKey.SATIS_YONTEMI, "")),
-        ])
-        dagitim_metni = TextUtils.kucult(dagitim_metni)
+        ]))
         tahsisat_metni = TextUtils.kucult(str(veri.get(InfoKey.TAHSISAT, "")))
         rt = TextUtils.kucult(raw_text)
 
-        # 1) Eşit dağıtım mı?
         esit_dagitim = any(k in dagitim_metni or k in rt for k in [
             "eşit dağıtım", "eşit olarak dağıt", "eşit dagitim"
         ])
-        # 2) Tamamen bireysel mi? (kurumsal/yurt dışı tahsisat yoksa)
         kurumsal_var = any(k in tahsisat_metni or k in rt for k in [
             "yurt içi kurumsal", "yurtiçi kurumsal", "yurt dışı kurumsal",
             "yurtdışı kurumsal", "kurumsal yatırımcı"
         ])
-        # DÜZELTME: Kaynak site yüzdeyi etiketten ÖNCE yazıyor:
+        # Kaynak site yüzdeyi etiketten ÖNCE yazıyor:
         #   "28.987.770 Lot (%60) Yurt İçi Bireysel Yatırımcı"
-        # Önceki kalıp yüzdeyi etiketten sonra aradığı için hiç eşleşmiyordu.
         bireysel_yuzdesi = None
         aranan = tahsisat_metni + " " + rt
         for kalip in (
@@ -1553,110 +1624,106 @@ class ScoreAnalyzer:
         tamamen_bireysel = (bireysel_yuzdesi is not None and bireysel_yuzdesi >= 95) or (
             bireysel_yuzdesi is None and not kurumsal_var and "bireysel" in aranan
         )
-
-        # 3) Arz büyüklüğü
-        buyuk = bool(arz_buyuklugu and arz_buyuklugu >= SETTINGS.BUYUK_ARZ_ESIGI)
-        cok_buyuk = bool(arz_buyuklugu and arz_buyuklugu >= SETTINGS.COK_BUYUK_ARZ_ESIGI)
-
-        # 4) Aynı hafta rakip arz sayısı -> talebin bölünmesi
         rakip = max(0, baglam.ayni_hafta_arz_sayisi - 1)
 
-        # 5) Kişi başı tahmini dağıtım tutarı (asıl sinyal)
-        # Rakip arz varsa katılımcı talebi bölünür varsayımı.
-        etkin_katilimci = SETTINGS.TAHMINI_KATILIMCI / (1 + 0.25 * rakip)
+        # ── Beklenen katılımcı: son arzların GERÇEK katılımı ──
+        if SETTINGS.TAHMINI_KATILIMCI > 0:
+            katilimci, katilimci_kaynagi = SETTINGS.TAHMINI_KATILIMCI, "elle ayarlanmış"
+        else:
+            katilimci, katilimci_kaynagi = GECMIS.beklenen_katilimci(baglam.referans_tarih)
+
+        # ── Kişi başı tahmini dağıtım ──
         kisi_basi_tutar = None
         kisi_basi_lot = None
         tutar_kaynagi = None
-
-        # ÖNCELİK 1 (YENİ): Kaynak sitenin kendi yayınladığı olası dağıtım
-        # tablosu. Bu tablo bireysel tahsisat üzerinden hesaplandığı için
-        # benim kaba tahminimden çok daha doğru. Beklenen katılımcı
-        # sayısına en yakın satır seçiliyor.
         if olasi_lot:
-            en_yakin = min(olasi_lot, key=lambda r: abs(r["katilimci"] - etkin_katilimci))
+            # Kaynak sitenin kendi senaryo tablosu: beklenen katılıma en yakın satır.
+            en_yakin = min(olasi_lot, key=lambda r: abs(r["katilimci"] - katilimci))
             kisi_basi_tutar = en_yakin["tutar"]
             kisi_basi_lot = float(en_yakin["lot"])
             tutar_kaynagi = f"kaynak tablo ({en_yakin['katilimci']:,} katılımcı senaryosu)".replace(",", ".")
-
-        # ÖNCELİK 2: Tablo yoksa arz büyüklüğünden tahmin et.
-        # Sadece BİREYSEL tahsisata düşen kısım dağıtılıyor.
-        elif arz_buyuklugu and etkin_katilimci > 0:
+        elif arz_buyuklugu and katilimci > 0:
             bireysel_pay = (bireysel_yuzdesi / 100.0) if bireysel_yuzdesi else 1.0
-            kisi_basi_tutar = (arz_buyuklugu * bireysel_pay) / etkin_katilimci
+            kisi_basi_tutar = (arz_buyuklugu * bireysel_pay) / katilimci
             if fiyat and fiyat > 0:
                 kisi_basi_lot = kisi_basi_tutar / fiyat
-            tutar_kaynagi = "tahmin (arz büyüklüğü ÷ beklenen katılımcı)"
+            tutar_kaynagi = f"tahmin (bireysel tahsisat ÷ {katilimci:,} katılımcı)".replace(",", ".")
 
-        # ── Puanlama ──
-        if esit_dagitim:
-            baski += 10
-            gerekceler.append("Dağıtım eşit yöntemle yapılıyor.")
-        if tamamen_bireysel:
-            baski += 10
-            gerekceler.append("Tahsisat neredeyse tamamen bireysel yatırımcıya ayrılmış.")
-        elif bireysel_yuzdesi is not None and bireysel_yuzdesi >= 60:
-            baski += 5
-            gerekceler.append(
-                f"Tahsisatın %{bireysel_yuzdesi:.0f}'i bireysel yatırımcıya ayrılmış "
-                f"(kurumsal pay {100 - bireysel_yuzdesi:.0f}%)."
-            )
-        if buyuk:
-            baski += 15
-            gerekceler.append(f"Arz büyüklüğü yüksek (~{arz_buyuklugu/1_000_000_000:.1f} milyar TL).")
-        if cok_buyuk:
-            baski += 10
-            gerekceler.append("Arz büyüklüğü çok yüksek: talebin tamamının karşılanması zor.")
-        if rakip >= 1:
-            baski += 12 * min(rakip, 3)
-            gerekceler.append(
-                f"Aynı dönemde {rakip} başka halka arz var "
-                f"({', '.join(baglam.rakip_sirketler[:3])}): bireysel talep bölünüyor."
-            )
-        if kisi_basi_tutar is not None:
-            if kisi_basi_tutar >= SETTINGS.KISI_BASI_KRITIK_TUTAR:
-                baski += 25
-                gerekceler.append(
-                    f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
-                    + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
-                    + f" [{tutar_kaynagi}]: ilk gün kâr satışı baskısı çok yüksek."
-                )
-            elif kisi_basi_tutar >= SETTINGS.KISI_BASI_YUKSEK_TUTAR:
-                baski += 15
-                gerekceler.append(
-                    f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL"
-                    + (f" (~{kisi_basi_lot:,.0f} lot)" if kisi_basi_lot else "")
-                    + f" [{tutar_kaynagi}]: ilk gün satış baskısı yüksek."
-                )
+        ref_tl, _ = GECMIS.referans_kisi_basi_tl(baglam.referans_tarih)
+        ref_arz, _ = GECMIS.referans_arz(baglam.referans_tarih)
+        tl_rel = math.log(kisi_basi_tutar / ref_tl) if kisi_basi_tutar and kisi_basi_tutar > 0 else None
+        arz_rel = math.log(arz_buyuklugu / ref_arz) if arz_buyuklugu and arz_buyuklugu > 0 else None
 
-        # Fiyat istikrarı taahhüdü baskıyı bir miktar dengeler
-        ist = TextUtils.kucult(str(veri.get(InfoKey.FIYAT_ISTIKRARI, "")))
-        istikrar_var = bool(ist) and ist not in ("-", "açıklanmadı") and \
-            "planlanmamaktadır" not in ist and ist != "yok"
-        if istikrar_var and baski > 0:
-            baski -= 10
-            gerekceler.append("Fiyat istikrarı işlemi planlanmış (baskıyı kısmen dengeler).")
+        if tl_rel is None and arz_rel is None:
+            return {
+                "skor": 0.0, "seviye": "Belirsiz", "uyari": "", "gerekceler": [],
+                "esit_dagitim": esit_dagitim, "tamamen_bireysel": tamamen_bireysel,
+                "kisi_basi_tutar_kaynagi": None, "bireysel_tahsisat_yuzdesi": bireysel_yuzdesi,
+                "kisi_basi_tahmini_tutar": None, "kisi_basi_tahmini_lot": None,
+                "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
+                "beklenen_katilimci": katilimci, "katilimci_kaynagi": katilimci_kaynagi,
+                "referans_kisi_basi_tutar": round(ref_tl), "tl_rel": None, "arz_rel": None,
+            }
 
+        # Kişi başı tutar bilinmiyorsa arz büyüklüğü onun yerine geçer.
+        ana = tl_rel if tl_rel is not None else arz_rel
+        baski = 45.0 + 27.0 * self._kirp(ana / self.KV_OLCEK_TL)
+        if arz_rel is not None:
+            baski += 9.0 * self._kirp(arz_rel / self.KV_OLCEK_ARZ)
         baski = round(max(0.0, min(100.0, baski)), 1)
 
-        if baski >= 65:
+        if kisi_basi_tutar is not None:
+            kat = kisi_basi_tutar / ref_tl
+            kiyas = ("yaklaşık aynı" if 0.85 <= kat <= 1.18
+                     else f"{kat:.1f} katı" if kat > 1 else f"%{kat * 100:.0f}'i")
+            gerekceler.append(
+                f"Tahmini kişi başı dağıtım ~{kisi_basi_tutar:,.0f} TL".replace(",", ".")
+                + (f" (~{kisi_basi_lot:,.0f} lot)".replace(",", ".") if kisi_basi_lot else "")
+                + f"; son arzlarda kişi başına düşen tutarın medyanı "
+                + f"~{ref_tl:,.0f} TL ({kiyas}).".replace(",", ".")
+            )
+            gerekceler.append(
+                f"Beklenen katılım ~{katilimci:,} kişi ({katilimci_kaynagi}).".replace(",", ".")
+            )
+        if arz_rel is not None:
+            kat = arz_buyuklugu / ref_arz
+            if kat >= 1.4:
+                gerekceler.append(
+                    f"Arz büyüklüğü (~{arz_buyuklugu / 1e9:.1f} milyar TL) son arzların "
+                    f"medyanının {kat:.1f} katı."
+                )
+            elif kat <= 0.7:
+                gerekceler.append(
+                    f"Arz büyüklüğü (~{arz_buyuklugu / 1e9:.2f} milyar TL) son arzların "
+                    f"medyanının altında."
+                )
+        if esit_dagitim:
+            gerekceler.append("Dağıtım eşit yöntemle yapılıyor.")
+        if rakip >= 1:
+            # Bilgi amaçlı: geçmiş veride rakip arz sayısının ölçülebilir etkisi yok.
+            gerekceler.append(
+                f"Aynı dönemde {rakip} başka halka arz var "
+                f"({', '.join(baglam.rakip_sirketler[:3])})."
+            )
+
+        if baski >= 85:
             seviye = "Çok Yüksek"
             uyari = (
-                "⚠️ İLK GÜN SATIŞ BASKISI ÇOK YÜKSEK: Büyük arz büyüklüğü, eşit/bireysel "
-                "dağıtım ve bölünmüş talep bir arada. Kişi başına yüksek miktarda lot düşmesi "
-                "beklendiği için ilk gün yoğun kâr satışı görülebilir; tavan serisi "
-                "beklentisi bu arzda zayıftır."
+                "⚠️ İLK GÜN SATIŞ BASKISI ÇOK YÜKSEK: Kişi başına düşen tutar son "
+                "arzlara göre çok yüksek. Geçmişte bu yapıdaki arzların önemli bir "
+                "bölümü hiç tavan yapmadı veya ilk günü ekside kapattı."
             )
-        elif baski >= 40:
+        elif baski >= 65:
             seviye = "Yüksek"
             uyari = (
-                "⚠️ İLK GÜN SATIŞ BASKISI YÜKSEK: Dağıtım yapısı ve arz büyüklüğü, ilk günde "
-                "satış gelmesini kolaylaştırıyor. Tavan serisi beklentisini temkinli kurun."
+                "⚠️ İLK GÜN SATIŞ BASKISI YÜKSEK: Kişi başına düşen tutar son arzların "
+                "üzerinde. Geçmişte benzer arzlarda ilk günlerde daha fazla satış görüldü."
             )
-        elif baski >= 20:
+        elif baski >= 25:
             seviye = "Orta"
             uyari = (
-                "ℹ️ İlk gün satış baskısı orta seviyede: dağıtım yapısı kaynaklı bir miktar "
-                "arz gelmesi beklenebilir."
+                "ℹ️ İlk gün satış baskısı orta seviyede: kişi başına düşen tutar son "
+                "arzlarla benzer düzeyde."
             )
         else:
             seviye = "Düşük"
@@ -1674,6 +1741,68 @@ class ScoreAnalyzer:
             "kisi_basi_tahmini_tutar": round(kisi_basi_tutar, 0) if kisi_basi_tutar else None,
             "kisi_basi_tahmini_lot": round(kisi_basi_lot, 0) if kisi_basi_lot else None,
             "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
+            "beklenen_katilimci": katilimci,
+            "katilimci_kaynagi": katilimci_kaynagi,
+            "referans_kisi_basi_tutar": round(ref_tl),
+            "tl_rel": tl_rel,
+            "arz_rel": arz_rel,
+        }
+
+    def kisa_vade_gostergesi(self, baski: dict, baglam: PiyasaBaglami,
+                             temel_kalite: float) -> dict:
+        """
+        Kısa vade göstergesi (0-100): halka arz sonrası ilk haftalardaki fiyat
+        hareketinin, geçmişteki benzer arzlara göre ne kadar güçlü olabileceği.
+
+        skor = 50 + 16 × ( −1,0·z(kişi başı tutar) + 0,75·z(piyasa momentumu)
+                           −0,3·z(arz büyüklüğü) + 0,4·z(temel kalite) )
+
+        Bilinmeyen etken nötr (0) sayılır ve çıktıda belirtilir.
+        """
+        etkenler: list[dict] = []
+        z = 0.0
+
+        def _ekle(anahtar: str, ad: str, zi: Optional[float], aciklama: str) -> None:
+            nonlocal z
+            if zi is None:
+                etkenler.append({"ad": ad, "puan": 0.0, "etki": "bilinmiyor",
+                                 "aciklama": aciklama})
+                return
+            katki = self.KV_AGIRLIK[anahtar] * self._kirp(zi)
+            z += katki
+            puan = round(katki * self.KV_PUAN_CARPANI, 1)
+            etkenler.append({
+                "ad": ad, "puan": puan,
+                "etki": "olumlu" if puan >= 2 else "olumsuz" if puan <= -2 else "nötr",
+                "aciklama": aciklama,
+            })
+
+        tl_rel, arz_rel = baski.get("tl_rel"), baski.get("arz_rel")
+        tutar = baski.get("kisi_basi_tahmini_tutar")
+        _ekle("kisi_basi", "Kişi başı dağıtım",
+              tl_rel / self.KV_OLCEK_TL if tl_rel is not None else None,
+              (f"~{tutar:,.0f} TL; son arzların medyanı ~{baski.get('referans_kisi_basi_tutar', 0):,.0f} TL."
+               .replace(",", ".") if tutar else "Hesaplanamadı (arz büyüklüğü bilinmiyor)."))
+        mom = baglam.bist_mom60
+        _ekle("momentum", "Piyasa momentumu",
+              (mom - self.KV_MOM_MERKEZ) / self.KV_OLCEK_MOM if mom is not None else None,
+              (f"BIST 100 son 60 işlem gününde %{mom * 100:+.0f}." if mom is not None
+               else "Endeks verisine ulaşılamadı; nötr sayıldı."))
+        _ekle("arz", "Arz büyüklüğü",
+              arz_rel / self.KV_OLCEK_ARZ if arz_rel is not None else None,
+              "Son arzların medyanına göre." if arz_rel is not None else "Bilinmiyor.")
+        _ekle("kalite", "Temel kalite",
+              (temel_kalite - self.KV_KALITE_MERKEZ) / self.KV_OLCEK_KALITE,
+              f"Temel kalite skoru {temel_kalite:.0f}/100.")
+
+        olculebilir = tl_rel is not None or arz_rel is not None
+        skor = round(max(3.0, min(97.0, 50.0 + self.KV_PUAN_CARPANI * z)), 1)
+        return {
+            "skor": skor,
+            "olculebilir": olculebilir,
+            "etkenler": etkenler,
+            "benzer_arzlar": (
+                GECMIS.benzer_arzlar(skor, baglam.referans_tarih) if olculebilir else None),
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -1719,6 +1848,18 @@ class ScoreAnalyzer:
             veri.get(InfoKey.BUYUKLUK, "")
         )
 
+        # Sermaye artırımıyla ŞİRKETE girecek tutar (halka arz sonrası
+        # özkaynak ve net borç hesabı için; bkz. degerleme_carpanlari).
+        sekil = veri.get(InfoKey.HALKA_ARZ_SEKLI, "")
+        birincil_lot, ortak_lot = TextUtils.arz_sekli_coz(sekil)
+        birincil_tutar = 0.0
+        if fiyat and birincil_lot > 0:
+            birincil_tutar = fiyat * birincil_lot
+        elif arz_degeri and birincil_lot + ortak_lot == 0:
+            sekil_k = TextUtils.kucult(sekil)
+            if "sermaye artırımı" in sekil_k and "ortak satış" not in sekil_k:
+                birincil_tutar = arz_degeri
+
         # DÜZELTME: Hazırlık/erteleme aşamasında fiyat, pay miktarı,
         # tahsisat gibi hiçbir veri yok. Buna rağmen baskı hesaplanınca
         # Türker Vangölü'nde olduğu gibi dayanaksız bir "İlk gün satış
@@ -1732,6 +1873,7 @@ class ScoreAnalyzer:
                 "kisi_basi_tahmini_tutar": None,
                 "kisi_basi_tahmini_lot": None,
                 "ayni_hafta_arz_sayisi": baglam.ayni_hafta_arz_sayisi,
+                "tl_rel": None, "arz_rel": None,
             }
         else:
             baski = self.ilk_gun_satis_baskisi(
@@ -1743,8 +1885,8 @@ class ScoreAnalyzer:
         bayat, gun = TextUtils.sektor_verisi_bayat_mi()
         if bayat:
             uyarilar.append(
-                f"ℹ️ Değerleme karşılaştırmasında kullanılan sektör çarpanları "
-                f"{gun} gün önceki verilere dayanıyor; değerleme yorumunu bu kısıtla okuyun."
+                f"ℹ️ Kıyaslamada kullanılan geçmiş halka arz verisi {gun} gün önce "
+                f"güncellendi; değerleme ve kısa vade yorumlarını bu kısıtla okuyun."
             )
 
         # Hazırlık ve ertelenme aşamasındaki arzlarda izahname henüz
@@ -1766,6 +1908,8 @@ class ScoreAnalyzer:
                 "guclu": [], "risk_listesi": [], "kirmizi_bayraklar": [],
                 "detaylar": [], "veri_guvenilirligi": 0, "volatilite": "Belirsiz",
                 "sektor": sektor, "baski": baski, "uyarilar": uyarilar,
+                "kisa_vade": {"skor": 0.0, "olculebilir": False, "etkenler": [],
+                              "benzer_arzlar": None},
             }
 
         hesaplamalar = [
@@ -1774,7 +1918,8 @@ class ScoreAnalyzer:
             (Category.BORC_YAPISI, self.borc_puanla(fin, sektor, kirmizi_bayraklar, ceza_sozlugu)),
             (Category.LIKIDITE, self.likidite_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
             (Category.NAKIT_AKISI, self.nakit_akisi_puanla(fin, kirmizi_bayraklar, ceza_sozlugu)),
-            (Category.DEGERLEME, self.degerleme_puanla(market_cap, fin, sektor, kirmizi_bayraklar)),
+            (Category.DEGERLEME, self.degerleme_puanla(
+                market_cap, fin, sektor, kirmizi_bayraklar, birincil_tutar)),
             (Category.FON_KULLANIM, self.fon_kullanim_puanla(
                 veri.get(InfoKey.FON_KULLANIM, ""), fin, kirmizi_bayraklar)),
             (Category.ARZ_YAPISI, self.arz_yapisi_puanla(
@@ -1911,53 +2056,21 @@ class ScoreAnalyzer:
                 "riskler birbirini büyütüyor."
             )
 
-        # ── Tavan potansiyeli ──
-        tavan = 50.0
-        if arz_buyuklugu:
-            if arz_buyuklugu < 500_000_000:
-                tavan += 25
-            elif arz_buyuklugu < 1_000_000_000:
-                tavan += 12
-            elif arz_buyuklugu > SETTINGS.COK_BUYUK_ARZ_ESIGI:
-                tavan -= 20
-            elif arz_buyuklugu > SETTINGS.BUYUK_ARZ_ESIGI:
-                tavan -= 12
+        # ── Kısa vade göstergesi (eski adıyla "tavan potansiyeli") ──
+        # Geriye dönük teste dayalı formül; bkz. kisa_vade_gostergesi.
+        kisa_vade = self.kisa_vade_gostergesi(baski, baglam, temel_kalite)
+        tavan = kisa_vade["skor"]
 
-        if sektor in ("TEKNOLOJİ", "ENERJİ"):
-            tavan += 8
-        isk_val = TextUtils.yuzde_bul(veri.get(InfoKey.ISKONTO, "")) or 0.0
-        if isk_val >= 25:
-            tavan += 8
-        if istikrar_yok:
-            tavan -= 8
-        if ceza_sozlugu.get("ortak_satis"):
-            tavan -= 12
-        if temel_kalite >= 70:
-            tavan += 5
-        elif temel_kalite <= 35 and temel_kalite > 0:
-            tavan -= 8
-
-        # YENİ VE EN ÖNEMLİ DÜZELTME:
-        # İlk gün satış baskısı doğrudan tavan potansiyelini kırıyor.
-        # Albayrak Beton tipi durumda (büyük arz + eşit/bireysel dağıtım
-        # + bölünmüş talep) yüksek kalite skoru artık otomatik olarak
-        # "tavan yapar" beklentisine dönüşmüyor.
-        tavan -= baski["skor"] * 0.45
-        # Taban 3 puan: baskı çok yüksek olsa bile skoru tam 0'a
-        # sabitlemek, farklı kötü senaryoları birbirinden ayırt
-        # edilemez hale getiriyordu.
-        tavan = round(max(3.0, min(100.0, tavan)), 1)
-
-        if baski["skor"] >= 65:
-            volatilite = "Yüksek (İlk gün satış baskısı - aşağı yönlü)"
-        elif tavan > 75:
-            volatilite = "Yüksek (Agresif yukarı hareket potansiyeli)"
+        if baski["skor"] >= 85:
+            volatilite = "Yüksek (ilk günlerde satış baskısı)"
+        elif tavan >= 70:
+            volatilite = "Yüksek (benzer arzlarda sert fiyat hareketi görüldü)"
         elif risk > 60:
-            volatilite = "Yüksek (Aşağı yönlü dalgalanma riski)"
-        elif tavan < 40:
-            volatilite = "Düşük (Ağır tahta - sınırlı hareket)"
+            volatilite = "Yüksek (finansal riskler)"
+        elif tavan < 35:
+            volatilite = "Düşük-Orta (benzer arzlarda sınırlı hareket görüldü)"
         else:
-            volatilite = "Orta (Piyasa ve sektör koşullarına bağlı)"
+            volatilite = "Orta (piyasa koşullarına bağlı)"
 
         risk_listesi: list[str] = []
         for kat, res in hesaplamalar:
@@ -1992,7 +2105,8 @@ class ScoreAnalyzer:
             "olculemeyen_boyutlar": [
                 kat.value for kat, res in hesaplamalar if not res.has_data
             ],
-            "degerleme": self.degerleme_carpanlari(market_cap, fin, sektor),
+            "degerleme": self.degerleme_carpanlari(market_cap, fin, sektor, birincil_tutar),
+            "kisa_vade": kisa_vade,
         }
 
 
@@ -2121,6 +2235,38 @@ class DataExtractor:
             if i < SETTINGS.MAX_RETRY - 1:
                 await asyncio.sleep(1 * (i + 1))
         return None
+
+    async def bist_momentumu(self) -> Optional[float]:
+        """
+        BIST 100'ün son 60 işlem günündeki getirisi (0.12 = %12).
+
+        Geriye dönük testte halka arzların ilk haftalardaki performansıyla en
+        güçlü ilişkili iki etkenden biri (diğeri kişi başı dağıtılan tutar).
+        Veri alınamazsa None döner; model bu etkeni nötr sayar ve bunu
+        çıktıda belirtir. Sonuç ENDEKS_CACHE_TTL saniye önbelleklenir.
+        """
+        simdi = time.time()
+        zaman, deger = getattr(self, "_mom_onbellek", (0.0, None))
+        gecerlilik = SETTINGS.ENDEKS_CACHE_TTL if deger is not None else 900
+        if simdi - zaman < gecerlilik:
+            return deger
+        deger = None
+        try:
+            session = await self._get_session()
+            res = await session.get(SETTINGS.ENDEKS_URL, timeout=10)
+            if res.status_code == 200:
+                sonuc = res.json()["chart"]["result"][0]
+                kapanis = [k for k in sonuc["indicators"]["quote"][0]["close"] if k]
+                if len(kapanis) >= 61 and kapanis[-61] > 0:
+                    deger = kapanis[-1] / kapanis[-61] - 1
+                    if not -0.6 < deger < 2.0:      # bariz veri hatası
+                        deger = None
+            else:
+                logger.warning(f"Endeks verisi alınamadı, durum kodu: {res.status_code}")
+        except Exception as e:
+            logger.warning(f"Endeks verisi alınamadı: {e}")
+        self._mom_onbellek = (simdi, deger)
+        return deger
 
     async def _fetch_bytes(self, url: str) -> Optional[bytes]:
         """
@@ -2445,8 +2591,15 @@ class DataExtractor:
             if veri.get(alan) != self.DEFAULTS.get(alan):
                 continue
             for i, nl in enumerate(normalized_lines):
+                # DÜZELTME: "fiyat" gibi kısa ve genel etiketler önek olarak
+                # eşleşince "Fiyat İstikrarı" başlığı FİYAT alanına okunuyordu.
+                # Taslak bir arzda fiyat "*** gün. * Taslak İzahname, Sayfa 244."
+                # olarak dolmuş, 244 TL fiyat ve 17,7 milyar TL'lik arz
+                # büyüklüğü hesaplanmıştı. 6 karakterden kısa etiketlerde
+                # yalnızca tam eşleşme kabul ediliyor.
                 if any(
-                    nl.startswith(e) and (len(nl) == len(e) or nl[len(e)] in (":", " "))
+                    len(e) >= 6 and nl.startswith(e)
+                    and (len(nl) == len(e) or nl[len(e)] in (":", " "))
                     for e in etiketler
                 ) or nl in etiketler:
                     deger = self._satirdan_deger_al(lines, normalized_lines, i)
@@ -2749,6 +2902,14 @@ class DataExtractor:
             if yedek:
                 veri[InfoKey.ISLEM_TARIHI] = yedek
 
+        # Fiyat alanı para birimi içermiyorsa ve sayıyla başlamıyorsa fiyat
+        # değildir (başka bir bölümün metni karışmıştır); yok sayılır.
+        fiyat_metni = str(veri.get(InfoKey.FIYAT, ""))
+        if fiyat_metni != self.DEFAULTS.get(InfoKey.FIYAT) and not re.search(
+                r"(\d\s*(tl|₺))|(^\s*[\d.,]+\s*$)|(^\s*[\d.,]+\s*[-–]\s*[\d.,]+)",
+                TextUtils.kucult(fiyat_metni)):
+            veri[InfoKey.FIYAT] = self.DEFAULTS[InfoKey.FIYAT]
+
         durum = self._durum_belirle(
             veri.get(InfoKey.TARIH, ""), veri.get(InfoKey.ISLEM_TARIHI, ""),
             raw_text, kart_metni, kesin_dagitim
@@ -2942,17 +3103,23 @@ class DataExtractor:
             # ekranda "satış baskısı düşük" yazarken panelde "Orta · 36"
             # görünüyordu. Artık ikisi de AYNI seviye etiketini kullanıyor.
             seviye = baski.get("seviye", "Belirsiz")
-            if baski["skor"] >= 20:
+            kv = s.get("kisa_vade") or {}
+            if kv.get("olculebilir"):
                 parcalar.append(
-                    f"İlk gün satış baskısı {seviye.lower()} seviyede "
-                    f"({baski['skor']:.0f}/100); kısa vadeli yukarı yönlü hareket "
-                    f"potansiyeli {s['tavan_potansiyeli']}/100 olarak hesaplandı."
+                    f"İlk gün satış baskısı {seviye.lower()} ({baski['skor']:.0f}/100); "
+                    f"kısa vade göstergesi {s['tavan_potansiyeli']:.0f}/100."
                 )
+                b = kv.get("benzer_arzlar")
+                if b:
+                    parcalar.append(
+                        f"Göstergesi benzer olan geçmiş {b['ornek_sayisi']} halka arzda "
+                        f"tavan serisinin medyanı {b['tavan_medyan']:g} gün oldu; "
+                        f"hiç tavan yapmayanların oranı %{b['tavansiz_yuzde']}. "
+                        f"Geçmiş sonuçlar geleceği göstermez."
+                    )
             else:
                 parcalar.append(
-                    f"İlk gün satış baskısı düşük ({baski['skor']:.0f}/100); "
-                    f"kısa vadeli yukarı yönlü hareket potansiyeli "
-                    f"{s['tavan_potansiyeli']}/100 olarak hesaplandı."
+                    "Arz büyüklüğü henüz bilinmediği için kısa vade göstergesi hesaplanamadı."
                 )
 
             # YENİ: Değerleme yorumu da özete giriyor — kullanıcının
@@ -3042,6 +3209,13 @@ class DataExtractor:
             "izahname_durumu": parsed.get("izahname_durumu", "kapali"),
             "izahname_url": parsed.get("izahname_url"),
             "tahmini_volatilite": s["volatilite"],
+            # ── Kısa vade göstergesinin dayanakları (şeffaflık) ──
+            "kisa_vade_olculebilir": (s.get("kisa_vade") or {}).get("olculebilir", False),
+            "kisa_vade_etkenleri": (s.get("kisa_vade") or {}).get("etkenler", []),
+            # Göstergesi benzer olan geçmiş arzların GERÇEK sonuç dağılımı.
+            "benzer_arzlar": (s.get("kisa_vade") or {}).get("benzer_arzlar"),
+            "beklenen_katilimci": baski.get("beklenen_katilimci"),
+            "bist_momentum_60g": baglam.bist_mom60,
             "model_surumu": MODEL_SURUMU,
             # ── YENİ: Lot hesaplayıcı için hazır sayısal değerler ──
             # Uygulama metinden sayı ayıklamaya çalışırken "112.500.000 Lot
@@ -3244,6 +3418,9 @@ class DataExtractor:
         parsed_list = [p for p in parsed_list if p["durum"].value in GOSTERILEN_DURUMLAR]
 
         baglamlar = self._piyasa_baglami_olustur(parsed_list)
+        mom60 = await self.bist_momentumu() if parsed_list else None
+        for b in baglamlar.values():
+            b.bist_mom60 = mom60
 
         sirket_listesi: list[dict] = []
         for p in parsed_list:
@@ -3311,8 +3488,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Uygulama başlatıldı. Model: {MODEL_SURUMU}")
     if bayat:
         logger.warning(
-            f"Sektör çarpanları {gun} gün önceki verilere ait; güncellenmesi önerilir "
-            f"(SEKTOR_VERI_TARIHI ortam değişkeni)."
+            f"Geçmiş arz verisi {gun} gün önce güncellenmiş; yenilenmesi önerilir "
+            f"(python araclar/geriye_donuk_test.py)."
         )
     yield
     await extractor.close()
@@ -3369,15 +3546,20 @@ app.add_middleware(
 
 
 def _meta_bilgisi() -> dict:
-    bayat, gun = TextUtils.sektor_verisi_bayat_mi()
+    g = GECMIS.durum_ozeti()
     return {
         "model_surumu": MODEL_SURUMU,
-        "sektor_veri_tarihi": SEKTOR_VERI_TARIHI,
-        "sektor_verisi_bayat": bayat,
-        "sektor_verisi_yasi_gun": gun,
+        # Eski istemcilerle uyum için alan adları korunuyor.
+        "sektor_veri_tarihi": g["guncelleme"],
+        "sektor_verisi_bayat": g["bayat"],
+        "sektor_verisi_yasi_gun": g["yas_gun"],
+        "gecmis_arz_sayisi": g["kayit_sayisi"],
         "model_notu": (
-            "İlk gün satış baskısı modeli gözleme dayalıdır ve henüz geriye dönük "
-            "test edilmemiştir. Çıktılar tahmin değil, risk uyarısı olarak yorumlanmalıdır."
+            "Kısa vade göstergesi ve ilk gün satış baskısı, 2023'ten bugüne "
+            f"tamamlanan {g['kayit_sayisi']} halka arzın gerçek sonuçlarıyla geriye "
+            "dönük test edilmiştir. Temel kalite skorunun finansal boyutları için "
+            "yeterli örnek henüz yoktur; o kısım istatistiksel olarak doğrulanmamıştır. "
+            "Hiçbir çıktı getiri tahmini veya yatırım tavsiyesi değildir."
         ),
     }
 
@@ -3432,6 +3614,7 @@ async def health_check():
             saglik["finansal_veri"] = {"dosya_sayisi": 0, "modul": "yok"}
     except Exception:
         saglik["finansal_veri"] = {"hata": True}
+    saglik["gecmis_arz_verisi"] = GECMIS.durum_ozeti()
     return saglik
 
 

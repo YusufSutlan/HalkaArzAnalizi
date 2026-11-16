@@ -1,5 +1,5 @@
 name: mobil_app
-description: "A new Flutter project."
+description: "Halka Arz Analiz - Borsa İstanbul halka arz takibi ve izahname analizi."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -16,6 +16,8 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   timezone: ^0.11.1
   workmanager: ^0.10.10
+  url_launcher: ^6.3.3
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
@@ -26,19 +28,24 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon.png
 
-# UYGULAMA İKONU AYARLARI
+# UYGULAMA İKONU — kaynak: assets/icon/app_icon.png (1024x1024)
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logo.png"
+  image_path: "assets/icon/app_icon.png"
   remove_alpha_ios: true
+  min_sdk_android: 24
+  adaptive_icon_background: "#0A0D14"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
-# AÇILIŞ EKRANI (SPLASH SCREEN) AYARLARI
+# AÇILIŞ EKRANI (SPLASH)
 flutter_native_splash:
   color: "#0A0D14"
-  image: "assets/logo.png"
+  image: "assets/icon/splash_logo.png"
   android_12:
-    image: "assets/logo.png"
+    image: "assets/icon/app_icon_foreground.png"
     icon_background_color: "#0A0D14"
     color: "#0A0D14"

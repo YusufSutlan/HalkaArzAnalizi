@@ -1,0 +1,14 @@
+# Sunucu imajına girmemesi gerekenler
+mobil_app/
+venv/
+.venv/
+.git/
+.github/
+.onbellek/
+__pycache__/
+*.pyc
+.DS_Store
+STORE_LISTING.md
+gizlilik-politikasi.html
+**/key.properties
+**/*.jks

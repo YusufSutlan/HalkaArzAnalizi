@@ -1,4 +1,4 @@
-package com.example.mobil_app
+package tr.com.stltechnology.halkaarz
 
 import io.flutter.embedding.android.FlutterActivity
 

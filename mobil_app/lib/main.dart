@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'bildirimler.dart';
+import 'hakkinda.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,10 @@ class ApiConfig {
     'API_URL',
     defaultValue: 'https://halkaarzanaliziapi.onrender.com',
   );
-  static const Duration timeout = Duration(seconds: 30);
+  // Render ücretsiz planda sunucu uykudan uyanırken ilk istek 30-60 sn
+  // sürebiliyor. Deneme başına süre + otomatik tekrar sayısı.
+  static const Duration timeout = Duration(seconds: 45);
+  static const int otomatikTekrar = 2;
 }
 
 // ---------------------------------------------------------
@@ -63,6 +67,12 @@ String _binlikAyrac(num? deger) {
   return (negatif ? '-' : '') + sb.toString();
 }
 
+/// Türkçe'ye güvenli küçük harf: Dart'ın toLowerCase() metodu "İ" harfini
+/// "i̇" (i + birleşik nokta), "I" harfini "i" yapar; "ALTINDA" -> "altinda",
+/// "ÜZERİNDE" -> "üzeri̇nde" olur ve "altında"/"üzerinde" ile eşleşmez.
+String _trKucult(String s) =>
+    s.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+
 /// Harf notunu (A+, B, C...) ayıklayıp sadece yıldızları döndürür.
 String _sadeceYildiz(dynamic ham) {
   final String metin = (ham ?? "").toString();
@@ -88,7 +98,8 @@ String _onEkTemizle(String s) {
 String _baskiMetniSadelestir(String s) {
   final String t = _onEkTemizle(s);
   final int ikiNokta = t.indexOf(':');
-  if (ikiNokta > 0 && ikiNokta < 50 &&
+  if (ikiNokta > 0 &&
+      ikiNokta < 50 &&
       t.substring(0, ikiNokta) == t.substring(0, ikiNokta).toUpperCase()) {
     return t.substring(ikiNokta + 1).trim();
   }
@@ -101,7 +112,7 @@ class HalkaArzApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Halka Arz Asistanı',
+      title: 'Halka Arz Analiz',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -186,22 +197,65 @@ class SozlesmeEkrani extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Text(
-                "Yasal Uyarı",
+                "Başlamadan önce",
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 20),
               const Expanded(
                 child: SingleChildScrollView(
-                  child: Text(
-                    "SPK Mevzuatı Gereği:\nBuradaki veriler otomatik toplanır, YATIRIM TAVSİYESİ DEĞİLDİR. Alacağınız kararlardan uygulama sorumlu tutulamaz. İzahnameyi kendiniz kontrol ediniz.",
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                      color: AppColors.textSecondary,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Yatırım tavsiyesi değildir",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        yatirimUyarisiMetni,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          height: 1.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        "Veri kaynakları",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        veriKaynaklariMetni,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          height: 1.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "Bu metne istediğiniz zaman sağ üstteki ⓘ (Hakkında) "
+                        "simgesinden ulaşabilirsiniz.",
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -226,7 +280,7 @@ class SozlesmeEkrani extends StatelessWidget {
                     }
                   },
                   child: const Text(
-                    "Okudum, Kabul Ediyorum",
+                    "Okudum, Anladım",
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                 ),
@@ -249,6 +303,12 @@ class _AnaEkranState extends State<AnaEkran> {
   List<dynamic> halkaArzlar = [];
   bool yukleniyor = true;
   String hataMesaji = "";
+  // Son başarılı yanıtın zamanı (önbellekten gösterilirken kullanıcıya
+  // belirtmek için). Önbellek: sunucu uyurken bile liste anında görünsün.
+  DateTime? sonGuncelleme;
+  bool onbellektenGosteriliyor = false;
+  // Aynı anda iki istek (ör. yenile + otomatik) çakışmasın.
+  bool _istekSuruyor = false;
   // Kullanıcının yıldızladığı arzlar (şirket adıyla). Listede en üstte
   // gösterilir; cihazda saklanır.
   Set<String> favoriler = {};
@@ -257,7 +317,7 @@ class _AnaEkranState extends State<AnaEkran> {
   void initState() {
     super.initState();
     _favorileriYukle();
-    verileriGetir();
+    _onbellegiYukleVeGetir();
     _bildirimleriHazirla();
   }
 
@@ -300,18 +360,30 @@ class _AnaEkranState extends State<AnaEkran> {
             await _bildirimleriGuncelle();
           }
 
-          Widget anahtar(String baslik, String alt, bool deger,
-              ValueChanged<bool>? onChanged) {
+          Widget anahtar(
+            String baslik,
+            String alt,
+            bool deger,
+            ValueChanged<bool>? onChanged,
+          ) {
             return SwitchListTile.adaptive(
               value: deger,
               onChanged: onChanged,
               activeTrackColor: AppColors.accent,
-              title: Text(baslik,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-              subtitle: Text(alt,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12.5)),
+              title: Text(
+                baslik,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                alt,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
             );
           }
 
@@ -324,39 +396,51 @@ class _AnaEkranState extends State<AnaEkran> {
                 children: [
                   const Padding(
                     padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
-                    child: Text("Bildirimler",
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
+                    child: Text(
+                      "Bildirimler",
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                   anahtar(
                     "Yeni halka arzlar",
                     "Listeye yeni bir arz eklendiğinde haber ver",
                     ayar.yeniArz,
-                    (v) => degistir(BildirimAyarlari(
+                    (v) => degistir(
+                      BildirimAyarlari(
                         yeniArz: v,
                         hatirlatma: ayar.hatirlatma,
-                        sadeceFavoriler: ayar.sadeceFavoriler)),
+                        sadeceFavoriler: ayar.sadeceFavoriler,
+                      ),
+                    ),
                   ),
                   anahtar(
                     "Tarih hatırlatmaları",
                     "Talep toplama başlangıcı, son gün ve işlem başlangıcı",
                     ayar.hatirlatma,
-                    (v) => degistir(BildirimAyarlari(
+                    (v) => degistir(
+                      BildirimAyarlari(
                         yeniArz: ayar.yeniArz,
                         hatirlatma: v,
-                        sadeceFavoriler: ayar.sadeceFavoriler)),
+                        sadeceFavoriler: ayar.sadeceFavoriler,
+                      ),
+                    ),
                   ),
                   anahtar(
                     "Sadece favorilerim",
                     "Hatırlatmaları yalnızca işaretlediğin arzlar için gönder",
                     ayar.sadeceFavoriler,
                     ayar.hatirlatma
-                        ? (v) => degistir(BildirimAyarlari(
-                            yeniArz: ayar.yeniArz,
-                            hatirlatma: ayar.hatirlatma,
-                            sadeceFavoriler: v))
+                        ? (v) => degistir(
+                            BildirimAyarlari(
+                              yeniArz: ayar.yeniArz,
+                              hatirlatma: ayar.hatirlatma,
+                              sadeceFavoriler: v,
+                            ),
+                          )
                         : null,
                   ),
                   const Padding(
@@ -366,9 +450,10 @@ class _AnaEkranState extends State<AnaEkran> {
                       "de gelir. Yeni arz kontrolü arka planda birkaç saatte bir "
                       "yapılır; iOS bu zamanlamayı kendisi belirler, gecikebilir.",
                       style: TextStyle(
-                          fontSize: 11.5,
-                          height: 1.4,
-                          color: AppColors.textTertiary),
+                        fontSize: 11.5,
+                        height: 1.4,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   ),
                 ],
@@ -383,7 +468,9 @@ class _AnaEkranState extends State<AnaEkran> {
   Future<void> _favorileriYukle() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() => favoriler = (prefs.getStringList('favoriler') ?? []).toSet());
+    setState(
+      () => favoriler = (prefs.getStringList('favoriler') ?? []).toSet(),
+    );
   }
 
   Future<void> _favoriDegistir(String sirket) async {
@@ -401,94 +488,179 @@ class _AnaEkranState extends State<AnaEkran> {
     return [...fav, ...diger];
   }
 
-  Future<void> verileriGetir({int deneme = 0}) async {
+  static const String _onbellekAnahtari = 'arz_onbellek_v1';
+  static const String _onbellekZamanAnahtari = 'arz_onbellek_zaman_v1';
+
+  Future<void> _onbellegiYukleVeGetir() async {
     try {
-      final response = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/api/halkarzlar'))
-          .timeout(ApiConfig.timeout);
-
-      // DÜZELTME: await sonrası State dispose edilmiş olabilir; setState
-      // çağırmadan önce mounted kontrolü eklendi (aksi halde "setState()
-      // called after dispose()" hatası/uyarısı alınabilir).
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
-        final decoded = json.decode(utf8.decode(response.bodyBytes));
+      final prefs = await SharedPreferences.getInstance();
+      final String? ham = prefs.getString(_onbellekAnahtari);
+      final int? zaman = prefs.getInt(_onbellekZamanAnahtari);
+      if (ham != null && mounted) {
+        final decoded = json.decode(ham);
         setState(() {
           halkaArzlar = decoded['halka_arzlar'] ?? [];
-          yukleniyor = false;
-        });
-        _bildirimleriGuncelle();
-      } else if (response.statusCode == 502 || response.statusCode == 503) {
-        setState(() {
-          hataMesaji =
-              "Sunucu şu anda veri kaynağına ulaşamıyor.\nLütfen birkaç dakika sonra tekrar deneyin.";
-          yukleniyor = false;
-        });
-      } else {
-        setState(() {
-          hataMesaji = "Sunucu Hatası: ${response.statusCode}";
+          sonGuncelleme = zaman != null
+              ? DateTime.fromMillisecondsSinceEpoch(zaman)
+              : null;
+          onbellektenGosteriliyor = true;
           yukleniyor = false;
         });
       }
-    } on TimeoutException {
-      // Ücretsiz sunucu uykudan uyanırken ilk istek 30 sn'yi aşabiliyor;
-      // kullanıcıya hata göstermeden önce bir kez otomatik tekrar dene.
-      if (deneme == 0 && mounted) return verileriGetir(deneme: 1);
-      // DÜZELTME: Önceden zaman aşımı için ayrı bir mesaj yoktu; genel
-      // "bağlantı kurulamadı" mesajına düşüyordu. Render.com gibi ücretsiz
-      // sunucular soğuk başlangıçta (cold start) yavaş olabildiğinden bu
-      // durumu ayrı belirtmek kullanıcı deneyimini iyileştirir.
-      if (!mounted) return;
-      setState(() {
-        hataMesaji =
-            "Sunucudan zamanında yanıt alınamadı.\nSunucu uyanıyor olabilir, lütfen tekrar deneyin.";
-        yukleniyor = false;
-      });
-    } on FormatException {
-      // DÜZELTME: Sunucudan geçersiz JSON dönerse eskiden aynı genel
-      // bağlantı hatası mesajı gösteriliyordu; artık ayırt ediliyor.
-      if (!mounted) return;
-      setState(() {
-        hataMesaji = "Sunucudan beklenmeyen bir yanıt alındı.";
-        yukleniyor = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        hataMesaji = "Bağlantı kurulamadı.\nLütfen internetinizi kontrol edin.";
-        yukleniyor = false;
-      });
+    } catch (_) {
+      // Bozuk önbellek: yok say, sunucudan çekilecek.
     }
+    await verileriGetir();
+  }
+
+  String _hataMetni(Object e, [int? kod]) {
+    if (e is TimeoutException) {
+      return "Sunucudan zamanında yanıt alınamadı.\nSunucu uyanıyor olabilir; "
+          "birkaç saniye sonra tekrar deneyin.";
+    }
+    if (e is FormatException) return "Sunucudan beklenmeyen bir yanıt alındı.";
+    if (kod != null) {
+      return (kod == 502 || kod == 503 || kod == 504)
+          ? "Sunucu şu anda hazırlanıyor veya veri kaynağına ulaşamıyor.\n"
+                "Lütfen biraz sonra tekrar deneyin."
+          : "Sunucu hatası ($kod). Lütfen daha sonra tekrar deneyin.";
+    }
+    return "Bağlantı kurulamadı.\nLütfen internet bağlantınızı kontrol edin.";
+  }
+
+  /// Sunucudan güncel listeyi çeker. Ücretsiz sunucunun soğuk başlangıcı için
+  /// zaman aşımı ve geçici 5xx hatalarında otomatik olarak tekrar dener.
+  /// Elde gösterilecek veri varsa hata tam ekran yerine alt bildirimle verilir.
+  Future<void> verileriGetir() async {
+    if (_istekSuruyor) return;
+    _istekSuruyor = true;
+    Object? sonHata;
+    int? sonKod;
+    try {
+      for (int deneme = 0; deneme <= ApiConfig.otomatikTekrar; deneme++) {
+        if (!mounted) return;
+        try {
+          final response = await http
+              .get(Uri.parse('${ApiConfig.baseUrl}/api/halkarzlar'))
+              .timeout(ApiConfig.timeout);
+          if (!mounted) return;
+          if (response.statusCode == 200) {
+            final String govde = utf8.decode(response.bodyBytes);
+            final decoded = json.decode(govde);
+            setState(() {
+              halkaArzlar = decoded['halka_arzlar'] ?? [];
+              yukleniyor = false;
+              hataMesaji = "";
+              sonGuncelleme = DateTime.now();
+              onbellektenGosteriliyor = false;
+            });
+            _bildirimleriGuncelle();
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_onbellekAnahtari, govde);
+            await prefs.setInt(
+              _onbellekZamanAnahtari,
+              DateTime.now().millisecondsSinceEpoch,
+            );
+            return;
+          }
+          sonKod = response.statusCode;
+          sonHata = Exception('HTTP $sonKod');
+          // Kalıcı hata (4xx vb.) için tekrar denemenin anlamı yok.
+          if (sonKod < 500) break;
+        } on TimeoutException catch (e) {
+          sonHata = e;
+          sonKod = null;
+        } on FormatException catch (e) {
+          sonHata = e;
+          sonKod = null;
+          break;
+        } catch (e) {
+          sonHata = e;
+          sonKod = null;
+        }
+        if (deneme < ApiConfig.otomatikTekrar) {
+          await Future.delayed(const Duration(seconds: 3));
+        }
+      }
+
+      if (!mounted) return;
+      final String mesaj = _hataMetni(sonHata ?? Exception(), sonKod);
+      if (halkaArzlar.isNotEmpty) {
+        // Önbellekteki liste ekranda kalsın; kullanıcı yine de kullanabilsin.
+        setState(() => yukleniyor = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Güncel veri alınamadı, son kayıtlı liste gösteriliyor.\n"
+              "${mesaj.split('\n').first}",
+            ),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: "Tekrar dene",
+              onPressed: verileriGetir,
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          hataMesaji = mesaj;
+          yukleniyor = false;
+        });
+      }
+    } finally {
+      _istekSuruyor = false;
+    }
+  }
+
+  void _yenidenDene() {
+    setState(() {
+      yukleniyor = halkaArzlar.isEmpty;
+      hataMesaji = "";
+    });
+    verileriGetir();
+  }
+
+  String _sonGuncellemeMetni() {
+    final z = sonGuncelleme;
+    if (z == null) return "";
+    String iki(int n) => n.toString().padLeft(2, '0');
+    final simdi = DateTime.now();
+    final bugun =
+        z.year == simdi.year && z.month == simdi.month && z.day == simdi.day;
+    final saat = "${iki(z.hour)}:${iki(z.minute)}";
+    return bugun
+        ? "bugün $saat"
+        : "${iki(z.day)}.${iki(z.month)}.${z.year} $saat";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Halka Arz Asistanı'),
+        title: const Text('Halka Arz Analiz'),
         actions: [
+          IconButton(
+            tooltip: "Hakkında",
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HakkindaEkrani()),
+            ),
+          ),
           IconButton(
             tooltip: "Bildirim ayarları",
             icon: const Icon(Icons.notifications_none_rounded),
             onPressed: _bildirimAyarlariniAc,
           ),
           IconButton(
+            tooltip: "Yenile",
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              setState(() {
-                yukleniyor = true;
-                hataMesaji = "";
-              });
-              verileriGetir();
-            },
+            onPressed: _yenidenDene,
           ),
         ],
       ),
       body: yukleniyor
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            )
+          ? const _YukleniyorGorunumu()
           : hataMesaji.isNotEmpty
           ? Center(
               child: Padding(
@@ -508,15 +680,14 @@ class _AnaEkranState extends State<AnaEkran> {
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          yukleniyor = true;
-                          hataMesaji = "";
-                        });
-                        verileriGetir();
-                      },
-                      child: const Text("Tekrar Dene"),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: AppColors.bg,
+                      ),
+                      onPressed: _yenidenDene,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text("Tekrar Dene"),
                     ),
                   ],
                 ),
@@ -565,6 +736,8 @@ class _AnaEkranState extends State<AnaEkran> {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  const SizedBox(height: 32),
+                  const YatirimUyarisiNotu(),
                 ],
               ),
             )
@@ -577,14 +750,21 @@ class _AnaEkranState extends State<AnaEkran> {
                   horizontal: 20,
                   vertical: 10,
                 ),
-                // +1: listenin başındaki "X aktif halka arz" özet satırı.
-                itemCount: halkaArzlar.length + 1,
+                // +2: baştaki "X aktif halka arz" özet satırı ve sondaki
+                // yatırım tavsiyesi uyarısı.
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: halkaArzlar.length + 2,
                 itemBuilder: (context, index) {
+                  if (index == halkaArzlar.length + 1) {
+                    return const YatirimUyarisiNotu();
+                  }
                   if (index == 0) {
+                    final String guncelleme = _sonGuncellemeMetni();
                     return Padding(
                       padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
                       child: Text(
-                        "${halkaArzlar.length} aktif halka arz izleniyor",
+                        "${halkaArzlar.length} aktif halka arz izleniyor"
+                        "${guncelleme.isEmpty ? "" : " · ${onbellektenGosteriliyor ? "son kayıt" : "güncellendi"} $guncelleme"}",
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
@@ -699,7 +879,9 @@ class _AnaEkranState extends State<AnaEkran> {
                                         vertical: 5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: durumRenk.withValues(alpha: 0.12),
+                                        color: durumRenk.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
@@ -711,7 +893,7 @@ class _AnaEkranState extends State<AnaEkran> {
                                         ),
                                       ),
                                     ),
-                                    if (listeBaski >= 40)
+                                    if (listeBaski >= 65)
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 10,
@@ -719,7 +901,7 @@ class _AnaEkranState extends State<AnaEkran> {
                                         ),
                                         decoration: BoxDecoration(
                                           color:
-                                              (listeBaski >= 65
+                                              (listeBaski >= 85
                                                       ? AppColors.danger
                                                       : AppColors.warning)
                                                   .withValues(alpha: 0.15),
@@ -733,7 +915,7 @@ class _AnaEkranState extends State<AnaEkran> {
                                             Icon(
                                               Icons.waves_rounded,
                                               size: 12,
-                                              color: listeBaski >= 65
+                                              color: listeBaski >= 85
                                                   ? AppColors.danger
                                                   : AppColors.warning,
                                             ),
@@ -742,7 +924,7 @@ class _AnaEkranState extends State<AnaEkran> {
                                               "İlk gün satış baskısı",
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: listeBaski >= 65
+                                                color: listeBaski >= 85
                                                     ? AppColors.danger
                                                     : AppColors.warning,
                                                 fontWeight: FontWeight.w700,
@@ -888,10 +1070,10 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
                 _Rozet(islemMenusu, AppColors.info, Icons.touch_app),
                 if (sektor.isNotEmpty)
                   _Rozet(sektor, AppColors.neutral, Icons.category_outlined),
-                if (ilkGunBaski >= 40)
+                if (ilkGunBaski >= 65)
                   _Rozet(
                     "Satış Baskısı: $baskiSeviyesi",
-                    ilkGunBaski >= 65 ? AppColors.danger : AppColors.warning,
+                    ilkGunBaski >= 85 ? AppColors.danger : AppColors.warning,
                     Icons.waves_rounded,
                   ),
               ],
@@ -909,27 +1091,40 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _SkorGostergesi(
-                      skor: temelKalite,
-                      renk: renk,
-                      etiket: kaliteEtiketi,
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _SkorGostergesi(
+                          skor: temelKalite,
+                          renk: renk,
+                          etiket: kaliteEtiketi,
+                        ),
+                      ),
                     ),
                     Container(width: 1, height: 40, color: AppColors.border),
-                    _SkorGostergesi(
-                      skor: tavanPotansiyeli,
-                      renk: AppColors.info,
-                      // DEĞİŞİKLİK: "Tavan Şansı" ifadesi kullanıcı
-                      // tarafından bir vaat gibi okunuyordu; nötr ve
-                      // doğru bir etikete çevrildi.
-                      etiket: "Kısa Vade",
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _SkorGostergesi(
+                          skor: tavanPotansiyeli,
+                          renk: AppColors.info,
+                          // "Tavan Şansı" bir vaat gibi okunuyordu; nötr etiket.
+                          etiket: "Kısa Vade",
+                        ),
+                      ),
                     ),
                     Container(width: 1, height: 40, color: AppColors.border),
-                    _SkorGostergesi(
-                      skor: riskSkoru,
-                      renk: riskSkoru > 60
-                          ? AppColors.danger
-                          : AppColors.warning,
-                      etiket: "Risk Skoru",
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _SkorGostergesi(
+                          skor: riskSkoru,
+                          renk: riskSkoru > 60
+                              ? AppColors.danger
+                              : AppColors.warning,
+                          etiket: "Risk Skoru",
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -954,6 +1149,17 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+
+            if ((arz['kisa_vade_olculebilir'] ?? false) &&
+                ((arz['kisa_vade_etkenleri'] as List?)?.isNotEmpty ??
+                    false)) ...[
+              _KisaVadePaneli(
+                skor: tavanPotansiyeli,
+                etkenler: arz['kisa_vade_etkenleri'] as List,
+                benzer: (arz['benzer_arzlar'] as Map?)?.cast<String, dynamic>(),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             // ─────────────────────────────────────────────────────────
             // YENİ: İLK GÜN SATIŞ BASKISI PANELİ
@@ -1141,7 +1347,9 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
-                              color: volatilite.contains("Aşağı")
+                              color:
+                                  (volatilite.contains("satış baskısı") ||
+                                      volatilite.contains("finansal"))
                                   ? AppColors.danger
                                   : AppColors.info,
                             ),
@@ -1212,47 +1420,60 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
             ],
 
             _KutuBaslik("Finansal Detaylar", Icons.query_stats_rounded),
-            GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              shrinkWrap: true,
-              childAspectRatio: 1.45,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _DetayHucresiYorumlu(
-                  baslik: "Halka Açıklık",
-                  deger: arz['aciklik']?.toString() ?? "-",
-                  yorum: "Halka açılma oranı.",
-                ),
-                _DetayHucresiYorumlu(
-                  baslik: "İskonto Oranı",
-                  deger: arz['iskonto']?.toString() ?? "-",
-                  yorum: "İskonto, potansiyeli gösterir.",
-                ),
-                _DetayHucresiYorumlu(
-                  baslik: "Fiyat İstikrarı",
-                  deger: arz['fiyat_istikrari']?.toString() ?? "-",
-                  yorum: "Düşüş riskine karşı alınan önlemdir.",
-                ),
-                // DEĞİŞİKLİK: Eskiden izahnamedeki ham metin basılıyordu
-                // ("243.243.243 Lot (ek satış dahil ...)" gibi) ve çoğu
-                // zaman "Açıklanmadı" kalıyordu. Artık sunucunun
-                // ayrıştırdığı sayısal değer gösteriliyor; o da yoksa
-                // arz büyüklüğü / fiyat ile türetilmiş değeri kullanıyor.
-                _DetayHucresiYorumlu(
-                  baslik: "Toplam Pay Miktarı",
-                  deger: arz['pay_sayisi_sayi'] != null
-                      ? "${_binlikAyrac(arz['pay_sayisi_sayi'])} lot"
-                      : (arz['pay_miktari']?.toString() ?? "Açıklanmadı"),
-                  yorum:
-                      (arz['pay_sayisi_kaynagi']?.toString() ?? "").startsWith(
-                        "hesaplandı",
-                      )
-                      ? "Arz büyüklüğünden hesaplandı."
-                      : "Halka arz edilecek toplam lot.",
-                ),
-              ],
+            // Sabit en-boy oranlı GridView, uzun metinde veya büyük yazı
+            // tipinde hücreyi taşırıyordu; satırlar artık içeriğe göre uzar.
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _DetayHucresiYorumlu(
+                      baslik: "Halka Açıklık",
+                      deger: arz['aciklik']?.toString() ?? "-",
+                      yorum: "Halka açılma oranı.",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DetayHucresiYorumlu(
+                      baslik: "İskonto Oranı",
+                      deger: arz['iskonto']?.toString() ?? "-",
+                      yorum:
+                          "Şirketin beyanıdır; geçmiş arzlarda getiriyle "
+                          "ilişkisi görülmedi.",
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _DetayHucresiYorumlu(
+                      baslik: "Fiyat İstikrarı",
+                      deger: arz['fiyat_istikrari']?.toString() ?? "-",
+                      yorum: "Düşüş riskine karşı alınan önlemdir.",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _DetayHucresiYorumlu(
+                      baslik: "Toplam Pay Miktarı",
+                      deger: arz['pay_sayisi_sayi'] != null
+                          ? "${_binlikAyrac(arz['pay_sayisi_sayi'])} lot"
+                          : (arz['pay_miktari']?.toString() ?? "Açıklanmadı"),
+                      yorum:
+                          (arz['pay_sayisi_kaynagi']?.toString() ?? "")
+                              .startsWith("hesaplandı")
+                          ? "Arz büyüklüğünden hesaplandı."
+                          : "Halka arz edilecek toplam lot.",
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 26),
 
@@ -1309,6 +1530,7 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
               // dağıtılır; kurumsal ve yurt dışı paylar ayrı gruplara
               // gider. Çitlekçi: toplam 36,5 mn lot ama bireysele
               // ayrılan 14,6 mn lot (%40).
+              beklenenKatilimci: (arz['beklenen_katilimci'] as num?)?.toInt(),
               bireyselLot: arz['bireysel_pay_sayisi'],
               bireyselOran: arz['bireysel_tahsisat_orani'],
               payMiktariSayi: arz['pay_sayisi_sayi'],
@@ -1318,12 +1540,18 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
             ),
             if ((arz['fiyat_sayi'] ?? 0) > 0) ...[
               const SizedBox(height: 26),
-              _KutuBaslik("Tavan Serisi Hesaplayıcı", Icons.trending_up_rounded),
+              _KutuBaslik(
+                "Tavan Serisi Hesaplayıcı",
+                Icons.trending_up_rounded,
+              ),
               TavanHesaplayici(
                 fiyat: (arz['fiyat_sayi'] as num).toDouble(),
                 varsayilanLot: (arz['kisi_basi_tahmini_lot'] as num?)?.round(),
+                benzer: (arz['benzer_arzlar'] as Map?)?.cast<String, dynamic>(),
               ),
             ],
+            const SizedBox(height: 24),
+            const YatirimUyarisiNotu(),
           ],
         ),
       ),
@@ -1337,13 +1565,15 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
         children: [
           Icon(ikon, color: AppColors.textTertiary, size: 19),
           const SizedBox(width: 8),
-          Text(
-            baslik,
-            style: const TextStyle(
-              fontSize: 16.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.2,
-              color: AppColors.textPrimary,
+          Expanded(
+            child: Text(
+              baslik,
+              style: const TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -1355,6 +1585,103 @@ class HalkaArzDetaySayfasi extends StatelessWidget {
 // ---------------------------------------------------------
 // 🧩 WIDGET SINIFLARI
 // ---------------------------------------------------------
+
+/// İlk yükleme göstergesi. Ücretsiz sunucu uykudan uyanırken bekleme uzun
+/// sürebildiği için geçen süreye göre açıklayıcı mesaj gösterir; kullanıcı
+/// (ve mağaza inceleyicisi) uygulamanın donduğunu düşünmesin.
+class _YukleniyorGorunumu extends StatefulWidget {
+  const _YukleniyorGorunumu();
+  @override
+  State<_YukleniyorGorunumu> createState() => _YukleniyorGorunumuState();
+}
+
+class _YukleniyorGorunumuState extends State<_YukleniyorGorunumu> {
+  late final Timer _sayac;
+  int _saniye = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sayac = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _saniye++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sayac.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String baslik;
+    final String alt;
+    if (_saniye < 4) {
+      baslik = "Halka arzlar yükleniyor";
+      alt = "";
+    } else if (_saniye < 15) {
+      baslik = "Sunucuya bağlanılıyor";
+      alt = "Güncel arz listesi ve analizler hazırlanıyor.";
+    } else {
+      baslik = "Sunucu uyanıyor…";
+      alt =
+          "Bir süre kullanılmadığında sunucunun açılması 1 dakikayı "
+          "bulabilir. Bu yalnızca ilk açılışta olur, lütfen bekleyin.";
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 34,
+              height: 34,
+              child: CircularProgressIndicator(
+                color: AppColors.accent,
+                strokeWidth: 3,
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              baslik,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            if (alt.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                alt,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+            if (_saniye >= 15) ...[
+              const SizedBox(height: 14),
+              Text(
+                "$_saniye sn",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textTertiary,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _GeniPanel extends StatelessWidget {
   final String icerik;
@@ -1435,6 +1762,215 @@ class _GeniPanel extends StatelessWidget {
   }
 }
 
+/// 3,5 -> "3,5" ; 4.0 -> "4"
+String _sayiKisa(dynamic d) {
+  if (d is! num) return "-";
+  return d == d.roundToDouble()
+      ? d.toStringAsFixed(0)
+      : d.toStringAsFixed(1).replaceAll('.', ',');
+}
+
+/// Kısa vade göstergesinin NEDEN o değerde olduğunu ve göstergesi benzer
+/// olan geçmiş arzların GERÇEKTE ne yaptığını gösterir. Amaç, tek bir
+/// sayının "tahmin" gibi okunmasını önlemek: kullanıcı hem etkenleri hem
+/// de geçmişteki dağılımı (kötü sonuçlar dahil) görür.
+class _KisaVadePaneli extends StatelessWidget {
+  final double skor;
+  final List<dynamic> etkenler;
+  final Map<String, dynamic>? benzer;
+  const _KisaVadePaneli({
+    required this.skor,
+    required this.etkenler,
+    this.benzer,
+  });
+
+  Widget _istatistik(String baslik, String deger, Color renk) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            deger,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: renk,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            baslik,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10.5,
+              height: 1.25,
+              color: AppColors.textTertiary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = benzer;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.insights_rounded,
+                color: AppColors.info,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  "KISA VADE GÖSTERGESİ",
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                "${skor.toStringAsFixed(0)}/100",
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.info,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...etkenler.map((e) {
+            final Map m = e as Map;
+            final String etki = m['etki']?.toString() ?? "";
+            final num puan = (m['puan'] as num?) ?? 0;
+            final Color renk = etki == "olumlu"
+                ? AppColors.positive
+                : etki == "olumsuz"
+                ? AppColors.danger
+                : AppColors.textTertiary;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 9),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 42,
+                    child: Text(
+                      etki == "bilinmiyor"
+                          ? "?"
+                          : "${puan > 0 ? '+' : ''}${puan.toStringAsFixed(0)}",
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: renk,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m['ad']?.toString() ?? "",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          m['aciklama']?.toString() ?? "",
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            height: 1.35,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (b != null) ...[
+            const Divider(color: AppColors.border, height: 20),
+            Text(
+              "Geçmişte göstergesi benzer olan ${b['ornek_sayisi']} halka arz "
+              "(${b['donem']})",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _istatistik(
+                  "tavan serisi\n(medyan gün)",
+                  _sayiKisa(b['tavan_medyan']),
+                  AppColors.textPrimary,
+                ),
+                _istatistik(
+                  "arzların yarısı\n(tavan günü)",
+                  "${b['tavan_alt_ceyrek']}–${b['tavan_ust_ceyrek']}",
+                  AppColors.textPrimary,
+                ),
+                _istatistik(
+                  "hiç tavan\nyapmayan",
+                  "%${b['tavansiz_yuzde']}",
+                  AppColors.warning,
+                ),
+                if (b['getiri_20g_ekside_yuzde'] != null)
+                  _istatistik(
+                    "20 gün sonra\nekside olan",
+                    "%${b['getiri_20g_ekside_yuzde']}",
+                    AppColors.danger,
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          const Text(
+            "Gösterge; kişi başı dağıtım, piyasa momentumu, arz büyüklüğü ve "
+            "temel kaliteden hesaplanır ve geçmiş halka arzların gerçek "
+            "sonuçlarıyla sınanmıştır. Geçmiş sonuçlar geleceği göstermez; "
+            "bu bir getiri tahmini veya yatırım tavsiyesi değildir.",
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              height: 1.4,
+              color: AppColors.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// YENİ WIDGET: İlk gün satış baskısı paneli.
 /// Kullanıcı "yüksek puan = tavan yapar" şeklinde okumasın diye,
 /// baskı seviyesi ayrı, görünür ve gerekçeli biçimde gösteriliyor.
@@ -1461,9 +1997,9 @@ class _BaskiPaneli extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color renk = skor >= 65
+    final Color renk = skor >= 85
         ? AppColors.danger
-        : skor >= 40
+        : skor >= 65
         ? AppColors.warning
         : AppColors.info;
 
@@ -1556,7 +2092,7 @@ class _BaskiPaneli extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "₺${kisiBasiTutar!.toStringAsFixed(0)}"
+                          "₺${_binlikAyrac(kisiBasiTutar)}"
                           "${kisiBasiLot != null ? " · ~${kisiBasiLot!.toStringAsFixed(0)} lot" : ""}",
                           style: const TextStyle(
                             fontSize: 14,
@@ -1635,10 +2171,10 @@ class _BaskiPaneli extends StatelessWidget {
           ],
           const SizedBox(height: 10),
           const Text(
-            "Bu değerlendirme dağıtım yapısı ve arz büyüklüğüne dayalı bir "
-            "risk uyarısıdır; fiyat tahmini değildir. Model henüz geçmiş "
-            "halka arzlarla geriye dönük test edilmemiştir, deneysel kabul "
-            "edin.",
+            "Kişi başına düşen tutarın son arzlara göre düzeyini ölçer. "
+            "2023'ten bu yana tamamlanan halka arzların gerçek sonuçlarıyla "
+            "sınanmıştır; yine de bir olasılık göstergesidir, fiyat tahmini "
+            "değildir.",
             style: TextStyle(
               fontSize: 11,
               fontStyle: FontStyle.italic,
@@ -1660,13 +2196,13 @@ class _DegerlemePaneli extends StatelessWidget {
 
   /// Yorum metnine göre renk: ucuz -> yeşil, pahalı -> kırmızı
   Color _renk(String yorum) {
-    final y = yorum.toLowerCase();
-    if (y.contains("iskonto") || y.contains("altında"))
-      return AppColors.positive;
-    if (y.contains("pahalı") || y.contains("belirgin primli"))
+    final y = _trKucult(yorum);
+    if (y.contains("altında")) return AppColors.positive;
+    if (y.contains("çok üzerinde") || y.contains("2 katından")) {
       return AppColors.danger;
-    if (y.contains("primli") || y.contains("üzerinde"))
-      return AppColors.warning;
+    }
+    if (y.contains("üzerinde")) return AppColors.warning;
+    if (y.contains("zararda")) return AppColors.danger;
     return AppColors.info;
   }
 
@@ -1681,7 +2217,8 @@ class _DegerlemePaneli extends StatelessWidget {
     String pdMetin = "";
     if (pd != null) {
       if (pd >= 1e9) {
-        pdMetin = "${(pd / 1e9).toStringAsFixed(1)} milyar TL";
+        pdMetin =
+            "${(pd / 1e9).toStringAsFixed(1).replaceAll('.', ',')} milyar TL";
       } else if (pd >= 1e6) {
         pdMetin = "${(pd / 1e6).toStringAsFixed(0)} milyon TL";
       }
@@ -1728,12 +2265,14 @@ class _DegerlemePaneli extends StatelessWidget {
                   color: AppColors.textTertiary,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  "Şirket değeri: $pdMetin",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    "Şirket değeri: $pdMetin",
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -1750,10 +2289,13 @@ class _DegerlemePaneli extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SizedBox(
-                        width: 74,
+                        width: 66,
                         child: Text(
                           m['ad']?.toString() ?? "",
                           style: const TextStyle(
@@ -1772,16 +2314,14 @@ class _DegerlemePaneli extends StatelessWidget {
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "sektör ~${m['sektor_ortalamasi']}",
+                      if (m['sektor_ortalamasi'] != null)
+                        Text(
+                          "emsal ~${m['sektor_ortalamasi']}",
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textTertiary,
                           ),
                         ),
-                      ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -1804,7 +2344,7 @@ class _DegerlemePaneli extends StatelessWidget {
                   ),
                   if ((m['aciklama']?.toString() ?? "").isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.only(top: 4, left: 74),
+                      padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         m['aciklama'].toString(),
                         style: const TextStyle(
@@ -1818,10 +2358,37 @@ class _DegerlemePaneli extends StatelessWidget {
               ),
             );
           }),
+          if ((degerleme['duzeltme_notu']?.toString() ?? "").isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                degerleme['duzeltme_notu'].toString(),
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  height: 1.35,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
+          if (degerleme['bist100_medyan'] is Map)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                "Karşılaştırma için: BIST 100 hisselerinde medyan F/K "
+                "${degerleme['bist100_medyan']['fk']}, PD/DD "
+                "${degerleme['bist100_medyan']['pddd']}. Halka arzlar genellikle "
+                "borsa ortalamasından yüksek çarpanlarla fiyatlanır.",
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  height: 1.35,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
           Text(
             bayat
-                ? "Sektör ortalamaları güncel olmayabilir; oranları bu kısıtla okuyun."
-                : "Oranlar sektör ortalamalarıyla karşılaştırılmıştır. "
+                ? "Emsal verisi güncel olmayabilir; oranları bu kısıtla okuyun."
+                : "Oranlar geçmiş halka arzların medyanıyla karşılaştırılmıştır. "
                       "Düşük oran her zaman iyi anlamına gelmez.",
             style: const TextStyle(
               fontSize: 10.5,
@@ -1871,12 +2438,14 @@ class _NitelikPaneli extends StatelessWidget {
             children: [
               Icon(ikon, color: ikonMetinRengi, size: 20),
               const SizedBox(width: 8),
-              Text(
-                baslik,
-                style: TextStyle(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.bold,
-                  color: ikonMetinRengi,
+              Expanded(
+                child: Text(
+                  baslik,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.bold,
+                    color: ikonMetinRengi,
+                  ),
                 ),
               ),
             ],
@@ -2066,12 +2635,14 @@ class _Rozet extends StatelessWidget {
         children: [
           Icon(ikon, size: 14, color: renk),
           const SizedBox(width: 6),
-          Text(
-            yazi,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.bold,
-              color: renk,
+          Flexible(
+            child: Text(
+              yazi,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: renk,
+              ),
             ),
           ),
         ],
@@ -2107,13 +2678,16 @@ class _BilgiKarti extends StatelessWidget {
               children: [
                 Icon(ikon, size: 14, color: AppColors.textTertiary),
                 const SizedBox(width: 6),
-                Text(
-                  baslik,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    baslik,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -2347,6 +2921,7 @@ class _DetayHucresiYorumlu extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             baslik.toUpperCase(),
@@ -2374,7 +2949,7 @@ class _DetayHucresiYorumlu extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               yorum,
-              maxLines: 2,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 10,
@@ -2408,8 +2983,14 @@ class LotHesaplayici extends StatefulWidget {
   final num? bireyselLot;
   final num? bireyselOran;
 
+  /// Sunucunun son arzların gerçek katılımından hesapladığı beklenti.
+  /// Eski sabit 2.500.000 değeri 2026'daki gerçek katılımın (~500-750 bin)
+  /// 3-4 katıydı ve kişi başı lotu o oranda düşük gösteriyordu.
+  final int? beklenenKatilimci;
+
   const LotHesaplayici({
     super.key,
+    this.beklenenKatilimci,
     this.payMiktariSayi,
     this.fiyatSayi,
     this.payMiktariStr,
@@ -2426,9 +3007,11 @@ class _LotHesaplayiciState extends State<LotHesaplayici> {
   double pay = 0.0;
   double fiyat = 0.0;
   bool bireyselKullanildi = false;
-  int _hesaplananKisi = 2500000;
-  final TextEditingController _kisiController = TextEditingController(
-    text: "2500000",
+  late int _hesaplananKisi = (widget.beklenenKatilimci ?? 0) > 0
+      ? widget.beklenenKatilimci!
+      : 650000;
+  late final TextEditingController _kisiController = TextEditingController(
+    text: _hesaplananKisi.toString(),
   );
 
   /// Metinden İLK sayıyı güvenli şekilde ayıklar.
@@ -2543,9 +3126,11 @@ class _LotHesaplayiciState extends State<LotHesaplayici> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Tahmini Katılımcı Sayısı",
-            style: TextStyle(
+          Text(
+            (widget.beklenenKatilimci ?? 0) > 0
+                ? "Tahmini Katılımcı Sayısı (son arzların medyanı)"
+                : "Tahmini Katılımcı Sayısı",
+            style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
@@ -2683,7 +3268,7 @@ class _LotHesaplayiciState extends State<LotHesaplayici> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "₺${tahminiTutar.toStringAsFixed(0)}",
+                        "₺${_binlikAyrac(tahminiTutar)}",
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -2712,7 +3297,16 @@ class _LotHesaplayiciState extends State<LotHesaplayici> {
 class TavanHesaplayici extends StatefulWidget {
   final double fiyat;
   final int? varsayilanLot;
-  const TavanHesaplayici({super.key, required this.fiyat, this.varsayilanLot});
+
+  /// Göstergesi benzer olan geçmiş arzların gerçek sonuçları; senaryo
+  /// tablosunun bir beklenti gibi okunmaması için altında gösterilir.
+  final Map<String, dynamic>? benzer;
+  const TavanHesaplayici({
+    super.key,
+    required this.fiyat,
+    this.varsayilanLot,
+    this.benzer,
+  });
 
   @override
   State<TavanHesaplayici> createState() => _TavanHesaplayiciState();
@@ -2794,7 +3388,10 @@ class _TavanHesaplayiciState extends State<TavanHesaplayici> {
               const Expanded(
                 child: Text(
                   "Elinizdeki lot",
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
               SizedBox(
@@ -2834,7 +3431,11 @@ class _TavanHesaplayiciState extends State<TavanHesaplayici> {
               SizedBox(width: 56, child: Text("Tavan", style: baslikStil)),
               Expanded(child: Text("Fiyat", style: baslikStil)),
               Expanded(
-                child: Text("Kâr", style: baslikStil, textAlign: TextAlign.right),
+                child: Text(
+                  "Kâr",
+                  style: baslikStil,
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),
@@ -2844,7 +3445,10 @@ class _TavanHesaplayiciState extends State<TavanHesaplayici> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  SizedBox(width: 56, child: Text("${s.gun}. gün", style: hucre)),
+                  SizedBox(
+                    width: 56,
+                    child: Text("${s.gun}. gün", style: hucre),
+                  ),
                   Expanded(child: Text(_tl(s.fiyat), style: hucre)),
                   Expanded(
                     child: Text(
@@ -2861,10 +3465,34 @@ class _TavanHesaplayiciState extends State<TavanHesaplayici> {
             ),
           ),
           const SizedBox(height: 10),
+          if (widget.benzer != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                "Geçmişte göstergesi benzer olan "
+                "${widget.benzer!['ornek_sayisi']} arzda tavan serisinin "
+                "medyanı ${_sayiKisa(widget.benzer!['tavan_medyan'])} gün; "
+                "%${widget.benzer!['tavansiz_yuzde']} oranında hiç tavan "
+                "görülmedi.",
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           const Text(
             "Her gün %10 tavan ve BIST fiyat adımına yuvarlama varsayılır. "
             "Komisyon ve vergi dahil değildir. Tavan serisi garanti değildir; "
-            "bu tablo yalnızca bir senaryo hesabıdır.",
+            "fiyat arz fiyatının altına da inebilir. Bu tablo yalnızca bir "
+            "senaryo hesabıdır.",
             style: TextStyle(
               fontSize: 11,
               fontStyle: FontStyle.italic,

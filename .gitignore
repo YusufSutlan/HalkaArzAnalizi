@@ -10,3 +10,15 @@ venv/
 .env.*
 
 .DS_Store
+
+# Android imzalama — ASLA commit etme
+key.properties
+**/key.properties
+*.jks
+*.keystore
+
+# Flutter derleme çıktıları
+mobil_app/build/
+
+# Geriye dönük test aracının indirdiği sayfalar
+.onbellek/
