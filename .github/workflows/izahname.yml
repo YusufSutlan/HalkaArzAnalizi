@@ -97,10 +97,18 @@ jobs:
       # (katılımcı, kişi başı tutar, tavan serisi). Sunucu beklenen katılımı
       # ve "benzer arzlar" istatistiğini bu dosyadan okur; güncel kalmazsa
       # model bayat veriyle çalışır. LLM anahtarı gerektirmez.
+      # Endeks verisi TCMB EVDS'ten gelir; anahtar yalnızca Secrets'ta durur.
+      # DÜZELTME: Bu adım önceden "continue-on-error" ile çalışıyordu ve çıktı
+      # tee'ye aktarıldığı için hata kodu kayboluyordu; araç hata verse bile
+      # iş yeşil görünüyordu. Artık hata bu adımı ve işi kırmızıya çevirir.
+      # Sonraki adımlar "if: always()" olduğu için izahname verileri yine de
+      # commit edilir.
       - name: Geçmiş arz verisini güncelle (geriye dönük test)
         if: always()
-        continue-on-error: true
+        env:
+          EVDS_API_KEY: ${{ secrets.EVDS_API_KEY }}
         run: |
+          set -o pipefail
           pip install -r requirements.txt
           python araclar/geriye_donuk_test.py --yaz | tee -a "$GITHUB_STEP_SUMMARY"
 

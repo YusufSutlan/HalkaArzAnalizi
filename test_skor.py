@@ -252,5 +252,23 @@ check("taslak arzda 'Fiyat İstikrarı' metni fiyat sanılmaz", p["fiyat"], None
 check("taslak arzda arz büyüklüğü uydurulmaz", p["arz_buyuklugu"], None)
 check("pay sayısı okunur", p["pay"], 72_814_782.0)
 
+print("=== Endeks (EVDS) ===")
+import os
+import Endeksveri
+seri = [(dt.date(2026, 1, 1) + dt.timedelta(days=i), 100.0 + i) for i in range(80)]
+check("momentum: son kapanış / 60 işlem günü önceki - 1",
+      yakin(Endeksveri.momentum(seri), 179.0 / 119.0 - 1, 1e-9))
+check("momentum: tarih verilince o günden ÖNCEKİ veri kullanılır",
+      yakin(Endeksveri.momentum(seri, dt.date(2026, 3, 11)), 168.0 / 108.0 - 1, 1e-9))
+check("momentum: yetersiz veri -> None", Endeksveri.momentum(seri[:50]), None)
+check("momentum: bariz veri hatası -> None",
+      Endeksveri.momentum([(d, 1.0) for d, _ in seri[:20]] + [(d, 1000.0) for d, _ in seri[20:]]), None)
+eski = os.environ.pop("EVDS_API_KEY", None)
+m, gun, durum = Endeksveri.guncel_momentum()
+check("anahtar yoksa hata fırlatmaz, None ve açıklama döner",
+      (m, gun, "EVDS_API_KEY" in durum), (None, None, True))
+if eski is not None:
+    os.environ["EVDS_API_KEY"] = eski
+
 print(f"\n{ok} başarılı, {fail} başarısız")
 sys.exit(1 if fail else 0)

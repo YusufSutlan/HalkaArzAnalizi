@@ -47,6 +47,10 @@ Finansal veri tarafında ise ayrı ve daha ağır bir hat var:
 - **`araclar/geriye_donuk_test.py`** — Bu dosyayı üretir ve modeli gerçek
   sonuçlarla sınar. `python araclar/geriye_donuk_test.py` rapor basar,
   `--yaz` ile veri dosyasını günceller. GitHub Actions her gün çalıştırır.
+- **`Endeksveri.py`** — BIST 100 kapanışlarını TCMB EVDS'ten alır (piyasa
+  momentumu). `EVDS_API_KEY` ortam değişkeni gerekir; anahtar koda ve depoya
+  yazılmaz. Render'da ortam değişkeni, GitHub Actions'ta Secret olarak tanımlıdır.
+  Anahtar yoksa momentum "bilinmiyor" sayılır ve `/health` bunu gösterir.
 - **`test_skor.py`** — Skor motoru testleri (`python test_skor.py`, ağ gerekmez).
 
 ## Skor modeli (v4)
@@ -71,7 +75,10 @@ kullanılır (sermaye artırımı geliri özkaynağa eklenir).
 
 Bilinen sınırlar: FAVÖK izahnamelerin çok azında hesaplanabildiği için
 FD/FAVÖK ve Net Borç/FAVÖK nadiren ölçülür; fiyat sağlayıcıda 2023'ün ikinci
-yarısındaki arzların ilk ayları eksiktir; ~100 gözlem küçük bir örneklemdir.
+yarısındaki arzların sonuçları eksiktir; ~100 gözlem küçük bir örneklemdir.
+Araç hisse fiyatı indirmez (izinli bir kaynak henüz yok): mevcut 108 arzın
+sonuçları dosyada korunur, yeni arzların tavan/getiri alanları boş kalır.
+Katılımcı, kişi başı tutar ve arz büyüklüğü verisi günlük güncellenir.
 
 **`mobil_app/`** — API'nin `/api/halkarzlar` uç noktasına doğrudan bağlanan
 Flutter mobil istemcisi (`lib/main.dart`). `ApiConfig.baseUrl` production

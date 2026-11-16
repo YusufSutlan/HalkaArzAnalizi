@@ -56,7 +56,7 @@
    "islem": "2023-01-18",
    "arz": 2187500000.0,
    "fiyat": 12.5,
-   "mom60": 0.2742,
+   "mom60": 0.2743,
    "tavan": 9,
    "ilk_gun": 0.1,
    "getiri_5g": 0.608,
@@ -107,7 +107,7 @@
    "islem": "2023-03-09",
    "arz": 871750000.0,
    "fiyat": 11.0,
-   "mom60": 0.0601,
+   "mom60": 0.0426,
    "tavan": 8,
    "ilk_gun": 0.1,
    "getiri_5g": 0.61,
@@ -115,7 +115,7 @@
    "getiri_60g": 0.1918,
    "kalite": 61.9,
    "baski_skoru": 23.2,
-   "kisa_vade_skoru": 64.4
+   "kisa_vade_skoru": 63.2
   },
   {
    "kod": "AKFYE",
@@ -124,7 +124,7 @@
    "islem": "2023-03-16",
    "arz": 3335632742.4,
    "fiyat": 9.8,
-   "mom60": 0.0881,
+   "mom60": 0.1216,
    "tavan": 8,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6082,
@@ -132,7 +132,7 @@
    "getiri_60g": 0.1286,
    "kalite": 55.7,
    "baski_skoru": 35.8,
-   "kisa_vade_skoru": 56.3
+   "kisa_vade_skoru": 58.6
   },
   {
    "kod": "EKSUN",
@@ -141,7 +141,7 @@
    "islem": "2023-03-24",
    "arz": 980078347.8,
    "fiyat": 48.9,
-   "mom60": 0.0029,
+   "mom60": 0.0079,
    "tavan": 7,
    "ilk_gun": 0.0992,
    "getiri_5g": 0.6084,
@@ -149,7 +149,7 @@
    "getiri_60g": 0.1544,
    "kalite": 75.8,
    "baski_skoru": 13.2,
-   "kisa_vade_skoru": 73.0
+   "kisa_vade_skoru": 73.4
   },
   {
    "kod": "CVKMD",
@@ -158,7 +158,7 @@
    "islem": "2023-04-13",
    "arz": 882000000.0,
    "fiyat": 105.0,
-   "mom60": -0.0803,
+   "mom60": -0.0398,
    "tavan": 5,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6086,
@@ -166,7 +166,7 @@
    "getiri_60g": 0.7381,
    "kalite": 100.0,
    "baski_skoru": 27.6,
-   "kisa_vade_skoru": 64.4
+   "kisa_vade_skoru": 67.1
   },
   {
    "kod": "KOPOL",
@@ -175,7 +175,7 @@
    "islem": "2023-04-13",
    "arz": 1087555000.0,
    "fiyat": 24.5,
-   "mom60": -0.0803,
+   "mom60": -0.0398,
    "tavan": 5,
    "ilk_gun": 0.0996,
    "getiri_5g": 0.6082,
@@ -183,7 +183,7 @@
    "getiri_60g": 1.298,
    "kalite": 49.6,
    "baski_skoru": 27.3,
-   "kisa_vade_skoru": 46.2
+   "kisa_vade_skoru": 48.9
   },
   {
    "kod": "EUPWR",
@@ -192,7 +192,7 @@
    "islem": "2023-04-20",
    "arz": 2029999594.0,
    "fiyat": 40.6,
-   "mom60": 0.0302,
+   "mom60": 0.0332,
    "tavan": 7,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6084,
@@ -200,7 +200,7 @@
    "getiri_60g": 3.165,
    "kalite": 77.3,
    "baski_skoru": 61.9,
-   "kisa_vade_skoru": 47.0
+   "kisa_vade_skoru": 47.2
   },
   {
    "kod": "GRTHO",
@@ -209,10 +209,10 @@
    "islem": "2023-04-26",
    "arz": 440000000.0,
    "fiyat": 17.6,
-   "mom60": -0.0679,
+   "mom60": -0.0558,
    "kalite": 62.9,
    "baski_skoru": 0.0,
-   "kisa_vade_skoru": 77.2
+   "kisa_vade_skoru": 78.1
   },
   {
    "kod": "CWENE",
@@ -221,7 +221,7 @@
    "islem": "2023-05-05",
    "arz": 2715000000.0,
    "fiyat": 108.6,
-   "mom60": -0.0844,
+   "mom60": -0.0959,
    "tavan": 0,
    "ilk_gun": 0.0064,
    "getiri_5g": 0.128,
@@ -229,7 +229,7 @@
    "getiri_60g": 1.9521,
    "kalite": 58.3,
    "baski_skoru": 77.2,
-   "kisa_vade_skoru": 21.1
+   "kisa_vade_skoru": 20.4
   },
   {
    "kod": "BIGCH",
@@ -240,10 +240,10 @@
    "fiyat": 22.5,
    "katilimci": 1800797,
    "kisi_basi_tl": 377,
-   "mom60": -0.0486,
+   "mom60": -0.0989,
    "kalite": 66.6,
    "baski_skoru": 16.3,
-   "kisa_vade_skoru": 62.7
+   "kisa_vade_skoru": 59.3
   },
   {
    "kod": "BIENY",
@@ -405,7 +405,7 @@
    "fiyat": 12.6,
    "katilimci": 1320026,
    "kisi_basi_tl": 1260,
-   "mom60": 0.4315,
+   "mom60": 0.4314,
    "kalite": 60.3,
    "baski_skoru": 76.1,
    "kisa_vade_skoru": 57.0
@@ -566,7 +566,7 @@
    "islem": "2023-09-20",
    "arz": 1670042000.0,
    "fiyat": 22.66,
-   "mom60": 0.4828,
+   "mom60": 0.4827,
    "kalite": 61.9,
    "baski_skoru": 71.1,
    "kisa_vade_skoru": 63.6
@@ -580,7 +580,7 @@
    "fiyat": 22.6,
    "katilimci": 3735310,
    "kisi_basi_tl": 188,
-   "mom60": 0.4828,
+   "mom60": 0.4827,
    "kalite": 60.0,
    "baski_skoru": 27.9,
    "kisa_vade_skoru": 87.9
@@ -594,7 +594,7 @@
    "fiyat": 9.3,
    "katilimci": 4208248,
    "kisi_basi_tl": 404,
-   "mom60": 0.4828,
+   "mom60": 0.4827,
    "kalite": 76.8,
    "baski_skoru": 74.3,
    "kisa_vade_skoru": 69.2
@@ -900,7 +900,7 @@
    "fiyat": 35.0,
    "katilimci": 2390045,
    "kisi_basi_tl": 277,
-   "mom60": 0.1413,
+   "mom60": 0.1719,
    "tavan": 15,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6086,
@@ -908,7 +908,7 @@
    "getiri_60g": 1.2857,
    "kalite": 70.3,
    "baski_skoru": 11.7,
-   "kisa_vade_skoru": 79.7
+   "kisa_vade_skoru": 81.7
   },
   {
    "kod": "BORSK",
@@ -919,7 +919,7 @@
    "fiyat": 26.54,
    "katilimci": 2598451,
    "kisi_basi_tl": 422,
-   "mom60": 0.1667,
+   "mom60": 0.1675,
    "tavan": 7,
    "ilk_gun": 0.0995,
    "getiri_5g": 0.6081,
@@ -938,7 +938,7 @@
    "fiyat": 16.2,
    "katilimci": 3243525,
    "kisi_basi_tl": 545,
-   "mom60": 0.1486,
+   "mom60": 0.1571,
    "tavan": 9,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6086,
@@ -946,7 +946,7 @@
    "getiri_60g": 0.4753,
    "kalite": 66.5,
    "baski_skoru": 66.8,
-   "kisa_vade_skoru": 46.4
+   "kisa_vade_skoru": 47.0
   },
   {
    "kod": "OBAMS",
@@ -957,7 +957,7 @@
    "fiyat": 39.24,
    "katilimci": 3388122,
    "kisi_basi_tl": 547,
-   "mom60": 0.1549,
+   "mom60": 0.167,
    "tavan": 5,
    "ilk_gun": 0.0999,
    "getiri_5g": 0.6081,
@@ -965,7 +965,7 @@
    "getiri_60g": -0.1177,
    "kalite": 65.0,
    "baski_skoru": 72.1,
-   "kisa_vade_skoru": 43.2
+   "kisa_vade_skoru": 44.0
   },
   {
    "kod": "ALVES",
@@ -976,7 +976,7 @@
    "fiyat": 19.45,
    "katilimci": 2870401,
    "kisi_basi_tl": 217,
-   "mom60": 0.1549,
+   "mom60": 0.167,
    "tavan": 12,
    "ilk_gun": 0.0992,
    "getiri_5g": 0.6072,
@@ -984,7 +984,7 @@
    "getiri_60g": 1.2057,
    "kalite": 82.6,
    "baski_skoru": 4.9,
-   "kisa_vade_skoru": 90.4
+   "kisa_vade_skoru": 91.2
   },
   {
    "kod": "ARTMS",
@@ -995,10 +995,10 @@
    "fiyat": 25.35,
    "katilimci": 2185014,
    "kisi_basi_tl": 232,
-   "mom60": 0.1437,
+   "mom60": 0.1351,
    "kalite": 78.5,
    "baski_skoru": 0.0,
-   "kisa_vade_skoru": 92.8
+   "kisa_vade_skoru": 92.2
   },
   {
    "kod": "MOGAN",
@@ -1009,10 +1009,10 @@
    "fiyat": 11.33,
    "katilimci": 3502171,
    "kisi_basi_tl": 680,
-   "mom60": 0.141,
+   "mom60": 0.1704,
    "kalite": 63.8,
    "baski_skoru": 84.3,
-   "kisa_vade_skoru": 34.3
+   "kisa_vade_skoru": 36.2
   },
   {
    "kod": "ODINE",
@@ -1023,10 +1023,10 @@
    "fiyat": 30.0,
    "katilimci": 3198260,
    "kisi_basi_tl": 249,
-   "mom60": 0.1498,
+   "mom60": 0.1593,
    "kalite": 77.1,
    "baski_skoru": 14.2,
-   "kisa_vade_skoru": 82.1
+   "kisa_vade_skoru": 82.7
   },
   {
    "kod": "ENTRA",
@@ -1502,7 +1502,7 @@
    "fiyat": 40.0,
    "katilimci": 436025,
    "kisi_basi_tl": 3027,
-   "mom60": 0.0639,
+   "mom60": 0.1039,
    "tavan": 0,
    "ilk_gun": 0.0005,
    "getiri_5g": -0.041,
@@ -1510,7 +1510,7 @@
    "getiri_60g": -0.247,
    "kalite": 54.1,
    "baski_skoru": 83.5,
-   "kisa_vade_skoru": 24.9
+   "kisa_vade_skoru": 27.5
   },
   {
    "kod": "EGEGY",
@@ -1521,7 +1521,7 @@
    "fiyat": 15.0,
    "katilimci": 348119,
    "kisi_basi_tl": 1582,
-   "mom60": 0.1124,
+   "mom60": 0.1235,
    "tavan": 1,
    "ilk_gun": 0.1,
    "getiri_5g": 0.0,
@@ -1529,7 +1529,7 @@
    "getiri_60g": 0.2467,
    "kalite": 37.1,
    "baski_skoru": 35.8,
-   "kisa_vade_skoru": 47.2
+   "kisa_vade_skoru": 48.0
   },
   {
    "kod": "GLRMK",
@@ -1540,7 +1540,7 @@
    "fiyat": 125.0,
    "katilimci": 595287,
    "kisi_basi_tl": 3256,
-   "mom60": 0.1496,
+   "mom60": 0.1287,
    "tavan": 0,
    "ilk_gun": 0.068,
    "getiri_5g": 0.1968,
@@ -1548,7 +1548,7 @@
    "getiri_60g": 0.26,
    "kalite": 61.8,
    "baski_skoru": 100.0,
-   "kisa_vade_skoru": 23.3
+   "kisa_vade_skoru": 21.9
   },
   {
    "kod": "AKFIS",
@@ -1559,10 +1559,10 @@
    "fiyat": 38.7,
    "katilimci": 260628,
    "kisi_basi_tl": 3290,
-   "mom60": 0.1401,
+   "mom60": 0.1163,
    "kalite": 60.3,
    "baski_skoru": 84.5,
-   "kisa_vade_skoru": 32.7
+   "kisa_vade_skoru": 31.1
   },
   {
    "kod": "MOPAS",
@@ -1573,7 +1573,7 @@
    "fiyat": 35.0,
    "katilimci": 235408,
    "kisi_basi_tl": 3278,
-   "mom60": 0.1344,
+   "mom60": 0.1296,
    "tavan": 0,
    "ilk_gun": -0.0371,
    "getiri_5g": -0.0726,
@@ -1581,7 +1581,7 @@
    "getiri_60g": -0.224,
    "kalite": 74.4,
    "baski_skoru": 75.2,
-   "kisa_vade_skoru": 44.2
+   "kisa_vade_skoru": 43.9
   },
   {
    "kod": "SERNT",
@@ -1592,7 +1592,7 @@
    "fiyat": 12.0,
    "katilimci": 153011,
    "kisi_basi_tl": 3181,
-   "mom60": 0.1392,
+   "mom60": 0.1683,
    "tavan": 4,
    "ilk_gun": 0.1,
    "getiri_5g": 0.3175,
@@ -1600,7 +1600,7 @@
    "getiri_60g": -0.1508,
    "kalite": 58.2,
    "baski_skoru": 64.3,
-   "kisa_vade_skoru": 42.9
+   "kisa_vade_skoru": 44.8
   },
   {
    "kod": "BIGEN",
@@ -1611,7 +1611,7 @@
    "fiyat": 12.14,
    "katilimci": 188384,
    "kisi_basi_tl": 2975,
-   "mom60": 0.1631,
+   "mom60": 0.1692,
    "tavan": 1,
    "ilk_gun": 0.0997,
    "getiri_5g": 0.0239,
@@ -1619,7 +1619,7 @@
    "getiri_60g": 0.1425,
    "kalite": 62.9,
    "baski_skoru": 36.5,
-   "kisa_vade_skoru": 63.0
+   "kisa_vade_skoru": 63.4
   },
   {
    "kod": "DSTKF",
@@ -1630,7 +1630,7 @@
    "fiyat": 46.98,
    "katilimci": 125801,
    "kisi_basi_tl": 3883,
-   "mom60": 0.1698,
+   "mom60": 0.1376,
    "tavan": 5,
    "ilk_gun": 0.0994,
    "getiri_5g": 0.6071,
@@ -1638,7 +1638,7 @@
    "getiri_60g": 3.5126,
    "kalite": 67.1,
    "baski_skoru": 88.4,
-   "kisa_vade_skoru": 35.6
+   "kisa_vade_skoru": 33.5
   },
   {
    "kod": "VSNMD",
@@ -1649,7 +1649,7 @@
    "fiyat": 37.44,
    "katilimci": 228291,
    "kisi_basi_tl": 2341,
-   "mom60": 0.0678,
+   "mom60": 0.0572,
    "tavan": 3,
    "ilk_gun": 0.0999,
    "getiri_5g": 0.2286,
@@ -1657,7 +1657,7 @@
    "getiri_60g": 7.2732,
    "kalite": 42.1,
    "baski_skoru": 53.1,
-   "kisa_vade_skoru": 36.1
+   "kisa_vade_skoru": 35.4
   },
   {
    "kod": "KLYPV",
@@ -1668,10 +1668,10 @@
    "fiyat": 70.3,
    "katilimci": 289776,
    "kisi_basi_tl": 3958,
-   "mom60": 0.0667,
+   "mom60": 0.0583,
    "kalite": 65.1,
    "baski_skoru": 86.4,
-   "kisa_vade_skoru": 28.7
+   "kisa_vade_skoru": 28.2
   },
   {
    "kod": "ENDAE",
@@ -1682,10 +1682,10 @@
    "fiyat": 17.44,
    "katilimci": 286905,
    "kisi_basi_tl": 5110,
-   "mom60": 0.0667,
+   "mom60": 0.0583,
    "kalite": 81.8,
    "baski_skoru": 75.8,
-   "kisa_vade_skoru": 42.6
+   "kisa_vade_skoru": 42.1
   },
   {
    "kod": "BALSU",
@@ -1696,7 +1696,7 @@
    "fiyat": 17.57,
    "katilimci": 200209,
    "kisi_basi_tl": 14773,
-   "mom60": 0.0738,
+   "mom60": 0.0977,
    "tavan": 0,
    "ilk_gun": -0.0017,
    "getiri_5g": -0.0063,
@@ -1704,7 +1704,7 @@
    "getiri_60g": 0.1781,
    "kalite": 55.6,
    "baski_skoru": 100.0,
-   "kisa_vade_skoru": 7.9
+   "kisa_vade_skoru": 9.5
   },
   {
    "kod": "BULGS",
@@ -1715,7 +1715,7 @@
    "fiyat": 12.18,
    "katilimci": 171029,
    "kisi_basi_tl": 2840,
-   "mom60": 0.0936,
+   "mom60": 0.0544,
    "tavan": 3,
    "ilk_gun": 0.0993,
    "getiri_5g": 0.5722,
@@ -1723,7 +1723,7 @@
    "getiri_60g": 1.8259,
    "kalite": 56.2,
    "baski_skoru": 11.8,
-   "kisa_vade_skoru": 68.9
+   "kisa_vade_skoru": 66.3
   },
   {
    "kod": "DMLKT",
@@ -1841,7 +1841,7 @@
    "fiyat": 19.5,
    "katilimci": 508244,
    "kisi_basi_tl": 902,
-   "mom60": 0.0298,
+   "mom60": 0.0103,
    "tavan": 7,
    "ilk_gun": 0.0995,
    "getiri_5g": 0.6072,
@@ -1849,7 +1849,7 @@
    "getiri_60g": 0.2462,
    "kalite": 51.8,
    "baski_skoru": 0.0,
-   "kisa_vade_skoru": 78.6
+   "kisa_vade_skoru": 77.3
   },
   {
    "kod": "MEYSU",
@@ -1860,7 +1860,7 @@
    "fiyat": 7.5,
    "katilimci": 646385,
    "kisi_basi_tl": 914,
-   "mom60": 0.1209,
+   "mom60": 0.1216,
    "tavan": 4,
    "ilk_gun": 0.1,
    "getiri_5g": 0.4067,
@@ -1868,7 +1868,7 @@
    "getiri_60g": 1.0493,
    "kalite": 51.2,
    "baski_skoru": 1.2,
-   "kisa_vade_skoru": 75.1
+   "kisa_vade_skoru": 75.2
   },
   {
    "kod": "FRMPL",
@@ -1879,7 +1879,7 @@
    "fiyat": 30.24,
    "katilimci": 679834,
    "kisi_basi_tl": 1157,
-   "mom60": 0.1451,
+   "mom60": 0.1717,
    "tavan": 4,
    "ilk_gun": 0.0999,
    "getiri_5g": 0.455,
@@ -1887,7 +1887,7 @@
    "getiri_60g": 0.0992,
    "kalite": 51.2,
    "baski_skoru": 2.9,
-   "kisa_vade_skoru": 75.7
+   "kisa_vade_skoru": 77.4
   },
   {
    "kod": "ZGYO",
@@ -1898,7 +1898,7 @@
    "fiyat": 9.77,
    "katilimci": 431279,
    "kisi_basi_tl": 957,
-   "mom60": 0.1451,
+   "mom60": 0.1717,
    "tavan": 3,
    "ilk_gun": 0.0993,
    "getiri_5g": 0.5292,
@@ -1906,7 +1906,7 @@
    "getiri_60g": 1.9478,
    "kalite": 52.6,
    "baski_skoru": 0.0,
-   "kisa_vade_skoru": 95.0
+   "kisa_vade_skoru": 96.8
   },
   {
    "kod": "UCAYM",
@@ -1917,7 +1917,7 @@
    "fiyat": 18.0,
    "katilimci": 785446,
    "kisi_basi_tl": 963,
-   "mom60": 0.1881,
+   "mom60": 0.1901,
    "tavan": 8,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6078,
@@ -1925,7 +1925,7 @@
    "getiri_60g": 0.7611,
    "kalite": 56.5,
    "baski_skoru": 31.8,
-   "kisa_vade_skoru": 64.1
+   "kisa_vade_skoru": 64.2
   },
   {
    "kod": "AKHAN",
@@ -1936,7 +1936,7 @@
    "fiyat": 21.5,
    "katilimci": 959086,
    "kisi_basi_tl": 736,
-   "mom60": 0.2673,
+   "mom60": 0.2608,
    "tavan": 4,
    "ilk_gun": 0.0995,
    "getiri_5g": 0.4047,
@@ -1944,7 +1944,7 @@
    "getiri_60g": 0.36,
    "kalite": 56.8,
    "baski_skoru": 45.3,
-   "kisa_vade_skoru": 61.8
+   "kisa_vade_skoru": 61.4
   },
   {
    "kod": "NETCD",
@@ -1955,7 +1955,7 @@
    "fiyat": 46.0,
    "katilimci": 994717,
    "kisi_basi_tl": 1110,
-   "mom60": 0.2673,
+   "mom60": 0.2608,
    "tavan": 8,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6087,
@@ -1963,7 +1963,7 @@
    "getiri_60g": 1.7652,
    "kalite": 71.8,
    "baski_skoru": 70.0,
-   "kisa_vade_skoru": 54.9
+   "kisa_vade_skoru": 54.5
   },
   {
    "kod": "BESTE",
@@ -1974,7 +1974,7 @@
    "fiyat": 14.7,
    "katilimci": 795046,
    "kisi_basi_tl": 1007,
-   "mom60": 0.2848,
+   "mom60": 0.2771,
    "tavan": 10,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6082,
@@ -1982,7 +1982,7 @@
    "getiri_60g": 1.117,
    "kalite": 77.6,
    "baski_skoru": 38.1,
-   "kisa_vade_skoru": 77.1
+   "kisa_vade_skoru": 76.6
   },
   {
    "kod": "ATATR",
@@ -1993,7 +1993,7 @@
    "fiyat": 11.2,
    "katilimci": 622600,
    "kisi_basi_tl": 2015,
-   "mom60": 0.3217,
+   "mom60": 0.3005,
    "tavan": 5,
    "ilk_gun": 0.1,
    "getiri_5g": 0.6089,
@@ -2001,7 +2001,7 @@
    "getiri_60g": 0.4643,
    "kalite": 66.2,
    "baski_skoru": 78.0,
-   "kisa_vade_skoru": 51.6
+   "kisa_vade_skoru": 50.1
   },
   {
    "kod": "EMPAE",
@@ -2012,7 +2012,7 @@
    "fiyat": 22.0,
    "katilimci": 1134244,
    "kisi_basi_tl": 442,
-   "mom60": 0.2714,
+   "mom60": 0.2647,
    "tavan": 6,
    "ilk_gun": 0.1,
    "getiri_5g": 0.61,
@@ -2020,7 +2020,7 @@
    "getiri_60g": 2.3659,
    "kalite": 63.6,
    "baski_skoru": 21.6,
-   "kisa_vade_skoru": 79.3
+   "kisa_vade_skoru": 78.8
   },
   {
    "kod": "SVGYO",
@@ -2031,7 +2031,7 @@
    "fiyat": 3.64,
    "katilimci": 701103,
    "kisi_basi_tl": 613,
-   "mom60": 0.2429,
+   "mom60": 0.2564,
    "tavan": 11,
    "ilk_gun": 0.0989,
    "getiri_5g": 0.6071,
@@ -2039,7 +2039,7 @@
    "getiri_60g": 4.272,
    "kalite": 55.6,
    "baski_skoru": 12.7,
-   "kisa_vade_skoru": 78.9
+   "kisa_vade_skoru": 79.8
   },
   {
    "kod": "GENKM",
@@ -2050,7 +2050,7 @@
    "fiyat": 11.0,
    "katilimci": 803626,
    "kisi_basi_tl": 1705,
-   "mom60": 0.2224,
+   "mom60": 0.2125,
    "tavan": 5,
    "ilk_gun": 0.1,
    "getiri_5g": 0.61,
@@ -2058,7 +2058,7 @@
    "getiri_60g": 0.5727,
    "kalite": 56.9,
    "baski_skoru": 72.1,
-   "kisa_vade_skoru": 43.2
+   "kisa_vade_skoru": 42.5
   },
   {
    "kod": "MCARD",
@@ -2069,7 +2069,7 @@
    "fiyat": 80.0,
    "katilimci": 964747,
    "kisi_basi_tl": 752,
-   "mom60": 0.175,
+   "mom60": 0.1559,
    "tavan": 4,
    "ilk_gun": 0.1,
    "getiri_5g": 0.4863,
@@ -2077,7 +2077,7 @@
    "getiri_60g": 1.27,
    "kalite": 74.4,
    "baski_skoru": 45.9,
-   "kisa_vade_skoru": 64.3
+   "kisa_vade_skoru": 63.0
   },
   {
    "kod": "LXGYO",
@@ -2088,7 +2088,7 @@
    "fiyat": 12.05,
    "katilimci": 887852,
    "kisi_basi_tl": 651,
-   "mom60": 0.175,
+   "mom60": 0.1559,
    "tavan": 7,
    "ilk_gun": 0.0996,
    "getiri_5g": 0.6083,
@@ -2096,7 +2096,7 @@
    "getiri_60g": 0.4149,
    "kalite": 55.6,
    "baski_skoru": 35.9,
-   "kisa_vade_skoru": 60.9
+   "kisa_vade_skoru": 59.6
   },
   {
    "kod": "AAGYO",
@@ -2227,9 +2227,9 @@
    "getiri_5g": 0.3167,
    "getiri_20g": 1.1053,
    "getiri_60g": 0.1866,
-   "kalite": 46.4,
+   "kalite": 53.4,
    "baski_skoru": 41.0,
-   "kisa_vade_skoru": 49.2
+   "kisa_vade_skoru": 52.7
   },
   {
    "kod": "EKIM",

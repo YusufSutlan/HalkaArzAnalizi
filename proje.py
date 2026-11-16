@@ -68,12 +68,8 @@ class AppSettings:
     # NOT: Eski sabit değer 2.500.000 idi; 2026'da gerçek katılım 500-750 bin
     # bandına indiği için kişi başı dağıtımı ~4 kat düşük tahmin ediyordu.
     TAHMINI_KATILIMCI: int = int(os.environ.get("TAHMINI_KATILIMCI", "0"))
-    # BIST 100'ün son 60 işlem günündeki getirisi buradan okunur (piyasa
-    # momentumu). Ulaşılamazsa momentum etkisi nötr sayılır.
-    ENDEKS_URL: str = os.environ.get(
-        "ENDEKS_URL",
-        "https://query1.finance.yahoo.com/v8/finance/chart/XU100.IS?range=6mo&interval=1d",
-    )
+    # BIST 100 momentumu TCMB EVDS'ten okunur (bkz. Endeksveri.py; anahtar
+    # EVDS_API_KEY ortam değişkeninde). Sonuç bu kadar saniye önbelleklenir.
     ENDEKS_CACHE_TTL: int = int(os.environ.get("ENDEKS_CACHE_TTL", "21600"))
 
 
@@ -2242,30 +2238,26 @@ class DataExtractor:
 
         Geriye dönük testte halka arzların ilk haftalardaki performansıyla en
         güçlü ilişkili iki etkenden biri (diğeri kişi başı dağıtılan tutar).
-        Veri alınamazsa None döner; model bu etkeni nötr sayar ve bunu
-        çıktıda belirtir. Sonuç ENDEKS_CACHE_TTL saniye önbelleklenir.
+        Kaynak TCMB EVDS (Endeksveri.py). Veri alınamazsa None döner; model
+        bu etkeni nötr sayar ve çıktıda belirtir. Başarılı sonuç
+        ENDEKS_CACHE_TTL saniye, hata 15 dakika önbelleklenir.
         """
+        import Endeksveri
         simdi = time.time()
         zaman, deger = getattr(self, "_mom_onbellek", (0.0, None))
         gecerlilik = SETTINGS.ENDEKS_CACHE_TTL if deger is not None else 900
         if simdi - zaman < gecerlilik:
             return deger
-        deger = None
-        try:
-            session = await self._get_session()
-            res = await session.get(SETTINGS.ENDEKS_URL, timeout=10)
-            if res.status_code == 200:
-                sonuc = res.json()["chart"]["result"][0]
-                kapanis = [k for k in sonuc["indicators"]["quote"][0]["close"] if k]
-                if len(kapanis) >= 61 and kapanis[-61] > 0:
-                    deger = kapanis[-1] / kapanis[-61] - 1
-                    if not -0.6 < deger < 2.0:      # bariz veri hatası
-                        deger = None
-            else:
-                logger.warning(f"Endeks verisi alınamadı, durum kodu: {res.status_code}")
-        except Exception as e:
-            logger.warning(f"Endeks verisi alınamadı: {e}")
+        deger, son_gun, durum = await asyncio.to_thread(Endeksveri.guncel_momentum)
+        if deger is None:
+            logger.warning(f"BIST 100 momentumu alınamadı: {durum}")
         self._mom_onbellek = (simdi, deger)
+        self.endeks_durumu = {
+            "kaynak": "TCMB EVDS " + Endeksveri.EVDS_SERI,
+            "durum": durum,
+            "son_kapanis_tarihi": son_gun.isoformat() if son_gun else None,
+            "anahtar_tanimli": Endeksveri.anahtar_var_mi(),
+        }
         return deger
 
     async def _fetch_bytes(self, url: str) -> Optional[bytes]:
@@ -3615,6 +3607,16 @@ async def health_check():
     except Exception:
         saglik["finansal_veri"] = {"hata": True}
     saglik["gecmis_arz_verisi"] = GECMIS.durum_ozeti()
+    # Endeks momentumu alınabiliyor mu? null = alınamıyor (model bu etkeni
+    # nötr sayar); nedeni "endeks" alanında. Önbellekli, sık çağrı sorun değil.
+    # API anahtarının kendisi asla yanıta yazılmaz; yalnızca tanımlı olup olmadığı.
+    try:
+        mom = await app.state.extractor.bist_momentumu()
+        saglik["bist_momentum_60g"] = round(mom, 4) if mom is not None else None
+        saglik["endeks"] = getattr(app.state.extractor, "endeks_durumu", None)
+    except Exception as e:
+        saglik["bist_momentum_60g"] = None
+        saglik["endeks"] = {"durum": f"hata: {type(e).__name__}"}
     return saglik
 
 

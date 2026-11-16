@@ -8,8 +8,8 @@ Ne yapar?
   2. Her arzın sayfasını UYGULAMANIN KENDİ ayrıştırıcısıyla okur
      (fiyat, büyüklük, dağıtım; ayrıca gerçek katılımcı sayısı ve kişi
      başına dağıtılan tutar).
-  3. Hisselerin borsa fiyat geçmişinden gerçek sonuçları hesaplar:
-     tavan serisi uzunluğu, ilk gün ve 20/60 günlük getiri.
+  3. BIST 100 endeksini TCMB EVDS'ten alır ve her arz için talep toplama
+     bitişindeki 60 günlük momentumu hesaplar (bkz. Endeksveri.py).
   4. Modeli her arz için "o gün bilinen" veriyle çalıştırır
      (ileriye bakmadan: katılımcı ve kişi başı referansları yalnızca
      daha ÖNCE biten arzlardan gelir).
@@ -17,37 +17,45 @@ Ne yapar?
   6. --yaz verilirse veri/gecmis_arzlar.json dosyasını günceller.
      Sunucu bu dosyayı okur (bkz. Gecmisveri.py).
 
+Gerçek sonuçlar (tavan serisi, ilk gün ve 20/60 günlük getiri):
+  Bu araç hisse fiyatı İNDİRMEZ; izinli bir hisse fiyatı kaynağı henüz yok.
+  Mevcut dosyadaki sonuçlar korunur ve rapor bunlar üzerinden yapılır.
+  Yeni arzların sonuç alanları boş kalır (sunucunun kullandığı katılımcı,
+  kişi başı tutar ve arz büyüklüğü verisi yine güncellenir). Sonuç eklemek
+  için dosyaya `tavan`, `ilk_gun`, `getiri_5g`, `getiri_20g`, `getiri_60g`
+  alanları yazılabilir; araç bunları sonraki çalıştırmalarda korur.
+
+Gereksinim: EVDS_API_KEY ortam değişkeni (anahtar koda/depoya yazılmaz).
+
 Kullanım (depo kökünden):
+    export EVDS_API_KEY=...
     python araclar/geriye_donuk_test.py            # yalnızca rapor
     python araclar/geriye_donuk_test.py --yaz      # raporu yaz + dosyayı güncelle
 
 İndirilen sayfalar .onbellek/geriye_donuk/ altında saklanır; tekrar
-çalıştırmada yalnızca yeni arzlar ve güncel fiyatlar indirilir.
+çalıştırmada yalnızca yeni arzlar indirilir.
 
 Sınırlar (dürüstçe):
-  - Fiyat sağlayıcıda 2023'ün ikinci yarısındaki arzların ilk ayları eksik;
-    o arzlar sonuç istatistiklerine girmez.
+  - Sonuç verisi olan örneklem ~100 arzdır; korelasyonlar ±0,2 belirsizlik
+    taşır. Katsayılar bu yüzden yuvarlak tutuldu.
   - Emsal çarpan medyanları tüm örneklemden hesaplanır (ileriye bakış
     içerir); etkisi yalnızca temel kalite skorunun değerleme boyutundadır.
-  - ~100 gözlem küçük bir örneklemdir. Katsayılar bu yüzden yuvarlak
-    tutuldu; rapordaki korelasyonlar ±0,2 belirsizlik taşır.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
-import bisect
 import datetime as dt
 import json
 import logging
 import math
-import os
 import re
 import statistics as st
-import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
@@ -56,27 +64,30 @@ sys.path.insert(0, str(KOK))
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 ARSIV = "https://halkarz.com/k/halka-arz/{yil}/"
-FIYAT_URL = ("https://query1.finance.yahoo.com/v8/finance/chart/{kod}.IS"
-             "?period1=1640995200&period2=1900000000&interval=1d&events=split")
-TAVAN_ESIGI = 1.0945     # günlük +%10 limit, yuvarlama payıyla
+# Bu alanlar fiyat verisinden hesaplanır; araç bunları üretmez, korur.
+SONUC_ALANLARI = ("tavan", "ilk_gun", "getiri_5g", "getiri_20g", "getiri_60g")
 
 
 # ───────────────────────── indirme ─────────────────────────
 
 def indir(url: str, hedef: Path, en_az: int = 800, tazele_saat: float | None = None) -> bool:
+    """Kaynak site sayfasını indirir (önbellekte tazeyse indirmez)."""
     if hedef.exists() and hedef.stat().st_size >= en_az:
         if tazele_saat is None or (time.time() - hedef.stat().st_mtime) < tazele_saat * 3600:
             return True
-    gecici = hedef.with_suffix(hedef.suffix + ".tmp")
-    kod = subprocess.run(
-        ["curl", "-sL", "--max-time", "30", "-A", UA, "-o", str(gecici),
-         "-w", "%{http_code}", url],
-        capture_output=True, text=True).stdout.strip()
-    time.sleep(0.5)
-    if kod == "200" and gecici.exists() and gecici.stat().st_size >= en_az:
-        gecici.replace(hedef)
-        return True
-    gecici.unlink(missing_ok=True)
+    try:
+        istek = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(istek, timeout=30) as yanit:
+            govde = yanit.read()
+        time.sleep(0.5)                  # kaynak siteyi yormamak için
+        if len(govde) >= en_az:
+            hedef.write_bytes(govde)
+            return True
+    except urllib.error.HTTPError as e:
+        if e.code != 404:                # 404: sayfalamanın sonu, beklenen durum
+            print(f"    indirilemedi (HTTP {e.code}): {url}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        print(f"    indirilemedi ({type(e).__name__}): {url}")
     return hedef.exists() and hedef.stat().st_size >= en_az
 
 
@@ -108,70 +119,6 @@ def arsivi_topla(onbellek: Path, yillar: list[int]) -> list[dict]:
             if not yeni:
                 break
     return list(bulunan.values())
-
-
-# ───────────────────────── fiyat verisi ─────────────────────────
-
-def fiyat_oku(dosya: Path):
-    try:
-        j = json.loads(dosya.read_text())["chart"]["result"][0]
-        q = j["indicators"]["quote"][0]
-        satirlar = [
-            (dt.datetime.fromtimestamp(t + 10800, dt.UTC).date(), k)
-            for t, k in zip(j["timestamp"], q["close"]) if k
-        ]
-        bolunmeler = [
-            (dt.datetime.fromtimestamp(int(v["date"]) + 10800, dt.UTC).date(),
-             v["numerator"] / v["denominator"])
-            for v in ((j.get("events") or {}).get("splits") or {}).values()
-        ]
-        return satirlar, bolunmeler
-    except Exception:
-        return None, None
-
-
-def sonuc_hesapla(satirlar, bolunmeler, islem: dt.date, fiyat: float) -> dict:
-    """Halka arz fiyatına göre tavan serisi ve getiriler."""
-    gunler = [s[0] for s in satirlar]
-    i = bisect.bisect_left(gunler, islem)
-    if i >= len(satirlar) or (satirlar[i][0] - islem).days > 12:
-        return {}
-    carpan = 1.0
-    for g, oran in bolunmeler:          # sonradan yapılan bedelsiz/bölünme
-        if g > satirlar[i][0]:
-            carpan *= oran
-    arz_fiyati = fiyat / carpan
-    kap = [s[1] for s in satirlar[i:]]
-    # Sağlayıcıda ilk günler eksikse (ilk kapanış tam k tavana denk geliyorsa)
-    # eksik günleri tavan olarak tamamla.
-    ham = kap[0] / arz_fiyati
-    if 1.105 < ham < 1.1 ** 7:
-        k = round(math.log(ham) / math.log(1.1))
-        if k >= 2 and abs(ham - 1.1 ** k) / 1.1 ** k < 0.012:
-            kap = [arz_fiyati * 1.1 ** j for j in range(1, k)] + kap
-    ilk_gun = kap[0] / arz_fiyati - 1
-    if not -0.105 <= ilk_gun <= 0.105:
-        return {}                        # fiyat verisi arz fiyatıyla tutarsız
-    tavan, onceki = 0, arz_fiyati
-    for k in kap:
-        if k >= onceki * TAVAN_ESIGI:
-            tavan += 1
-            onceki = k
-        else:
-            break
-    s = {"tavan": tavan, "ilk_gun": round(ilk_gun, 4), "gun_sayisi": len(kap)}
-    for g in (5, 20, 60):
-        if len(kap) >= g:
-            s[f"getiri_{g}g"] = round(kap[g - 1] / arz_fiyati - 1, 4)
-    return s
-
-
-def momentum(endeks, gun: dt.date, n: int = 60):
-    gunler = [s[0] for s in endeks]
-    i = bisect.bisect_left(gunler, gun) - 1
-    if i - n < 0:
-        return None
-    return endeks[i][1] / endeks[i - n][1] - 1
 
 
 # ───────────────────────── istatistik ─────────────────────────
@@ -213,10 +160,26 @@ async def calistir(args) -> int:
     from proje import (ArzDurumu, DataExtractor, FinKey, InfoKey, PiyasaBaglami,
                        ScoreAnalyzer, TextUtils)
     from Gecmisveri import GecmisArzlar
+    import Endeksveri
 
+    if not Endeksveri.anahtar_var_mi():
+        print("HATA: EVDS_API_KEY ortam değişkeni tanımlı değil (bkz. Endeksveri.py).")
+        return 2
     onbellek = Path(args.onbellek)
-    for alt in ("sayfa", "fiyat"):
-        (onbellek / alt).mkdir(parents=True, exist_ok=True)
+    (onbellek / "sayfa").mkdir(parents=True, exist_ok=True)
+
+    hedef = KOK / "veri" / "gecmis_arzlar.json"
+    mevcut = {}
+    if hedef.exists():
+        try:
+            mevcut = json.loads(hedef.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"HATA: {hedef.name} okunamadı ({e}); üzerine yazılmayacak.")
+            return 1
+    eski_sonuclar = {
+        a["kod"]: {k: a[k] for k in SONUC_ALANLARI if a.get(k) is not None}
+        for a in mevcut.get("arzlar", []) if a.get("kod")
+    }
     yillar = list(range(args.baslangic, dt.date.today().year + 1))
 
     print(f"1/5 Arşiv taranıyor ({yillar[0]}–{yillar[-1]})…")
@@ -251,11 +214,18 @@ async def calistir(args) -> int:
             ayristirilan.append(p)
     print(f"    {len(ayristirilan)} sayfa ayrıştırıldı.")
 
-    print("3/5 Fiyat geçmişleri indiriliyor…")
-    indir(FIYAT_URL.format(kod="XU100"), onbellek / "fiyat" / "XU100.json", tazele_saat=12)
-    endeks, _ = fiyat_oku(onbellek / "fiyat" / "XU100.json")
-    if not endeks:
-        print("    HATA: endeks verisi alınamadı."); return 1
+    print("3/5 BIST 100 endeksi TCMB EVDS'ten alınıyor…")
+    try:
+        endeks = Endeksveri.kapanislar(dt.date(args.baslangic - 1, 7, 1))
+    except Endeksveri.EndeksHatasi as e:
+        print(f"    HATA: endeks verisi alınamadı: {e}")
+        await cikarici.close()
+        return 1
+    if len(endeks) < 200:
+        print(f"    HATA: endeks verisi eksik ({len(endeks)} gün).")
+        await cikarici.close()
+        return 1
+    print(f"    {len(endeks)} işlem günü ({endeks[0][0]} – {endeks[-1][0]}).")
 
     satirlar: list[dict] = []
     for p in ayristirilan:
@@ -284,28 +254,18 @@ async def calistir(args) -> int:
         if not r.get("talep_bit") or not r.get("arz"):
             continue
 
-        r["mom60"] = momentum(endeks, dt.date.fromisoformat(r["talep_bit"]))
-        if r["islem"] and r["fiyat"] and kod not in ("", "BELLI DEĞIL"):
-            dosya = onbellek / "fiyat" / f"{kod}.json"
-            yeni_mi = (dt.date.today() - dt.date.fromisoformat(r["islem"])).days < 120
-            if indir(FIYAT_URL.format(kod=kod), dosya, tazele_saat=24 if yeni_mi else None):
-                f, b = fiyat_oku(dosya)
-                if f:
-                    r.update(sonuc_hesapla(f, b, dt.date.fromisoformat(r["islem"]), r["fiyat"]))
+        r["mom60"] = Endeksveri.momentum(endeks, dt.date.fromisoformat(r["talep_bit"]))
+        r.update(eski_sonuclar.get(kod, {}))     # gerçek sonuçlar korunur
         r["_p"] = p
         satirlar.append(r)
     satirlar.sort(key=lambda r: r["talep_bit"])
     gecerli = [r for r in satirlar if r.get("tavan") is not None]
-    print(f"    {len(satirlar)} arz; {len(gecerli)} tanesinde doğrulanmış fiyat sonucu var.")
+    print(f"    {len(satirlar)} arz; {len(gecerli)} tanesinin gerçek sonucu dosyada kayıtlı.")
+    momsuz = [r["kod"] for r in satirlar if r.get("mom60") is None]
+    if momsuz:
+        print(f"    Momentum hesaplanamayan {len(momsuz)} arz: {', '.join(momsuz[:8])}")
 
     print("4/5 Model her arz için o günkü bilgiyle çalıştırılıyor…")
-    mevcut = {}
-    hedef = KOK / "veri" / "gecmis_arzlar.json"
-    if hedef.exists():
-        try:
-            mevcut = json.loads(hedef.read_text(encoding="utf-8"))
-        except Exception:
-            mevcut = {}
     elle = {k: mevcut[k] for k in ("bist100_medyan", "finans_medyan") if k in mevcut}
 
     def _acik(liste):
@@ -350,6 +310,10 @@ async def calistir(args) -> int:
     # ── 5. Rapor ──
     print("5/5 Rapor\n" + "═" * 78)
     G = [r for r in satirlar if r.get("tavan") is not None and r.get("kisa_vade_skoru") is not None]
+    if len(G) < 30:
+        print(f"HATA: gerçek sonucu olan arz sayısı çok az ({len(G)}); dosya yazılmadı.")
+        await cikarici.close()
+        return 1
     print(f"Örneklem: {len(G)} arz ({G[0]['talep_bit'][:7]} – {G[-1]['talep_bit'][:7]})")
     if emsal:
         print(f"Halka arz emsal medyanları: F/K {emsal['fk']}, PD/DD {emsal['pddd']} (n={emsal['n']})")
@@ -370,7 +334,7 @@ async def calistir(args) -> int:
     print("  " + "-" * 76)
     satir("tahmini kişi başı TL (ex-ante)", lambda r: r.get("tahmin_kisi_basi_tl"))
     satir("GERÇEKLEŞEN kişi başı TL", lambda r: r.get("kisi_basi_tl"))
-    satir("BIST100 60g momentum", lambda r: r.get("mom60"))
+    satir("BIST100 60g momentum (EVDS)", lambda r: r.get("mom60"))
     satir("arz büyüklüğü", lambda r: r.get("arz"))
 
     print("\nYıl bazında kararlılık (gösterge ↔ tavan sayısı):")
