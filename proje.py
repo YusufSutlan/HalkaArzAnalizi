@@ -15,7 +15,7 @@ from fastapi import FastAPI, Query, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from bs4 import BeautifulSoup
-from curl_cffi.requests import AsyncSession
+from Httpistemci import AsyncIstemci
 
 # ═══════════════════════════════════════════════════════════════════
 # ⚙️ 1. SİSTEM AYARLARI VE LOGLAMA
@@ -51,15 +51,24 @@ GECMIS = GecmisArzlar()
 class AppSettings:
     BASE_URL: str = os.environ.get("BASE_URL", "https://halkarz.com/")
     TIMEOUT: int = int(os.environ.get("TIMEOUT", "15"))
-    CACHE_TTL: int = int(os.environ.get("CACHE_TTL", "300"))
+    # API yanıtı önbelleği. Halka arz verisi dakikalar içinde değişmediği için
+    # 15 dk; böylece kaynak siteye gereksiz tekrar istek gitmez.
+    CACHE_TTL: int = int(os.environ.get("CACHE_TTL", "900"))
+    # Arz detay sayfaları ayrıca bu kadar saniye önbelleklenir (kaynak site
+    # ETag/Last-Modified göndermediği için koşullu istek yapılamıyor).
+    # Ana liste sayfası her yenilemede taze alınır.
+    SAYFA_CACHE_TTL: int = int(os.environ.get("SAYFA_CACHE_TTL", "3600"))
     MAX_RETRY: int = int(os.environ.get("MAX_RETRY", "3"))
     # 15 çok düşüktü: kaynak sitede 200+ şirket listeleniyor ve yeni
     # duyurulan arzlar bu sınırın dışında kalabiliyordu.
     MAX_SIRKET: int = int(os.environ.get("MAX_SIRKET", "40"))
     # Rozetsiz kartlarda talep toplama bitişi bu kadar gün içindeyse arz güncel sayılır.
     GUNCEL_GUN_SAYISI: int = int(os.environ.get("GUNCEL_GUN_SAYISI", "30"))
-    ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.3"))
-    ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "5"))
+    # Aynı sunucuya ardışık istekler arası asgari süre (sn) ve eşzamanlı
+    # istek sınırı. Eski değerler (0,3 sn / 5 eşzamanlı) saniyede ~15 isteğe
+    # kadar çıkabiliyordu; artık en fazla ~2 istek/sn.
+    ISTEK_ARASI_BEKLEME: float = float(os.environ.get("ISTEK_ARASI_BEKLEME", "0.5"))
+    ESZAMANLI_ISTEK_LIMITI: int = int(os.environ.get("ESZAMANLI_ISTEK_LIMITI", "2"))
     DEBUG_API_KEY: Optional[str] = os.environ.get("DEBUG_API_KEY")
     ALLOWED_ORIGINS: str = os.environ.get("ALLOWED_ORIGINS", "*")
 
@@ -2113,8 +2122,12 @@ class ScoreAnalyzer:
 class DataExtractor:
     def __init__(self, analyzer: Optional[ScoreAnalyzer] = None):
         self.analyzer = analyzer or ScoreAnalyzer()
-        self.session: Optional[AsyncSession] = None
-        self._session_lock = asyncio.Lock()
+        # Tarayıcı taklidi yok: istekler kendini tanıtan bir User-Agent ile,
+        # sunucu başına asgari aralıkla ve sayfa önbelleğiyle gider.
+        self.http = AsyncIstemci(
+            aralik=SETTINGS.ISTEK_ARASI_BEKLEME,
+            onbellek_suresi=SETTINGS.SAYFA_CACHE_TTL,
+        )
         # Tabloda görülüp seriye alınmayan ara dönemler (ör. 2026/3).
         # Yalnızca tanı amaçlı; büyüme hesabına girmezler.
         self._atlanan_ara_donemler: set[int] = set()
@@ -2211,26 +2224,10 @@ class DataExtractor:
 
     # ───────────────────────── HTTP ─────────────────────────
 
-    async def _get_session(self) -> AsyncSession:
-        if self.session is None or getattr(self.session, "closed", True):
-            async with self._session_lock:
-                if self.session is None or getattr(self.session, "closed", True):
-                    self.session = AsyncSession(impersonate="chrome")
-        return self.session
-
-    async def _fetch_url_with_retry(self, url: str) -> Optional[str]:
-        session = await self._get_session()
-        for i in range(SETTINGS.MAX_RETRY):
-            try:
-                res = await session.get(url, timeout=SETTINGS.TIMEOUT)
-                if res.status_code == 200:
-                    return res.text
-                logger.warning(f"Bağlantı hatası ({url}), durum kodu: {res.status_code}")
-            except Exception as e:
-                logger.warning(f"Timeout/hata ({url}): {e}")
-            if i < SETTINGS.MAX_RETRY - 1:
-                await asyncio.sleep(1 * (i + 1))
-        return None
+    async def _fetch_url_with_retry(self, url: str, onbellekten: bool = True) -> Optional[str]:
+        """Sayfa metni; tekrar deneme, bekleme ve önbellek Httpistemci'de."""
+        return await self.http.metin(url, zaman_asimi=SETTINGS.TIMEOUT,
+                                     onbellekten=onbellekten)
 
     async def bist_momentumu(self) -> Optional[float]:
         """
@@ -2259,25 +2256,6 @@ class DataExtractor:
             "anahtar_tanimli": Endeksveri.anahtar_var_mi(),
         }
         return deger
-
-    async def _fetch_bytes(self, url: str) -> Optional[bytes]:
-        """
-        PDF gibi ikili içerik indirir. _fetch_url_with_retry metin
-        döndürdüğü için PDF'lerde kullanılamaz.
-        """
-        session = await self._get_session()
-        for i in range(SETTINGS.MAX_RETRY):
-            try:
-                # PDF'ler büyük (~18 MB), zaman aşımı uzun tutuluyor
-                res = await session.get(url, timeout=SETTINGS.TIMEOUT * 6)
-                if res.status_code == 200:
-                    return res.content
-                logger.warning(f"PDF indirilemedi ({url}): {res.status_code}")
-            except Exception as e:
-                logger.warning(f"PDF indirme hatası ({url}): {e}")
-            if i < SETTINGS.MAX_RETRY - 1:
-                await asyncio.sleep(2 * (i + 1))
-        return None
 
     # ───────────────────────── PARSE ─────────────────────────
 
@@ -3254,7 +3232,8 @@ class DataExtractor:
     # ───────────────────────── ORKESTRA ─────────────────────────
 
     async def analiz_et(self, debug: bool = False) -> list[dict]:
-        html = await self._fetch_url_with_retry(SETTINGS.BASE_URL)
+        # Ana liste her seferinde taze alınır; detay sayfaları önbellekten gelebilir.
+        html = await self._fetch_url_with_retry(SETTINGS.BASE_URL, onbellekten=False)
         if not html:
             return []
 
@@ -3337,9 +3316,7 @@ class DataExtractor:
 
         async def _sinirli_parse(ad: str, href: str, kart: str) -> Optional[dict]:
             async with semaphore:
-                sonuc = await self._sirket_parse(ad, href, kart)
-                await asyncio.sleep(SETTINGS.ISTEK_ARASI_BEKLEME)
-                return sonuc
+                return await self._sirket_parse(ad, href, kart)
 
         tasks = [asyncio.create_task(_sinirli_parse(a, h, k)) for a, h, k in meta_list]
         parse_sonuclari = await asyncio.gather(*tasks, return_exceptions=True)
@@ -3432,8 +3409,7 @@ class DataExtractor:
         return sirket_listesi
 
     async def close(self):
-        if self.session and not getattr(self.session, "closed", True):
-            await self.session.close()
+        await self.http.kapat()
 
 
 # ═══════════════════════════════════════════════════════════════════

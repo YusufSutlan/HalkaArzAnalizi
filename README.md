@@ -51,6 +51,13 @@ Finansal veri tarafında ise ayrı ve daha ağır bir hat var:
   momentumu). `EVDS_API_KEY` ortam değişkeni gerekir; anahtar koda ve depoya
   yazılmaz. Render'da ortam değişkeni, GitHub Actions'ta Secret olarak tanımlıdır.
   Anahtar yoksa momentum "bilinmiyor" sayılır ve `/health` bunu gösterir.
+- **`Httpistemci.py`** — Dış kaynaklara giden tüm istekler bu modülden geçer.
+  Tarayıcı taklidi yapılmaz; istekler kendini tanıtan bir User-Agent ile gider,
+  aynı sunucuya ardışık istekler arasında en az 0,5 sn beklenir, 429/503'te
+  Retry-After'a uyulur. Sunucu, arz detay sayfalarını 1 saat, API yanıtını
+  15 dk önbellekler. Sertifika doğrulaması hiçbir zaman kapatılmaz; ara
+  sertifikasını göndermeyen sunucular için doğrulanmış ara sertifikalar
+  `veri/ek_ara_sertifikalar.pem` dosyasındadır (kaynak ve parmak izi notlarıyla).
 - **`test_skor.py`** — Skor motoru testleri (`python test_skor.py`, ağ gerekmez).
 
 ## Skor modeli (v4)

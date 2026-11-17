@@ -825,9 +825,10 @@ def slug_uret(ad: str) -> str:
 def halkarz_listesi_al() -> list[dict]:
     """halkarz.com ana sayfasından şirket adı + detay linki çıkarır."""
     from bs4 import BeautifulSoup
-    from curl_cffi import requests as cr
+    from Httpistemci import getir
 
-    r = cr.get(HALKARZ_URL, impersonate="chrome", timeout=30)
+    r = getir(HALKARZ_URL, zaman_asimi=30)
+    r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     sirketler: list[dict] = []
     gorulen: set[str] = set()
@@ -846,11 +847,14 @@ def halkarz_listesi_al() -> list[dict]:
 def izahname_linki_al(detay_url: str) -> Optional[str]:
     """Detay sayfasının 'Ekler' bölümünden SPK onaylı izahname linki."""
     from bs4 import BeautifulSoup
-    from curl_cffi import requests as cr
     sys.path.insert(0, str(KOK))
+    from Httpistemci import getir
     from izahname_servis import izahname_linki_bul
 
-    r = cr.get(detay_url, impersonate="chrome", timeout=30)
+    r = getir(detay_url, zaman_asimi=30)
+    if r.status_code != 200:
+        logger.error(f"Detay sayfası alınamadı (HTTP {r.status_code}): {detay_url}")
+        return None
     return izahname_linki_bul(BeautifulSoup(r.text, "html.parser"))
 
 
@@ -868,11 +872,14 @@ def pdf_indir(url: str, hedef: Path) -> bool:
     Artık dosyanın imzası kontrol ediliyor: geçerli her PDF "%PDF-"
     bayt dizisiyle başlar.
     """
-    from curl_cffi import requests as cr
+    import httpx
+    from Httpistemci import getir
+    # Sertifika doğrulaması açık. Ara sertifikasını göndermeyen sunucular
+    # için doğrulanmış ara sertifikalar veri/ek_ara_sertifikalar.pem'de.
     try:
-        r = cr.get(url, impersonate="chrome", timeout=180)
-    except Exception as e:
-        logger.error(f"PDF indirme hatası: {e}")
+        r = getir(url, zaman_asimi=180)
+    except httpx.HTTPError as e:
+        logger.error(f"PDF indirme hatası ({url}): {type(e).__name__}: {e}")
         return False
 
     if r.status_code != 200:

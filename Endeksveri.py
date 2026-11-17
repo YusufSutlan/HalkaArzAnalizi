@@ -27,9 +27,11 @@ import datetime as dt
 import json
 import logging
 import os
-import urllib.error
-import urllib.request
 from typing import Optional
+
+import httpx
+
+from Httpistemci import getir
 
 logger = logging.getLogger(__name__)
 
@@ -54,23 +56,19 @@ def _istek(bas: dt.date, bit: dt.date, zaman_asimi: float) -> list[tuple[dt.date
         raise EndeksHatasi("EVDS_API_KEY ortam değişkeni tanımlı değil")
     url = (f"{EVDS_ADRES}series={EVDS_SERI}"
            f"&startDate={bas:%d-%m-%Y}&endDate={bit:%d-%m-%Y}&type=json")
-    istek = urllib.request.Request(url, headers={
-        "key": anahtar,                         # anahtar başlıkta gider, URL'de değil
-        "User-Agent": "halka-arz-analiz/4 (+https://stltechnology.com.tr)",
-        "Accept": "application/json",
-    })
     try:
-        with urllib.request.urlopen(istek, timeout=zaman_asimi) as yanit:
-            govde = yanit.read()
-            tur = yanit.headers.get("Content-Type", "")
-    except urllib.error.HTTPError as e:
-        if e.code in (401, 403):
-            raise EndeksHatasi(f"EVDS yetki hatası (HTTP {e.code}); anahtar geçersiz olabilir") from None
-        raise EndeksHatasi(f"EVDS HTTP {e.code}") from None
-    except Exception as e:
+        # Anahtar istek başlığında gider (URL'de değil, loglara düşmez).
+        yanit = getir(url, zaman_asimi=zaman_asimi,
+                      basliklar={"key": anahtar, "Accept": "application/json"})
+    except httpx.HTTPError as e:
         raise EndeksHatasi(f"EVDS bağlantı hatası: {type(e).__name__}") from None
-    if "json" not in tur:
+    if yanit.status_code in (401, 403):
+        raise EndeksHatasi(f"EVDS yetki hatası (HTTP {yanit.status_code}); anahtar geçersiz olabilir")
+    if yanit.status_code != 200:
+        raise EndeksHatasi(f"EVDS HTTP {yanit.status_code}")
+    if "json" not in yanit.headers.get("Content-Type", ""):
         raise EndeksHatasi("EVDS beklenmeyen yanıt (JSON değil); servis adresi değişmiş olabilir")
+    govde = yanit.content
     alan = EVDS_SERI.replace(".", "_")
     sonuc = []
     for satir in json.loads(govde).get("items") or []:

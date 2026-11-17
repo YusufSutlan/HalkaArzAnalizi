@@ -245,7 +245,7 @@ class KapIstemci:
     KAP'tan finansal veri çeker.
 
     Not: Ağ katmanı dışarıdan enjekte edilir (fetch_fn), böylece hem
-    curl_cffi ile üretimde hem de test verisiyle çalışabilir.
+    üretimde Httpistemci ile hem de test verisiyle çalışabilir.
     """
 
     BASE = "https://kap.org.tr"

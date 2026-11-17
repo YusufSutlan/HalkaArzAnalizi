@@ -54,15 +54,11 @@ import re
 import statistics as st
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 ARSIV = "https://halkarz.com/k/halka-arz/{yil}/"
 # Bu alanlar fiyat verisinden hesaplanır; araç bunları üretmez, korur.
 SONUC_ALANLARI = ("tavan", "ilk_gun", "getiri_5g", "getiri_20g", "getiri_60g")
@@ -71,22 +67,23 @@ SONUC_ALANLARI = ("tavan", "ilk_gun", "getiri_5g", "getiri_20g", "getiri_60g")
 # ───────────────────────── indirme ─────────────────────────
 
 def indir(url: str, hedef: Path, en_az: int = 800, tazele_saat: float | None = None) -> bool:
-    """Kaynak site sayfasını indirir (önbellekte tazeyse indirmez)."""
+    """
+    Kaynak site sayfasını indirir. Önbellekte tazeyse ağa hiç gidilmez.
+    Kimlik, sunucu başına bekleme ve tekrar deneme Httpistemci'de.
+    """
     if hedef.exists() and hedef.stat().st_size >= en_az:
         if tazele_saat is None or (time.time() - hedef.stat().st_mtime) < tazele_saat * 3600:
             return True
+    import httpx
+    from Httpistemci import getir
     try:
-        istek = urllib.request.Request(url, headers={"User-Agent": UA})
-        with urllib.request.urlopen(istek, timeout=30) as yanit:
-            govde = yanit.read()
-        time.sleep(0.5)                  # kaynak siteyi yormamak için
-        if len(govde) >= en_az:
-            hedef.write_bytes(govde)
+        r = getir(url, zaman_asimi=30)
+        if r.status_code == 200 and len(r.content) >= en_az:
+            hedef.write_bytes(r.content)
             return True
-    except urllib.error.HTTPError as e:
-        if e.code != 404:                # 404: sayfalamanın sonu, beklenen durum
-            print(f"    indirilemedi (HTTP {e.code}): {url}")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        if r.status_code != 404:             # 404: sayfalamanın sonu, beklenen
+            print(f"    indirilemedi (HTTP {r.status_code}): {url}")
+    except httpx.HTTPError as e:
         print(f"    indirilemedi ({type(e).__name__}): {url}")
     return hedef.exists() and hedef.stat().st_size >= en_az
 
@@ -191,7 +188,7 @@ async def calistir(args) -> int:
     cikarici = DataExtractor(analizci)
     aktif = {}
 
-    async def _dosyadan(_url):
+    async def _dosyadan(_url, **_):
         return aktif["dosya"].read_text(encoding="utf-8", errors="ignore")
     cikarici._fetch_url_with_retry = _dosyadan
 
