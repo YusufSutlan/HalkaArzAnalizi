@@ -3,14 +3,107 @@
   "sirket_adi": "Babacan Gayrimenkul Yatırım Ortaklığı A.Ş.",
   "izahname_url": "https://babacangyo.com/wp-content/uploads/2026/03/Babacan-GYO-taslak-izahname-1.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-11-21T15:07:24Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2023-12",
+    "2024-12",
+    "2025-12"
+  ],
+  "guncel": {
+    "Hasilat": 143608259.0,
+    "BrutKar": -84319212.0,
+    "FaaliyetKari": -170986364.0,
+    "NetKar": -381155270.0,
+    "Ozkaynak": 3139826572.0,
+    "ToplamVarlik": 6482171613.0,
+    "ToplamKaynak": 6482171613.0,
+    "DonenVarlik": 927827175.0,
+    "KisaVadeliYukumluluk": 586544038.0,
+    "FinansalBorc": 449845681.0,
+    "FinansmanGideri": -287848872.0,
+    "OdenmisSermaye": 695613909.0,
+    "IsletmeNakitAkisi": 350125180.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2024-12": 50827714.0,
+      "2025-12": 143608259.0
+    },
+    "BrutKar": {
+      "2024-12": -10310977.0,
+      "2025-12": -84319212.0
+    },
+    "FaaliyetKari": {
+      "2023-12": -149890.0,
+      "2024-12": -67161354.0,
+      "2025-12": -170986364.0
+    },
+    "NetKar": {
+      "2023-12": -432493.0,
+      "2024-12": 13893616.0,
+      "2025-12": -381155270.0
+    },
+    "Ozkaynak": {
+      "2023-12": 2291714387.0,
+      "2024-12": 3521128020.0,
+      "2025-12": 3139826572.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 3092655767.0,
+      "2024-12": 6011031868.0,
+      "2025-12": 6482171613.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 3092655767.0,
+      "2024-12": 6011031868.0,
+      "2025-12": 6482171613.0
+    },
+    "DonenVarlik": {
+      "2023-12": 1057174763.0,
+      "2024-12": 1020791111.0,
+      "2025-12": 927827175.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 40962187.0,
+      "2024-12": 824323569.0,
+      "2025-12": 586544038.0
+    },
+    "FinansalBorc": {
+      "2024-12": 450424767.0,
+      "2025-12": 449845681.0
+    },
+    "FinansmanGideri": {
+      "2023-12": -270476.0,
+      "2024-12": -238614590.0,
+      "2025-12": -287848872.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 188742860.0,
+      "2024-12": 695613909.0,
+      "2025-12": 695613909.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": -116830296.0,
+      "2024-12": 184941560.0,
+      "2025-12": 350125180.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "brut_kar_makul": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "",
+  "islenen_sayfalar": [
+    46,
+    47,
+    126,
+    145,
+    153,
+    154,
+    155
+  ]
 }
