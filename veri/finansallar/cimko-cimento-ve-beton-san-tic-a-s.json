@@ -1,0 +1,53 @@
+{
+  "slug": "cimko-cimento-ve-beton-san-tic-a-s",
+  "sirket_adi": "Çimko Çimento ve Beton San. Tic. A.Ş.",
+  "izahname_url": "https://cimko.com.tr/wp-content/uploads/2024/05/izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-11-22T15:37:24Z",
+  "olcek": 1000.0,
+  "donemler": [
+    "2021-12",
+    "2022-12",
+    "2023-12"
+  ],
+  "guncel": {
+    "Hasilat": 14612083000.0
+  },
+  "seriler": {
+    "Hasilat": {
+      "2021-12": 8109043000.0,
+      "2022-12": 12800441000.0,
+      "2023-12": 14612083000.0
+    }
+  },
+  "dogrulama": {},
+  "guvenilir": false,
+  "not": "Hiçbir tutarlılık kontrolü yapılamadı (yetersiz kalem).",
+  "islenen_sayfalar": [
+    108,
+    109,
+    110,
+    111,
+    112,
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125,
+    126,
+    127,
+    128,
+    129,
+    130,
+    131
+  ]
+}

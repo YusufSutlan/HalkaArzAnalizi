@@ -3,14 +3,85 @@
   "sirket_adi": "Oğuzata Gayrimenkul Yatırım Ortaklığı A.Ş.",
   "izahname_url": "https://oguzatagyo.com/assets/images/izahname.pdf",
   "kaynak": "izahname-pdf+llm",
-  "model": "",
-  "islenme_zamani": "",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-11-22T15:27:32Z",
   "olcek": 1.0,
-  "donemler": [],
-  "guncel": {},
-  "seriler": {},
-  "dogrulama": {},
-  "guvenilir": false,
-  "not": "Hiçbir sayfa aralığında yapay zeka yanıtı alınamadı.",
-  "islenen_sayfalar": []
+  "donemler": [
+    "2023-12",
+    "2024-12"
+  ],
+  "guncel": {
+    "DonenVarlik": 208911636.0,
+    "Nakit": 11864574.0,
+    "DuranVarlik": 1682325000.0,
+    "ToplamVarlik": 1891236636.0,
+    "KisaVadeliYukumluluk": 335908.0,
+    "UzunVadeliYukumluluk": 317190004.0,
+    "Ozkaynak": 1573710725.0,
+    "OdenmisSermaye": 500000000.0,
+    "NetKar": 128991459.0,
+    "ToplamKaynak": 1891236636.0,
+    "IsletmeNakitAkisi": -77208416.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2023-12": 157501862.0,
+      "2024-12": 208911636.0
+    },
+    "Nakit": {
+      "2023-12": 3188721.0,
+      "2024-12": 11864574.0
+    },
+    "DuranVarlik": {
+      "2023-12": 1309647860.0,
+      "2024-12": 1682325000.0
+    },
+    "ToplamVarlik": {
+      "2023-12": 1467149722.0,
+      "2024-12": 1891236636.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2023-12": 72352151.0,
+      "2024-12": 335908.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2023-12": 220708001.0,
+      "2024-12": 317190004.0
+    },
+    "Ozkaynak": {
+      "2023-12": 1174089570.0,
+      "2024-12": 1573710725.0
+    },
+    "OdenmisSermaye": {
+      "2023-12": 300000000.0,
+      "2024-12": 500000000.0
+    },
+    "NetKar": {
+      "2023-12": 2853932.0,
+      "2024-12": 128991459.0
+    },
+    "ToplamKaynak": {
+      "2023-12": 1467149722.0,
+      "2024-12": 1891236636.0
+    },
+    "IsletmeNakitAkisi": {
+      "2023-12": 62625852.0,
+      "2024-12": -77208416.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    80,
+    81,
+    82,
+    83,
+    92,
+    93
+  ]
 }
