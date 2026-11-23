@@ -1,0 +1,99 @@
+{
+  "slug": "dag-gayrimenkul-yatirim-ortakligi-a-s",
+  "sirket_adi": "Dağ Gayrimenkul Yatırım Ortaklığı A.Ş.",
+  "izahname_url": "https://www.integralkurfin.com/PDF/fiyat-tespit-raporlari/dagholding/izahname.pdf",
+  "kaynak": "izahname-pdf+llm",
+  "model": "gemini/gemini-flash-latest",
+  "islenme_zamani": "2026-11-23T19:08:03Z",
+  "olcek": 1.0,
+  "donemler": [
+    "2024-03",
+    "2024-12",
+    "2025-06"
+  ],
+  "guncel": {
+    "DonenVarlik": 7149327913.0,
+    "Nakit": 38750787.0,
+    "DuranVarlik": 79732050.0,
+    "ToplamVarlik": 7229059963.0,
+    "KisaVadeliYukumluluk": 4862780138.0,
+    "UzunVadeliYukumluluk": 483516784.0,
+    "Ozkaynak": 1882763041.0,
+    "OdenmisSermaye": 700000000.0,
+    "NetKar": 1107161185.0,
+    "ToplamKaynak": 7229059963.0,
+    "IsletmeNakitAkisi": -311442715.0
+  },
+  "seriler": {
+    "DonenVarlik": {
+      "2024-03": 4544888095.0,
+      "2024-12": 5397825974.0,
+      "2025-06": 7149327913.0
+    },
+    "Nakit": {
+      "2024-03": 17513.0,
+      "2024-12": 20479649.0,
+      "2025-06": 38750787.0
+    },
+    "DuranVarlik": {
+      "2024-03": 226374185.0,
+      "2024-12": 300921647.0,
+      "2025-06": 79732050.0
+    },
+    "ToplamVarlik": {
+      "2024-03": 4771262280.0,
+      "2024-12": 5698747621.0,
+      "2025-06": 7229059963.0
+    },
+    "KisaVadeliYukumluluk": {
+      "2024-03": 1099395808.0,
+      "2024-12": 1141809931.0,
+      "2025-06": 4862780138.0
+    },
+    "UzunVadeliYukumluluk": {
+      "2024-03": 2432861283.0,
+      "2024-12": 2509372927.0,
+      "2025-06": 483516784.0
+    },
+    "Ozkaynak": {
+      "2024-03": 1239005189.0,
+      "2024-12": 2047564762.0,
+      "2025-06": 1882763041.0
+    },
+    "OdenmisSermaye": {
+      "2024-03": 289950000.0,
+      "2024-12": 700000000.0,
+      "2025-06": 700000000.0
+    },
+    "NetKar": {
+      "2024-03": 480211653.0,
+      "2024-12": 480211653.0,
+      "2025-06": 1107161185.0
+    },
+    "ToplamKaynak": {
+      "2024-03": 4771262280.0,
+      "2024-12": 5698747621.0,
+      "2025-06": 7229059963.0
+    },
+    "IsletmeNakitAkisi": {
+      "2025-06": -311442715.0,
+      "2024-06": -19146089.0,
+      "2024-12": -321181657.0
+    }
+  },
+  "dogrulama": {
+    "bilanco_denkligi": true,
+    "varlik_toplami": true,
+    "ozkaynak_makul": true
+  },
+  "guvenilir": true,
+  "not": "Kullanılabilir ancak şu kalemler eksik: Hasilat",
+  "islenen_sayfalar": [
+    114,
+    115,
+    116,
+    117,
+    132,
+    133
+  ]
+}
