@@ -22,3 +22,6 @@ mobil_app/build/
 
 # Geriye dönük test aracının indirdiği sayfalar
 .onbellek/
+
+# Yerel yayın denetimi notları — GitHub'a gitmesin
+YAYIN_DENETIMI.md

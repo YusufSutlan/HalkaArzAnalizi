@@ -96,10 +96,21 @@ klasörde `flutter run` yeterlidir, ayrı bir backend kurmaya gerek yoktur.
 
 | Uç Nokta | Açıklama |
 |---|---|
-| `GET /api/halkarzlar` | Güncel halka arz listesini ve analiz sonuçlarını döner. Sonuçlar `CACHE_TTL` saniye önbelleklenir. |
+| `GET /api/halkarzlar` | Güncel halka arz listesini ve analiz sonuçlarını döner. Yanıttaki `status` alanına bakın (aşağıda). |
 | `GET /api/halkarzlar?debug=true` | Ham veriyi döner; `X-Debug-Key` header'ında geçerli bir anahtar ister. |
 | `POST /api/cache/clear` | Önbelleği temizler; `X-Debug-Key` header'ı gerekir. |
-| `GET /health` | Basit sağlık kontrolü. |
+| `GET /health` | Sağlık kontrolü. `kaynak` alanı son kazımanın sonucunu gösterir (`ok` / `veri_yok` / `kaynak_hatasi` + sebep). |
+
+`/api/halkarzlar` yanıtındaki `status`:
+
+| `status` | HTTP | Anlamı | Önbellek |
+|---|---|---|---|
+| `ok` | 200 | `halka_arzlar` dolu | `CACHE_TTL` |
+| `veri_yok` | 200 | Kaynak okundu, aktif arz yok. `son_tamamlananlar`: son tamamlanan arzların **puansız** verileri (şirket, kod, tarih, fiyat, büyüklük, dağıtım, katılımcı) | `BOS_CACHE_TTL` |
+| `kaynak_hatasi` | 503 | halkarz.com alınamadı, ana sayfada hiç arz kartı yok (yapı değişmiş) veya güncel arzların detay sayfalarının hiçbiri okunamadı. `detail` açıklama içerir. | `HATA_CACHE_TTL` |
+| `sunucu_hatasi` | 500 | Sunucudaki beklenmeyen hata | `HATA_CACHE_TTL` |
+
+Önbellek boşken aynı anda gelen istekler tek bir taramada birleşir.
 
 ## Kurulum ve Çalıştırma
 
@@ -126,7 +137,10 @@ Dockerfile; izahname PDF'lerindeki taranmış (görüntü) metni okuyabilmek iç
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
 | `BASE_URL` | `https://halkarz.com/` | Taranacak kaynak site |
-| `CACHE_TTL` | `300` | Önbellek süresi (saniye) |
+| `CACHE_TTL` | `900` | Arz listesi önbellek süresi (saniye) |
+| `BOS_CACHE_TTL` | `300` | "Aktif arz yok" sonucunun önbellek süresi |
+| `HATA_CACHE_TTL` | `60` | Kaynak/sunucu hatasının önbellek süresi (aynı zamanda `Retry-After`) |
+| `SON_TAMAMLANAN_ADET` | `15` | Aktif arz yokken gösterilen son tamamlanan arz sayısı |
 | `MAX_SIRKET` | `15` / `40` | Aynı anda işlenecek maksimum şirket sayısı |
 | `DEBUG_API_KEY` | — | Debug uçları için gerekli anahtar |
 | `ALLOWED_ORIGINS` | `*` | CORS izinli originler |
@@ -136,6 +150,8 @@ Dockerfile; izahname PDF'lerindeki taranmış (görüntü) metni okuyabilmek iç
 ## Test
 
 ```bash
+python test_kazima.py   # kazıma + API durumları + önbellek (örnek HTML, ağ gerekmez)
+python test_skor.py
 python test_kap.py
 ```
 

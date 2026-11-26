@@ -107,6 +107,28 @@ class GecmisArzlar:
         gun = (date.today() - self.guncelleme).days
         return (gun > BAYATLAMA_GUNU, gun)
 
+    # Kullanıcıya gösterilecek alanlar. Puan/skor/getiri alanları BİLEREK
+    # yok: bu liste aktif arz olmadığında gösterilen yalın bir veri özetidir,
+    # değerlendirme içermez.
+    SON_ARZ_ALANLARI = ("sirket", "kod", "talep_bit", "islem", "fiyat", "arz",
+                        "dagitim", "katilimci")
+
+    def son_tamamlananlar(self, adet: int = 15,
+                          bugun: Optional[date] = None) -> list[dict]:
+        """Talep toplaması bitmiş en yeni `adet` arz, yeniden eskiye.
+
+        Yalnızca veri alanları döner (SON_ARZ_ALANLARI); kalite, baskı,
+        kısa vade skoru veya getiri gibi yorum içeren alanlar dönmez.
+        """
+        if adet <= 0:
+            return []
+        sinir = (bugun or date.today()).isoformat()
+        biten = [k for k in self.arzlar if k["talep_bit"] <= sinir]
+        return [
+            {a: k[a] for a in self.SON_ARZ_ALANLARI if k.get(a) not in (None, "")}
+            for k in reversed(biten[-adet:])
+        ]
+
     # ───────────────────────── referanslar ─────────────────────────
 
     def beklenen_katilimci(self, tarih: Optional[date] = None) -> tuple[int, str]:

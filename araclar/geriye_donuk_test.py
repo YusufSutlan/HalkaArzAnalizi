@@ -235,6 +235,11 @@ async def calistir(args) -> int:
         r["talep_bit"] = ta[1].isoformat() if ta else None
         ia = TextUtils.tarih_araligi_coz(str(v.get(InfoKey.ISLEM_TARIHI, "")))
         r["islem"] = ia[0].isoformat() if ia else None
+        # Dağıtım yöntemi (aktif arz yokken gösterilen "son tamamlanan arzlar"
+        # listesi için). Kaynak sitede dipnot işareti olarak "**" eklenebiliyor.
+        dagitim = str(v.get(InfoKey.DAGITIM_YONTEMI, "")).replace("*", "").strip()
+        if dagitim and dagitim != "Açıklanmadı":
+            r["dagitim"] = dagitim
 
         # Gerçekleşen dağıtım (sayfadaki "Halka Arz Sonuçları" tablosu)
         m = re.search(r"Yurt İçi Bireysel\n([\d.]+)\n([\d.]+)\n%([\d,.]+)", rt)
@@ -362,7 +367,7 @@ async def calistir(args) -> int:
     print("═" * 78)
 
     if args.yaz:
-        alanlar = ("kod", "sirket", "talep_bit", "islem", "arz", "fiyat", "katilimci",
+        alanlar = ("kod", "sirket", "talep_bit", "islem", "arz", "fiyat", "dagitim", "katilimci",
                    "kisi_basi_tl", "mom60", "tavan", "ilk_gun", "getiri_5g", "getiri_20g",
                    "getiri_60g", "kalite", "baski_skoru", "kisa_vade_skoru")
         cikti = {

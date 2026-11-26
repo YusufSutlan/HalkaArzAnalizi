@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'arz_yaniti.dart';
 import 'bildirimler.dart';
 import 'hakkinda.dart';
+import 'son_arzlar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -301,8 +303,13 @@ class AnaEkran extends StatefulWidget {
 
 class _AnaEkranState extends State<AnaEkran> {
   List<dynamic> halkaArzlar = [];
+  // Aktif arz yokken gösterilen, puansız "son tamamlanan arzlar" verisi.
+  List<dynamic> sonTamamlananlar = [];
   bool yukleniyor = true;
   String hataMesaji = "";
+  // Sunucu "kaynak_hatasi" dedi: halkarz.com okunamadı veya yapısı değişti.
+  // "Aktif arz yok" ekranından AYRI bir ekranla gösterilir.
+  bool kaynakHatasi = false;
   // Son başarılı yanıtın zamanı (önbellekten gösterilirken kullanıcıya
   // belirtmek için). Önbellek: sunucu uyurken bile liste anında görünsün.
   DateTime? sonGuncelleme;
@@ -496,10 +503,11 @@ class _AnaEkranState extends State<AnaEkran> {
       final prefs = await SharedPreferences.getInstance();
       final String? ham = prefs.getString(_onbellekAnahtari);
       final int? zaman = prefs.getInt(_onbellekZamanAnahtari);
-      if (ham != null && mounted) {
-        final decoded = json.decode(ham);
+      final ArzYaniti? kayitli = ham != null ? arzYanitiCoz(200, ham) : null;
+      if (kayitli != null && mounted) {
         setState(() {
-          halkaArzlar = decoded['halka_arzlar'] ?? [];
+          halkaArzlar = kayitli.arzlar;
+          sonTamamlananlar = kayitli.sonTamamlananlar;
           sonGuncelleme = zaman != null
               ? DateTime.fromMillisecondsSinceEpoch(zaman)
               : null;
@@ -536,6 +544,7 @@ class _AnaEkranState extends State<AnaEkran> {
     _istekSuruyor = true;
     Object? sonHata;
     int? sonKod;
+    bool kaynakHatasiGeldi = false;
     try {
       for (int deneme = 0; deneme <= ApiConfig.otomatikTekrar; deneme++) {
         if (!mounted) return;
@@ -544,13 +553,16 @@ class _AnaEkranState extends State<AnaEkran> {
               .get(Uri.parse('${ApiConfig.baseUrl}/api/halkarzlar'))
               .timeout(ApiConfig.timeout);
           if (!mounted) return;
-          if (response.statusCode == 200) {
-            final String govde = utf8.decode(response.bodyBytes);
-            final decoded = json.decode(govde);
+          final String govde = utf8.decode(response.bodyBytes);
+          final ArzYaniti? yanit = arzYanitiCoz(response.statusCode, govde);
+          if (yanit != null && yanit.durum != YanitDurumu.kaynakHatasi) {
+            // "ok" veya "veri_yok": ikisi de geçerli, güncel bir yanıt.
             setState(() {
-              halkaArzlar = decoded['halka_arzlar'] ?? [];
+              halkaArzlar = yanit.arzlar;
+              sonTamamlananlar = yanit.sonTamamlananlar;
               yukleniyor = false;
               hataMesaji = "";
+              kaynakHatasi = false;
               sonGuncelleme = DateTime.now();
               onbellektenGosteriliyor = false;
             });
@@ -562,6 +574,16 @@ class _AnaEkranState extends State<AnaEkran> {
               DateTime.now().millisecondsSinceEpoch,
             );
             return;
+          }
+          if (yanit?.durum == YanitDurumu.kaynakHatasi) {
+            // Sunucu ayakta ama kaynak site okunamıyor. Sunucu bu sonucu
+            // kısa süre önbelleklediği için hemen tekrar denemek anlamsız.
+            kaynakHatasiGeldi = true;
+            break;
+          }
+          if (response.statusCode == 200) {
+            // 200 ama tanınmayan gövde (bozuk JSON vb.)
+            throw const FormatException('Tanınmayan yanıt');
           }
           sonKod = response.statusCode;
           sonHata = Exception('HTTP $sonKod');
@@ -584,8 +606,34 @@ class _AnaEkranState extends State<AnaEkran> {
       }
 
       if (!mounted) return;
+      if (kaynakHatasiGeldi) {
+        if (halkaArzlar.isNotEmpty) {
+          // Önbellekte gerçek bir arz listesi var: ekranda kalsın.
+          setState(() => yukleniyor = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                "Veri kaynağına şu an ulaşılamıyor, son kayıtlı liste gösteriliyor.",
+              ),
+              duration: const Duration(seconds: 6),
+              action: SnackBarAction(
+                label: "Tekrar dene",
+                onPressed: verileriGetir,
+              ),
+            ),
+          );
+        } else {
+          // Kayıtlı arz yoksa "aktif arz yok" DEMİYORUZ: bilinmiyor.
+          setState(() {
+            kaynakHatasi = true;
+            hataMesaji = "";
+            yukleniyor = false;
+          });
+        }
+        return;
+      }
       final String mesaj = _hataMetni(sonHata ?? Exception(), sonKod);
-      if (halkaArzlar.isNotEmpty) {
+      if (halkaArzlar.isNotEmpty || sonTamamlananlar.isNotEmpty) {
         // Önbellekteki liste ekranda kalsın; kullanıcı yine de kullanabilsin.
         setState(() => yukleniyor = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -614,8 +662,9 @@ class _AnaEkranState extends State<AnaEkran> {
 
   void _yenidenDene() {
     setState(() {
-      yukleniyor = halkaArzlar.isEmpty;
+      yukleniyor = halkaArzlar.isEmpty && sonTamamlananlar.isEmpty;
       hataMesaji = "";
+      kaynakHatasi = false;
     });
     verileriGetir();
   }
@@ -661,6 +710,9 @@ class _AnaEkranState extends State<AnaEkran> {
       ),
       body: yukleniyor
           ? const _YukleniyorGorunumu()
+          // Kaynak site okunamadı: "aktif arz yok"tan AYRI ekran.
+          : kaynakHatasi
+          ? KaynakHatasiGorunumu(onTekrar: _yenidenDene)
           : hataMesaji.isNotEmpty
           ? Center(
               child: Padding(
@@ -700,11 +752,23 @@ class _AnaEkranState extends State<AnaEkran> {
           // Aktif arz olmadığı dönemler çok sık; tek satırlık bir metin
           // uygulamanın bozuk olduğu izlenimini veriyordu. Artık durum
           // açıklanıyor ve aşağı çekerek yenileme de çalışıyor.
+          // YENİ: Sunucu geçmiş veriyi gönderdiyse boş ekran yerine
+          // puansız "Son tamamlanan arzlar" listesi gösteriliyor.
           ? RefreshIndicator(
               color: AppColors.accent,
               backgroundColor: AppColors.surface,
               onRefresh: verileriGetir,
-              child: ListView(
+              child: sonTamamlananlar.isNotEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                          20, 10, 20, 16 + MediaQuery.paddingOf(context).bottom),
+                      children: [
+                        SonTamamlananlarBolumu(arzlar: sonTamamlananlar),
+                        const YatirimUyarisiNotu(),
+                      ],
+                    )
+                  : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 children: [

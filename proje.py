@@ -54,6 +54,15 @@ class AppSettings:
     # API yanıtı önbelleği. Halka arz verisi dakikalar içinde değişmediği için
     # 15 dk; böylece kaynak siteye gereksiz tekrar istek gitmez.
     CACHE_TTL: int = int(os.environ.get("CACHE_TTL", "900"))
+    # Aktif arz yoksa ("veri_yok") sonuç daha kısa tutulur: yeni duyurulan
+    # bir arz en geç bu kadar saniyede görünsün, ama her uygulama açılışı da
+    # kaynak siteye istek atmasın.
+    BOS_CACHE_TTL: int = int(os.environ.get("BOS_CACHE_TTL", "300"))
+    # Kaynak hatası da kısa süre tutulur; site çökmüşken gelen her istek
+    # siteye yeniden yüklenmesin.
+    HATA_CACHE_TTL: int = int(os.environ.get("HATA_CACHE_TTL", "60"))
+    # Aktif arz yokken gösterilecek "son tamamlanan arzlar" sayısı.
+    SON_TAMAMLANAN_ADET: int = int(os.environ.get("SON_TAMAMLANAN_ADET", "15"))
     # Arz detay sayfaları ayrıca bu kadar saniye önbelleklenir (kaynak site
     # ETag/Last-Modified göndermediği için koşullu istek yapılamıyor).
     # Ana liste sayfası her yenilemede taze alınır.
@@ -2119,9 +2128,20 @@ class ScoreAnalyzer:
 # 🕸️ 5. VERİ ÇEKİCİ (ASYNC)
 # ═══════════════════════════════════════════════════════════════════
 
+class KaynakHatasi(Exception):
+    """Kaynak siteden veri okunamadı (site erişilemez veya yapısı değişmiş).
+
+    "Şu an aktif arz yok" (veri_yok) durumundan AYRI tutulur: aksi halde site
+    çöktüğünde veya HTML yapısı değiştiğinde API boş liste döndürür ve
+    kullanıcı arızayı "aktif arz yok" diye görür.
+    """
+
+
 class DataExtractor:
     def __init__(self, analyzer: Optional[ScoreAnalyzer] = None):
         self.analyzer = analyzer or ScoreAnalyzer()
+        # Son taramanın özeti; /health bunu gösterir.
+        self.son_tarama: dict = {"durum": "henuz_yok"}
         # Tarayıcı taklidi yok: istekler kendini tanıtan bir User-Agent ile,
         # sunucu başına asgari aralıkla ve sayfa önbelleğiyle gider.
         self.http = AsyncIstemci(
@@ -3231,16 +3251,27 @@ class DataExtractor:
 
     # ───────────────────────── ORKESTRA ─────────────────────────
 
+    def _tarama_kaydet(self, durum: str, **ek) -> None:
+        self.son_tarama = {"durum": durum, "zaman": datetime.now().isoformat(timespec="seconds"), **ek}
+
     async def analiz_et(self, debug: bool = False) -> list[dict]:
+        """Güncel arzları tarar ve puanlar.
+
+        Boş liste = kaynak okundu ama gösterilecek aktif arz yok.
+        Kaynak okunamazsa (sayfa gelmedi, hiç arz kartı yok, detay sayfalarının
+        hiçbiri okunamadı) KaynakHatasi yükseltir.
+        """
         # Ana liste her seferinde taze alınır; detay sayfaları önbellekten gelebilir.
         html = await self._fetch_url_with_retry(SETTINGS.BASE_URL, onbellekten=False)
         if not html:
-            return []
+            self._tarama_kaydet("kaynak_hatasi", sebep="ana sayfa alınamadı")
+            raise KaynakHatasi("Kaynak siteye ulaşılamadı.")
 
         soup = BeautifulSoup(html, "html.parser")
         gorulen: set[str] = set()
         meta_list: list[tuple[str, str, str]] = []
         atlanan = 0
+        kart_sayisi = 0
 
         for etiket in soup.find_all("h3"):
             link = etiket.find("a") or etiket.find_parent("a")
@@ -3249,6 +3280,7 @@ class DataExtractor:
             sirket_adi = etiket.get_text(strip=True)
             if sirket_adi in gorulen or len(sirket_adi) <= 3:
                 continue
+            kart_sayisi += 1
 
             parent_li = etiket.find_parent("li")
             kart_metni = TextUtils.kucult(
@@ -3311,6 +3343,13 @@ class DataExtractor:
             f"Kaynak sayfada {len(gorulen) + atlanan} aday; "
             f"{len(meta_list)} şirket işlenecek, {atlanan} kart filtrelendi."
         )
+        # Kaynak sitenin ana sayfası her zaman geçmiş arzları da listeler
+        # (normalde 200+ kart). Hiç kart yoksa sayfa yapısı değişmiştir;
+        # bu "aktif arz yok" DEĞİL, okuma hatasıdır.
+        if kart_sayisi == 0:
+            self._tarama_kaydet("kaynak_hatasi", sebep="ana sayfada arz kartı bulunamadı",
+                                kart_sayisi=0)
+            raise KaynakHatasi("Kaynak sitenin sayfa yapısı okunamadı.")
 
         semaphore = asyncio.Semaphore(SETTINGS.ESZAMANLI_ISTEK_LIMITI)
 
@@ -3328,6 +3367,12 @@ class DataExtractor:
                 continue
             if res:
                 parsed_list.append(res)
+        # Güncel kart vardı ama detay sayfalarının HİÇBİRİ okunamadıysa
+        # (site detay sayfalarını vermiyor) bu da okuma hatasıdır.
+        if meta_list and not parsed_list:
+            self._tarama_kaydet("kaynak_hatasi", sebep="detay sayfaları okunamadı",
+                                kart_sayisi=kart_sayisi, guncel_kart=len(meta_list))
+            raise KaynakHatasi("Kaynak sitedeki arz sayfaları okunamadı.")
 
         # FAZ 2: piyasa bağlamını hesapla, sonra puanla
         # DEĞİŞİKLİK: Gösterilmeyecek durumlar (Hazırlanıyor / SPK Onaylı)
@@ -3406,6 +3451,8 @@ class DataExtractor:
             key=lambda s: (DURUM_SIRASI.get(s.get("durum"), 99),
                            -(s.get("temel_kalite_skoru") or 0))
         )
+        self._tarama_kaydet("ok" if sirket_listesi else "veri_yok",
+                            kart_sayisi=kart_sayisi, arz_sayisi=len(sirket_listesi))
         return sirket_listesi
 
     async def close(self):
@@ -3417,26 +3464,50 @@ class DataExtractor:
 # ═══════════════════════════════════════════════════════════════════
 
 class CacheManager:
-    def __init__(self):
-        self._timestamp: float = 0.0
-        self._data: list = []
-        self._lock = asyncio.Lock()
+    """
+    /api/halkarzlar yanıt önbelleği.
 
-    async def get(self) -> Optional[list]:
-        async with self._lock:
-            if time.time() - self._timestamp < SETTINGS.CACHE_TTL and self._data:
-                return self._data
+    - Her durumun kendi süresi var: "ok" CACHE_TTL, "veri_yok" BOS_CACHE_TTL,
+      hata HATA_CACHE_TTL. Eskiden boş sonuç hiç önbelleklenmiyordu; aktif arz
+      olmayan dönemlerde her uygulama açılışı kaynak siteye istek atıyordu.
+    - Tek uçuş: önbellek boşken aynı anda gelen istekler tek bir taramayı
+      bekler; her biri ayrı tarama başlatmaz.
+    """
+
+    def __init__(self, saat=time.monotonic):
+        self._saat = saat
+        self._kayit: Optional[tuple[float, int, dict]] = None  # (bitiş, HTTP kodu, gövde)
+        self._kilit = asyncio.Lock()
+
+    @staticmethod
+    def sure(durum: str) -> int:
+        if durum == "ok":
+            return SETTINGS.CACHE_TTL
+        if durum == "veri_yok":
+            return SETTINGS.BOS_CACHE_TTL
+        return SETTINGS.HATA_CACHE_TTL
+
+    def _gecerli(self) -> Optional[tuple[int, dict]]:
+        k = self._kayit
+        if k and self._saat() < k[0]:
+            return k[1], k[2]
         return None
 
-    async def set(self, data: list):
-        async with self._lock:
-            self._data = data
-            self._timestamp = time.time()
+    async def al_veya_uret(self, uret) -> tuple[int, dict]:
+        """Geçerli kayıt varsa onu, yoksa `uret()` sonucunu döndürür ve saklar."""
+        k = self._gecerli()
+        if k:
+            return k
+        async with self._kilit:
+            k = self._gecerli()  # kilidi beklerken başka istek doldurmuş olabilir
+            if k:
+                return k
+            kod, govde = await uret()
+            self._kayit = (self._saat() + self.sure(govde.get("status", "")), kod, govde)
+            return kod, govde
 
     async def invalidate(self):
-        async with self._lock:
-            self._timestamp = 0.0
-            self._data = []
+        self._kayit = None
 
 
 CACHE = CacheManager()
@@ -3537,28 +3608,54 @@ async def get_halka_arzlar(
     debug: bool = Query(False, description="Debug modu (ham verileri döner)"),
     x_debug_key: Optional[str] = Header(None, alias="X-Debug-Key"),
 ):
+    """
+    Yanıttaki `status` alanı üç durumu ayırır:
+      - "ok"            (200) halka_arzlar dolu
+      - "veri_yok"      (200) kaynak okundu, aktif arz yok; son_tamamlananlar dolu
+      - "kaynak_hatasi" (503) kaynak site okunamadı / yapısı değişti
+      - "sunucu_hatasi" (500) sunucudaki beklenmeyen bir hata
+    """
     if debug and not check_debug_permission(x_debug_key):
         raise HTTPException(status_code=403, detail="Debug modu için geçerli API Key gerekli.")
 
-    if not debug:
-        cached = await CACHE.get()
-        if cached:
-            return {"halka_arzlar": cached, "uyari": YATIRIM_UYARISI, "meta": _meta_bilgisi()}
-
     extractor: DataExtractor = app.state.extractor
+
+    async def _uret() -> tuple[int, dict]:
+        return await liste_yaniti_uret(extractor, debug=debug)
+
+    kod, govde = await (_uret() if debug else CACHE.al_veya_uret(_uret))
+    icerik = {**govde, "uyari": YATIRIM_UYARISI, "meta": _meta_bilgisi()}
+    basliklar = {"Retry-After": str(SETTINGS.HATA_CACHE_TTL)} if kod >= 500 else None
+    return UTF8JSONResponse(status_code=kod, content=icerik, headers=basliklar)
+
+
+async def liste_yaniti_uret(extractor: "DataExtractor", debug: bool = False) -> tuple[int, dict]:
+    """Tarama yapar ve (HTTP kodu, gövde) döndürür. Önbellekten bağımsızdır."""
     try:
         veriler = await extractor.analiz_et(debug=debug)
+    except KaynakHatasi as e:
+        logger.warning(f"Kaynak hatası: {e} ({extractor.son_tarama})")
+        return 503, {
+            "status": "kaynak_hatasi",
+            "detail": f"{e} Lütfen biraz sonra tekrar deneyin.",
+            "halka_arzlar": [],
+        }
     except Exception as e:
         logger.exception(f"Analiz sırasında beklenmeyen hata: {e}")
-        raise HTTPException(
-            status_code=502,
-            detail="Veri kaynağına şu anda ulaşılamıyor, lütfen daha sonra tekrar deneyin.",
-        )
-
-    if veriler and not debug:
-        await CACHE.set(veriler)
-
-    return {"halka_arzlar": veriler, "uyari": YATIRIM_UYARISI, "meta": _meta_bilgisi()}
+        return 500, {
+            "status": "sunucu_hatasi",
+            "detail": "Sunucuda beklenmeyen bir hata oluştu, lütfen daha sonra tekrar deneyin.",
+            "halka_arzlar": [],
+        }
+    if veriler:
+        return 200, {"status": "ok", "halka_arzlar": veriler}
+    return 200, {
+        "status": "veri_yok",
+        "halka_arzlar": [],
+        # Yalnızca veri alanları (şirket, kod, tarih, fiyat, büyüklük, dağıtım,
+        # katılımcı); puan/yorum içermez. Bkz. Gecmisveri.son_tamamlananlar.
+        "son_tamamlananlar": GECMIS.son_tamamlananlar(SETTINGS.SON_TAMAMLANAN_ADET),
+    }
 
 
 @app.post("/api/cache/clear")
@@ -3593,6 +3690,9 @@ async def health_check():
     except Exception as e:
         saglik["bist_momentum_60g"] = None
         saglik["endeks"] = {"durum": f"hata: {type(e).__name__}"}
+    # Son kazımanın sonucu: ok / veri_yok / kaynak_hatasi (+ sebep, kart sayısı).
+    # "kaynak_hatasi" görülürse halkarz.com erişilemiyor veya yapısı değişmiştir.
+    saglik["kaynak"] = getattr(app.state.extractor, "son_tarama", None)
     return saglik
 
 
